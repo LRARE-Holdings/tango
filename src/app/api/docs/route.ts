@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import crypto from "crypto";
 
 const MAX_MB = 20;
 
@@ -50,7 +51,10 @@ export async function POST(req: Request) {
 
     // 2) Upload PDF to Storage
     const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+    const buf = Buffer.from(arrayBuffer);
+
+    // Compute document integrity hash (hex)
+    const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
 
     // Path convention (no auth yet): keep it simple
     // Later: docs/{userId}/{docId}.pdf and enforce Storage RLS.
@@ -58,9 +62,9 @@ export async function POST(req: Request) {
 
     const { error: uploadErr } = await admin.storage
       .from("docs")
-      .upload(file_path, bytes, {
+      .upload(file_path, buf, {
         contentType: "application/pdf",
-        upsert: true,
+        upsert: false,
       });
 
     if (uploadErr) {
@@ -70,7 +74,7 @@ export async function POST(req: Request) {
     // 3) Update doc with real file_path
     const { error: updErr } = await admin
       .from("documents")
-      .update({ file_path })
+      .update({ file_path, sha256 })
       .eq("id", doc.id);
 
     if (updErr) {
