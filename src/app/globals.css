@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/* Receipt theme: #000000 and #eaeaea */
+:root {
+  --bg: #eaeaea;
+  --fg: #000000;
+
+  --muted: rgba(0, 0, 0, 0.68);
+  --muted2: rgba(0, 0, 0, 0.52);
+
+  --border: rgba(0, 0, 0, 0.16);
+  --border2: rgba(0, 0, 0, 0.10);
+
+  --card: rgba(0, 0, 0, 0.035);
+  --card2: rgba(0, 0, 0, 0.06);
+
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.10);
+}
+
+.dark {
+  --bg: #000000;
+  --fg: #eaeaea;
+
+  --muted: rgba(234, 234, 234, 0.72);
+  --muted2: rgba(234, 234, 234, 0.56);
+
+  --border: rgba(234, 234, 234, 0.18);
+  --border2: rgba(234, 234, 234, 0.12);
+
+  --card: rgba(234, 234, 234, 0.06);
+  --card2: rgba(234, 234, 234, 0.09);
+
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+
+  /* Nicer rendering */
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle “Receipt” grid (slightly refined) */
+.receipt-grid {
+  background: transparent;
+}
+
+/* Consistent focus ring that respects palette */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
