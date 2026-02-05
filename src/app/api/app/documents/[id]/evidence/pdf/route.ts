@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseServer } from "@/lib/supabase/server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
 function safeFilename(input: string) {
@@ -53,9 +54,15 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const { id } = (await ctx.params) as { id: string };
+
+  const supabase = await supabaseServer();
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+  if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const admin = supabaseAdmin();
 
-  const { data: doc, error: docErr } = await admin
+  const { data: doc, error: docErr } = await supabase
     .from("documents")
     .select("id,title,public_id,file_path,created_at,sha256")
     .eq("id", id)
@@ -126,10 +133,10 @@ export async function GET(
     y -= 12;
   };
 
-draw("receipt", { bold: true, size: 16 });
-draw("Receipt Record", { bold: true, size: 22 });
-draw(`Generated: ${formatUtc(new Date().toISOString())}`);
-drawDivider();
+  draw("receipt", { bold: true, size: 16 });
+  draw("Receipt Record", { bold: true, size: 22 });
+  draw(`Generated: ${formatUtc(new Date().toISOString())}`);
+  drawDivider();
 
   // Document section
   draw("DOCUMENT", { bold: true });
@@ -167,11 +174,11 @@ drawDivider();
       draw(`Time on page: ${formatDuration(c.time_on_page_seconds ?? null)}`);
       draw(`IP: ${c.ip ?? "—"}`);
 
-const ua = (c.user_agent ?? "—").toString();
-const lines = wrapText(`User agent: ${ua}`, width - margin * 2, font, 10);
-for (const ln of lines) {
-  draw(ln, { size: 10 });
-}
+      const ua = (c.user_agent ?? "—").toString();
+      const lines = wrapText(`User agent: ${ua}`, width - margin * 2, font, 10);
+      for (const ln of lines) {
+        draw(ln, { size: 10 });
+      }
     }
     drawDivider();
   }
@@ -187,21 +194,21 @@ for (const ln of lines) {
   const filename = `receipt-record-${safeFilename(doc.title || "document")}-${doc.id}.pdf`;
 
   const pages = pdf.getPages();
-const footerSize = 9;
+  const footerSize = 9;
 
-for (let i = 0; i < pages.length; i++) {
-  const p = pages[i];
-  const { width } = p.getSize();
-  const label = `Page ${i + 1} of ${pages.length}`;
-  const w = font.widthOfTextAtSize(label, footerSize);
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i];
+    const { width } = p.getSize();
+    const label = `Page ${i + 1} of ${pages.length}`;
+    const w = font.widthOfTextAtSize(label, footerSize);
 
-  p.drawText(label, {
-    x: width - 50 - w,
-    y: 30,
-    size: footerSize,
-    font,
-  });
-}
+    p.drawText(label, {
+      x: width - 50 - w,
+      y: 30,
+      size: footerSize,
+      font,
+    });
+  }
 
   return new NextResponse(Buffer.from(bytes), {
     status: 200,

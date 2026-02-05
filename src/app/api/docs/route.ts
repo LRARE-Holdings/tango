@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseServer } from "@/lib/supabase/server";
 import crypto from "crypto";
 
 const MAX_MB = 20;
@@ -25,16 +26,22 @@ export async function POST(req: Request) {
       ? titleRaw.trim()
       : "Untitled";
 
-    const admin = supabaseAdmin();
+    const supabase = await supabaseServer();
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr) {
+      return NextResponse.json({ error: userErr.message }, { status: 500 });
+    }
+    if (!userData.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // No auth yet: use a placeholder owner_id.
-    // Later: replace with session user id.
-    const owner_id = "00000000-0000-0000-0000-000000000000";
+    const admin = supabaseAdmin();
+    const owner_id = userData.user.id;
 
     const public_id = nanoid(10);
 
     // 1) Create the doc row (file_path temp)
-    const { data: doc, error: insertErr } = await admin
+    const { data: doc, error: insertErr } = await supabase
       .from("documents")
       .insert({
         owner_id,
@@ -56,8 +63,8 @@ export async function POST(req: Request) {
     // Compute document integrity hash (hex)
     const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
 
-    // Path convention (no auth yet): keep it simple
-    // Later: docs/{userId}/{docId}.pdf and enforce Storage RLS.
+    // Path convention: keep it simple for now.
+    // Later: consider docs/{userId}/{docId}.pdf and enforce Storage RLS.
     const file_path = `public/${doc.id}.pdf`;
 
     const { error: uploadErr } = await admin.storage
@@ -72,7 +79,7 @@ export async function POST(req: Request) {
     }
 
     // 3) Update doc with real file_path
-    const { error: updErr } = await admin
+    const { error: updErr } = await supabase
       .from("documents")
       .update({ file_path, sha256 })
       .eq("id", doc.id);

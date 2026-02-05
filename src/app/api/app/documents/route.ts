@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseServer } from "@/lib/supabase/server";
 
 type DocRow = {
   id: string;
@@ -15,10 +16,23 @@ type CompletionRow = {
 };
 
 export async function GET() {
+  const supabase = await supabaseServer();
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+
+  if (userErr) {
+    return NextResponse.json({ error: userErr.message }, { status: 500 });
+  }
+
+  if (!userData.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Admin is used only for completions aggregation for the already-authorized doc IDs.
+  // Later (once you add RLS to completions), switch this to the session client as well.
   const admin = supabaseAdmin();
 
   // 1) Fetch documents
-  const { data: docs, error: docsErr } = await admin
+  const { data: docs, error: docsErr } = await supabase
     .from("documents")
     .select("id,title,public_id,created_at")
     .order("created_at", { ascending: false })

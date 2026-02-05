@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseServer } from "@/lib/supabase/server";
 
 function safeFilename(input: string) {
   return input
@@ -14,9 +15,19 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const { id } = (await ctx.params) as { id: string };
+
+  const supabase = await supabaseServer();
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr) {
+    return NextResponse.json({ error: userErr.message }, { status: 500 });
+  }
+  if (!userData.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const admin = supabaseAdmin();
 
-  const { data: doc, error: docErr } = await admin
+  const { data: doc, error: docErr } = await supabase
     .from("documents")
     .select("id,title,public_id,file_path,created_at,sha256")
     .eq("id", id)

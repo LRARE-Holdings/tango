@@ -18,7 +18,7 @@ export async function supabaseServer() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Server Components can be read-only
+            // server components may be read-only
           }
         },
       },

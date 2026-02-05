@@ -12,21 +12,60 @@ export default function AuthConfirmPage() {
   useEffect(() => {
     async function run() {
       try {
-        // Handles implicit links like /auth/confirm#access_token=...
-        // AND code links like /auth/confirm?code=...
-        const { data, error } = await supabase.auth.getSessionFromUrl({
-          storeSession: true,
-        });
+        const url = new URL(window.location.href);
 
-        if (error) throw error;
+        // 1) New-style links often use token_hash + type (magiclink / recovery / invite)
+        const token_hash = url.searchParams.get("token_hash");
+        const type = url.searchParams.get("type");
 
-        // If a session exists now, go to /app
-        if (data?.session) {
+        if (token_hash && type && typeof (supabase.auth as any).verifyOtp === "function") {
+          const { error } = await (supabase.auth as any).verifyOtp({
+            type,
+            token_hash,
+          });
+
+          if (error) throw error;
+
           router.replace("/app");
           return;
         }
 
-        // If no session, send them back to login
+        // 2) PKCE flow: /auth/confirm?code=...
+        const code = url.searchParams.get("code");
+        if (code && typeof (supabase.auth as any).exchangeCodeForSession === "function") {
+          const { error } = await (supabase.auth as any).exchangeCodeForSession(code);
+          if (error) throw error;
+          router.replace("/app");
+          return;
+        }
+
+        // 3) Implicit flow: /auth/confirm#access_token=...&refresh_token=...
+        const hash = window.location.hash?.replace(/^#/, "") ?? "";
+        const hashParams = new URLSearchParams(hash);
+        const access_token = hashParams.get("access_token");
+        const refresh_token = hashParams.get("refresh_token");
+
+        if (access_token && refresh_token && typeof (supabase.auth as any).setSession === "function") {
+          const { error } = await (supabase.auth as any).setSession({
+            access_token,
+            refresh_token,
+          });
+          if (error) throw error;
+          router.replace("/app");
+          return;
+        }
+
+        // 4) Fallback: if already signed in, continue
+        if (typeof (supabase.auth as any).getSession === "function") {
+          const { data, error } = await (supabase.auth as any).getSession();
+          if (error) throw error;
+          if (data?.session) {
+            router.replace("/app");
+            return;
+          }
+        }
+
+        // Otherwise back to login
         router.replace("/auth");
       } catch (e: any) {
         setError(e?.message ?? "Could not complete sign-in");

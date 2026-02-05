@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase/browser";
+import { useToast } from "@/components/toast";
 
 type DocItem = {
   id: string;
@@ -65,9 +68,34 @@ function GhostLink({ href, children }: { href: string; children: React.ReactNode
 }
 
 export default function AppHome() {
+  const toast = useToast();
+  const router = useRouter();
+  const supabase = supabaseBrowser();
+
+  const [meEmail, setMeEmail] = useState<string | null>(null);
+  const [meLoading, setMeLoading] = useState(true);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocItem[]>([]);
+
+  useEffect(() => {
+    async function loadMe() {
+      setMeLoading(true);
+      try {
+        const res = await fetch("/api/app/me", { cache: "no-store" });
+        if (!res.ok) {
+          setMeEmail(null);
+          return;
+        }
+        const json = await res.json();
+        setMeEmail(json.email ?? null);
+      } finally {
+        setMeLoading(false);
+      }
+    }
+    loadMe();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -92,8 +120,29 @@ export default function AppHome() {
     return { total: documents.length, acknowledged };
   }, [documents]);
 
+  async function signOut() {
+    await supabase.auth.signOut();
+    router.replace("/auth");
+  }
+
   return (
     <div className="space-y-8">
+      {/* Session */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="text-xs" style={{ color: "var(--muted)" }}>
+          {meLoading ? "Loading session…" : meEmail ? `Signed in as ${meEmail}` : "Not signed in"}
+        </div>
+
+        <button
+          type="button"
+          onClick={signOut}
+          className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
+          style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+        >
+          Sign out
+        </button>
+      </div>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-6 flex-col md:flex-row">
         <div>
@@ -202,7 +251,12 @@ export default function AppHome() {
                     style={{ borderColor: "var(--border)", color: "var(--muted)" }}
                     onClick={async () => {
                       const abs = `${window.location.origin}/d/${d.publicId}`;
-                      await navigator.clipboard.writeText(abs);
+                      try {
+                          await navigator.clipboard.writeText(abs);
+                          toast.success("Copied", "Share link copied to clipboard.");
+                        } catch {
+                          toast.error("Copy failed", "Your browser blocked clipboard access.");
+                        }
                     }}
                   >
                     Copy link

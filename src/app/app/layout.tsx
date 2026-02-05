@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ToastProvider } from "@/components/toast";
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -15,6 +16,7 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
+    <ToastProvider>
     <div className="min-h-screen">
       {/* Top bar */}
       <header className="mx-auto max-w-6xl px-6 pt-6">
@@ -55,5 +57,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
     </div>
+    </ToastProvider>
   );
 }

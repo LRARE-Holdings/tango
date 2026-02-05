@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
+import { useToast } from "@/components/toast";
 
 type Recipient = {
   id: string;
@@ -82,11 +83,14 @@ export default function DocDetailPage({
   params: Promise<{ id: string }> | { id: string };
 }) {
   const { id } = use(params as any) as { id: string };
+  const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [doc, setDoc] = useState<Doc | null>(null);
   const [completions, setCompletions] = useState<Completion[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copiedTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -115,55 +119,80 @@ export default function DocDetailPage({
   async function copyLink() {
     if (!shareUrl) return;
     const abs = `${window.location.origin}${shareUrl}`;
-    await navigator.clipboard.writeText(abs);
+    try {
+      await navigator.clipboard.writeText(abs);
+      toast.success("Copied", "Share link copied to clipboard.");
+
+      setCopiedId("share");
+      if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = window.setTimeout(() => setCopiedId(null), 1500);
+    } catch {
+      toast.error("Copy failed", "Your browser blocked clipboard access.");
+    }
   }
 
   async function downloadEvidence() {
     if (!doc) return;
 
-    const res = await fetch(`/api/app/documents/${doc.id}/evidence`, {
-      cache: "no-store",
-    });
+    toast.info("Preparing JSON…");
 
-    if (!res.ok) {
-      const j = await res.json().catch(() => null);
-      throw new Error(j?.error ?? "Failed to download evidence");
+    try {
+      const res = await fetch(`/api/app/documents/${doc.id}/evidence`, {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error ?? "Failed to download evidence");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `receipt-record-${doc.id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success("Downloaded", "JSON evidence saved.");
+    } catch (e: any) {
+      toast.error("Download failed", e?.message ?? "Could not download JSON evidence");
     }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `receipt-record-${doc.id}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
   }
 
   async function downloadPdfEvidence() {
     if (!doc) return;
 
-    const res = await fetch(`/api/app/documents/${doc.id}/evidence/pdf`, {
-      cache: "no-store",
-    });
+    toast.info("Preparing PDF…");
 
-    if (!res.ok) {
-      const j = await res.json().catch(() => null);
-      throw new Error(j?.error ?? "Failed to download PDF");
+    try {
+      const res = await fetch(`/api/app/documents/${doc.id}/evidence/pdf`, {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error ?? "Failed to download PDF");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `receipt-record-${doc.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success("Downloaded", "PDF evidence pack saved.");
+    } catch (e: any) {
+      toast.error("Download failed", e?.message ?? "Could not download PDF evidence pack");
     }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `receipt-record-${doc.id}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -213,18 +242,12 @@ export default function DocDetailPage({
                 className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
                 style={{ borderColor: "var(--border)", color: "var(--muted)" }}
               >
-                Copy link
+                {copiedId === "share" ? "Copied" : "Copy link"}
               </button>
 
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    await downloadPdfEvidence();
-                  } catch (e: any) {
-                    alert(e?.message ?? "Download failed");
-                  }
-                }}
+                onClick={downloadPdfEvidence}
                 className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
                 style={{ borderColor: "var(--border)", color: "var(--muted)" }}
               >
@@ -233,13 +256,7 @@ export default function DocDetailPage({
 
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    await downloadEvidence();
-                  } catch (e: any) {
-                    alert(e?.message ?? "Download failed");
-                  }
-                }}
+                onClick={downloadEvidence}
                 className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
                 style={{ borderColor: "var(--border)", color: "var(--muted)" }}
               >
@@ -414,4 +431,12 @@ export default function DocDetailPage({
       )}
     </div>
   );
+  // Cleanup copiedTimerRef on unmount
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+    };
+  }, []);
 }
