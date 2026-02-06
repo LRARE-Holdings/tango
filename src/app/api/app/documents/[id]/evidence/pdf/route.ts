@@ -74,7 +74,7 @@ export async function GET(
   const { data: comps, error: compErr } = await admin
     .from("completions")
     .select(
-      "id,acknowledged,max_scroll_percent,time_on_page_seconds,submitted_at,ip,user_agent,recipients(id,name,email)"
+      "id,acknowledged,max_scroll_percent,time_on_page_seconds,active_seconds,submitted_at,ip,user_agent,recipients(id,name,email)"
     )
     .eq("document_id", id)
     .order("submitted_at", { ascending: false });
@@ -172,6 +172,9 @@ export async function GET(
       draw(`Acknowledged: ${c.acknowledged ? "Yes" : "No"}`);
       draw(`Scroll depth: ${c.max_scroll_percent == null ? "—" : `${c.max_scroll_percent}%`}`);
       draw(`Time on page: ${formatDuration(c.time_on_page_seconds ?? null)}`);
+      draw(
+        `Active time: ${c.active_seconds == null ? "—" : formatDuration(c.active_seconds)}`
+      );
       draw(`IP: ${c.ip ?? "—"}`);
 
       const ua = (c.user_agent ?? "—").toString();
@@ -188,6 +191,7 @@ export async function GET(
   draw(
     "Receipt records access, review activity, and acknowledgement. It does not assess understanding and is not an e-signature product."
   );
+  draw("Receipt is a product of LRARE Holdings Ltd (Company No. 16807366).");
 
   const bytes = await pdf.save();
 

@@ -39,7 +39,8 @@ export async function GET(
   const { data: comps, error: compErr } = await admin
     .from("completions")
     .select(
-      "id,acknowledged,max_scroll_percent,time_on_page_seconds,submitted_at,ip,user_agent,recipients(id,name,email)"
+      // ip + user_agent are intentionally included as part of the evidence record
+      "id,acknowledged,max_scroll_percent,time_on_page_seconds,active_seconds,submitted_at,ip,user_agent,recipients(id,name,email)"
     )
     .eq("document_id", id)
     .order("submitted_at", { ascending: false });
@@ -65,7 +66,8 @@ export async function GET(
       acknowledged: Boolean(c.acknowledged),
       max_scroll_percent: c.max_scroll_percent ?? null,
       time_on_page_seconds: c.time_on_page_seconds ?? null,
-      ip: c.ip ?? null,
+      active_seconds: c.active_seconds ?? null,
+      ip: c.ip ?? null, // full client IP as observed by the server
       user_agent: c.user_agent ?? null,
       recipient: c.recipients
         ? {

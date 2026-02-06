@@ -52,8 +52,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           className="border-t pt-6 flex items-center justify-between text-xs"
           style={{ borderColor: "var(--border)", color: "var(--muted)" }}
         >
-          <span>Receipt — Utility 001</span>
-          <span style={{ color: "var(--muted2)" }}>LRARE</span>
+          <span>Receipt is a product by LRARE Holdings Ltd.</span>
+          <span>© {new Date().getFullYear()} LRARE Holdings Ltd. Registered Company no. 16807366.</span>
         </div>
       </footer>
     </div>

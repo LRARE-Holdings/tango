@@ -15,6 +15,7 @@ type Completion = {
   acknowledged: boolean | null;
   max_scroll_percent: number | null;
   time_on_page_seconds: number | null;
+  active_seconds: number | null;
   submitted_at: string | null;
   ip: string | null;
   user_agent: string | null;
@@ -115,6 +116,14 @@ export default function DocDetailPage({
     if (!doc) return null;
     return `/d/${doc.publicId}`;
   }, [doc]);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+    };
+  }, []);
 
   async function copyLink() {
     if (!shareUrl) return;
@@ -368,7 +377,7 @@ export default function DocDetailPage({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full md:w-auto">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full md:w-auto">
                         <div
                           className="rounded-2xl border p-4"
                           style={{ borderColor: "var(--border)", background: "var(--card2)" }}
@@ -398,6 +407,18 @@ export default function DocDetailPage({
                           style={{ borderColor: "var(--border)", background: "var(--card2)" }}
                         >
                           <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                            Active
+                          </div>
+                          <div className="text-sm font-medium">
+                            {formatDuration(c.active_seconds)}
+                          </div>
+                        </div>
+
+                        <div
+                          className="rounded-2xl border p-4"
+                          style={{ borderColor: "var(--border)", background: "var(--card2)" }}
+                        >
+                          <div className="text-xs" style={{ color: "var(--muted2)" }}>
                             IP
                           </div>
                           <div className="text-sm font-medium">
@@ -419,6 +440,8 @@ export default function DocDetailPage({
                         style={{ borderColor: "var(--border)", background: "transparent", color: "var(--muted)" }}
                       >
                         <div><span style={{ color: "var(--muted2)" }}>Completion ID:</span> {c.id}</div>
+                        <div><span style={{ color: "var(--muted2)" }}>Active time:</span> {formatDuration(c.active_seconds)}</div>
+                        <div><span style={{ color: "var(--muted2)" }}>IP:</span> {c.ip ?? "—"}</div>
                         <div><span style={{ color: "var(--muted2)" }}>User agent:</span> {c.user_agent ?? "—"}</div>
                       </div>
                     </details>
@@ -431,12 +454,4 @@ export default function DocDetailPage({
       )}
     </div>
   );
-  // Cleanup copiedTimerRef on unmount
-  useEffect(() => {
-    return () => {
-      if (copiedTimerRef.current) {
-        window.clearTimeout(copiedTimerRef.current);
-      }
-    };
-  }, []);
 }
