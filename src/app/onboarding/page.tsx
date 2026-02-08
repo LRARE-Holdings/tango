@@ -216,22 +216,29 @@ export default function OnboardingPage() {
     window.location.href = json.url;
   }
 
-  async function finish() {
+  async function finish(planOverride?: RecommendedPlan) {
     setSubmitting(true);
     setError(null);
     try {
+      const selectedPlan = planOverride ?? recommendation.plan;
+
       await saveOnboarding({
         answers,
-        recommended_plan: recommendation.plan,
+        // Store what the user actually chose (override if they picked free)
+        recommended_plan: selectedPlan,
       });
 
       // After onboarding, send them into the correct purchase flow.
-      await startCheckout(recommendation.plan);
+      await startCheckout(selectedPlan);
     } catch (e: any) {
       setError(e?.message ?? "Something went wrong");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function chooseFreeForNow() {
+    await finish("free");
   }
 
   // Validation per step
@@ -604,10 +611,22 @@ export default function OnboardingPage() {
                   >
                     View all plans
                   </Link>
+
+                  {recommendation.plan !== "free" && recommendation.plan !== "enterprise" ? (
+                    <button
+                      type="button"
+                      onClick={() => void chooseFreeForNow()}
+                      disabled={submitting}
+                      className="focus-ring border px-6 py-3 text-sm font-semibold hover:opacity-80 disabled:opacity-50"
+                      style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                    >
+                      Use Free for now
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-                  Trial starts today. We’ll charge after the trial ends unless you cancel. Receipt stays neutral — it records observable events and acknowledgement.
+                  Trial starts today. We’ll charge after the trial ends unless you cancel. Prefer to explore first? Choose “Use Free for now” and upgrade anytime.
                 </div>
               </div>
             )}
