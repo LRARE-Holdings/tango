@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 function isSafeNext(next: string | null) {
@@ -10,13 +10,9 @@ function isSafeNext(next: string | null) {
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const sp = useSearchParams();
   const supabase = supabaseBrowser();
 
-  const next = useMemo(() => {
-    const raw = sp.get("next");
-    return isSafeNext(raw) ? raw! : "/app";
-  }, [sp]);
+  const [nextPath, setNextPath] = useState("/app");
 
   const [email, setEmail] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
@@ -32,8 +28,16 @@ export default function VerifyEmailPage() {
       setChecking(true);
       setError(null);
 
-      const { data, error } = await supabase.auth.getUser();
-      if (!cancelled) {
+      // Read ?next= safely without useSearchParams (avoids Next build CSR bailout rules)
+      try {
+        const url = new URL(window.location.href);
+        const raw = url.searchParams.get("next");
+        const safe = isSafeNext(raw) ? (raw as string) : "/app";
+        if (!cancelled) setNextPath(safe);
+
+        const { data, error } = await supabase.auth.getUser();
+        if (cancelled) return;
+
         if (error) {
           setError(error.message);
           setChecking(false);
@@ -42,7 +46,7 @@ export default function VerifyEmailPage() {
 
         const user = data?.user;
         if (!user) {
-          router.replace(`/auth?next=${encodeURIComponent(next)}`);
+          router.replace(`/auth?next=${encodeURIComponent(safe)}`);
           return;
         }
 
@@ -51,11 +55,16 @@ export default function VerifyEmailPage() {
         // If confirmed already, continue
         const confirmed = Boolean((user as any)?.email_confirmed_at || (user as any)?.confirmed_at);
         if (confirmed) {
-          router.replace(next);
+          router.replace(safe);
           return;
         }
 
         setChecking(false);
+      } catch (e: any) {
+        if (!cancelled) {
+          setError(e?.message ?? "Could not load verification state");
+          setChecking(false);
+        }
       }
     }
 
@@ -63,7 +72,7 @@ export default function VerifyEmailPage() {
     return () => {
       cancelled = true;
     };
-  }, [next, router, supabase]);
+  }, [router, supabase]);
 
   async function resend() {
     if (!email) return;
@@ -80,7 +89,7 @@ export default function VerifyEmailPage() {
         email,
         options: {
           // Where Supabase sends them after clicking verification:
-          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(next)}`,
+          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
         },
       });
 
