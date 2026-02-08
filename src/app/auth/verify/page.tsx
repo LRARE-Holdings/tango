@@ -1,109 +1,160 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-function getSafeNextFromUrl(href: string) {
-  try {
-    const url = new URL(href);
-    const next = url.searchParams.get("next") || "/app";
-    return next.startsWith("/") ? next : "/app";
-  } catch {
-    return "/app";
-  }
+function isSafeNext(next: string | null) {
+  return !!next && next.startsWith("/") && !next.startsWith("//");
 }
 
 export default function VerifyEmailPage() {
   const router = useRouter();
+  const sp = useSearchParams();
   const supabase = supabaseBrowser();
 
-  const [nextPath, setNextPath] = useState("/app");
-  const [email, setEmail] = useState<string | null>(null);
+  const next = useMemo(() => {
+    const raw = sp.get("next");
+    return isSafeNext(raw) ? raw! : "/app";
+  }, [sp]);
 
-  const [checking, setChecking] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Read params without useSearchParams (avoids Next build CSR bailout rule)
-    const href = window.location.href;
-    const url = new URL(href);
+    let cancelled = false;
 
-    setNextPath(getSafeNextFromUrl(href));
+    async function load() {
+      setChecking(true);
+      setError(null);
 
-    const emailParam = url.searchParams.get("email");
-    setEmail(emailParam ? decodeURIComponent(emailParam) : null);
-  }, []);
+      const { data, error } = await supabase.auth.getUser();
+      if (!cancelled) {
+        if (error) {
+          setError(error.message);
+          setChecking(false);
+          return;
+        }
 
-  const subtitle = useMemo(() => {
-    if (email) return `We sent a verification email to ${email}.`;
-    return "We sent a verification email to your inbox.";
-  }, [email]);
+        const user = data?.user;
+        if (!user) {
+          router.replace(`/auth?next=${encodeURIComponent(next)}`);
+          return;
+        }
 
-  async function iHaveVerified() {
-    setChecking(true);
+        setEmail(user.email ?? null);
+
+        // If confirmed already, continue
+        const confirmed = Boolean((user as any)?.email_confirmed_at || (user as any)?.confirmed_at);
+        if (confirmed) {
+          router.replace(next);
+          return;
+        }
+
+        setChecking(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [next, router, supabase]);
+
+  async function resend() {
+    if (!email) return;
+    setSending(true);
     setError(null);
+    setSent(false);
 
     try {
-      const { data, error: meErr } = await supabase.auth.getUser();
-      if (meErr) throw meErr;
+      const siteUrl =
+        (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || window.location.origin;
 
-      // Supabase user object includes email_confirmed_at when confirmed
-      const confirmedAt = (data?.user as any)?.email_confirmed_at as string | null;
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: {
+          // Where Supabase sends them after clicking verification:
+          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(next)}`,
+        },
+      });
 
-      if (!confirmedAt) {
-        setError("Still not verified — please check your inbox (and spam), then try again.");
-        setChecking(false);
-        return;
-      }
-
-      router.replace(nextPath);
+      if (error) throw error;
+      setSent(true);
     } catch (e: any) {
-      setError(e?.message ?? "Could not check verification status.");
-      setChecking(false);
+      setError(e?.message ?? "Could not resend email");
+    } finally {
+      setSending(false);
     }
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    router.replace("/auth");
   }
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-sm space-y-5">
-        <div className="space-y-2">
+        <div>
           <h1 className="text-2xl font-semibold tracking-tight">Verify your email</h1>
-          <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-            {subtitle} Click the link inside it to activate your account.
+          <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+            We’ve sent a verification link to your email. You’ll need to confirm it before you can
+            use Receipt.
           </p>
         </div>
 
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={iHaveVerified}
-            disabled={checking}
-            className="focus-ring w-full rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
-            style={{ background: "var(--fg)", color: "var(--bg)" }}
-          >
-            {checking ? "Checking…" : "I’ve verified"}
-          </button>
+        {checking ? (
+          <div className="text-sm" style={{ color: "var(--muted)" }}>
+            Checking…
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="text-sm" style={{ color: "var(--muted)" }}>
+              Email: <span style={{ color: "var(--fg)" }}>{email ?? "—"}</span>
+            </div>
 
-          <Link
-            href={`/auth?next=${encodeURIComponent(nextPath)}`}
-            className="focus-ring inline-flex w-full items-center justify-center rounded-full border px-6 py-2.5 text-sm font-medium transition hover:opacity-80"
-            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-          >
-            Back to sign in
-          </Link>
-        </div>
+            <button
+              type="button"
+              onClick={resend}
+              disabled={sending || !email}
+              className="focus-ring w-full rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
+              style={{ background: "var(--fg)", color: "var(--bg)" }}
+            >
+              {sending ? "Sending…" : "Resend verification email"}
+            </button>
 
-        {error && (
-          <div className="text-sm" style={{ color: "#ff3b30" }}>
-            {error}
+            <button
+              type="button"
+              onClick={signOut}
+              className="focus-ring w-full rounded-full border px-6 py-2.5 text-sm font-medium transition hover:opacity-80"
+              style={{ borderColor: "var(--border)", color: "var(--fg)" }}
+            >
+              Sign out
+            </button>
+
+            {sent && (
+              <div className="text-sm" style={{ color: "var(--muted)" }}>
+                Sent. Check your inbox (and spam).
+              </div>
+            )}
+
+            {error && (
+              <div className="text-sm" style={{ color: "#ff3b30" }}>
+                {error}
+              </div>
+            )}
+
+            <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+              After you click the link, you’ll be redirected back to Receipt automatically.
+            </div>
           </div>
         )}
-
-        <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-          Didn’t get it? Check spam/junk. If you used the wrong email, go back and sign up again.
-        </div>
       </div>
     </main>
   );
