@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import fs from "node:fs/promises";
+import path from "node:path";
+
+export const runtime = "nodejs";
 
 function safeFilename(input: string) {
   return input
@@ -31,26 +35,50 @@ function formatDuration(seconds: number | null) {
 }
 
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number) {
-  const words = text.split(/\s+/);
+  const words = String(text ?? "").split(/\s+/);
   const lines: string[] = [];
   let line = "";
 
   for (const w of words) {
     const test = line ? `${line} ${w}` : w;
     const width = font.widthOfTextAtSize(test, fontSize);
-    if (width <= maxWidth) {
-      line = test;
-    } else {
+    if (width <= maxWidth) line = test;
+    else {
       if (line) lines.push(line);
       line = w;
     }
   }
   if (line) lines.push(line);
-  return lines;
+  return lines.length ? lines : ["—"];
+}
+
+function pickOrigin(req: Request) {
+  const proto = req.headers.get("x-forwarded-proto");
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (proto && host) return `${proto}://${host}`;
+  try {
+    return new URL(req.url).origin;
+  } catch {
+    return "";
+  }
+}
+
+async function svgToPngBytes(svgPath: string, targetWidthPx: number) {
+  // Dynamic import avoids bundler/runtime issues
+  const mod = await import("@resvg/resvg-js");
+  const Resvg = mod.Resvg;
+
+  const svg = await fs.readFile(svgPath, "utf8");
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: "width", value: targetWidthPx },
+  });
+
+  const png = resvg.render().asPng();
+  return new Uint8Array(png);
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const { id } = (await ctx.params) as { id: string };
@@ -64,7 +92,7 @@ export async function GET(
 
   const { data: doc, error: docErr } = await supabase
     .from("documents")
-    .select("id,title,public_id,file_path,created_at,sha256")
+    .select("id,title,public_id,created_at,sha256")
     .eq("id", id)
     .maybeSingle();
 
@@ -84,142 +112,302 @@ export async function GET(
   const completions = (comps ?? []) as any[];
 
   const acknowledgements = completions.filter((c) => c.acknowledged).length;
-  const latest = completions.find((c) => c.acknowledged && c.submitted_at)?.submitted_at ?? null;
+  const latestAck = completions.find((c) => c.acknowledged && c.submitted_at)?.submitted_at ?? null;
 
-  // -------- Build PDF --------
-  const pdf = await PDFDocument.create();
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const origin = pickOrigin(req);
+  const publicUrl = origin ? `${origin}/d/${doc.public_id}` : `/d/${doc.public_id}`;
 
-  const margin = 50;
-  const lineGap = 14;
+  try {
+    // ---------- PDF setup ----------
+    const pdf = await PDFDocument.create();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  let page = pdf.addPage();
-  let { width, height } = page.getSize();
-  let y = height - margin;
+    // A4
+    const PAGE_W = 595.28;
+    const PAGE_H = 841.89;
 
-  const draw = (text: string, opts?: { bold?: boolean; size?: number }) => {
-    const size = opts?.size ?? 11;
-    const usedFont = opts?.bold ? fontBold : font;
+    // palette (print-safe, minimal)
+    const C_TEXT = rgb(0.06, 0.06, 0.06);
+    const C_MUTED = rgb(0.36, 0.36, 0.36);
+    const C_LINE = rgb(0.86, 0.86, 0.86);
+    const C_PANEL = rgb(0.965, 0.965, 0.965);
 
-    // page break
-    if (y < margin + 40) {
-      page = pdf.addPage();
-      ({ width, height } = page.getSize());
-      y = height - margin;
+    const M = 48;
+    const TOP = 56;
+    const BOTTOM = 48;
+
+    const S_TITLE = 18;
+    const S_H = 10;
+    const S_BODY = 10.5;
+    const S_SMALL = 9;
+
+    let logoImg: any = null;
+
+    try {
+      const svgPath = path.join(process.cwd(), "public", "receipt-logo.svg");
+      const logoPngBytes = await svgToPngBytes(svgPath, 260);
+      logoImg = await pdf.embedPng(logoPngBytes);
+    } catch (e) {
+      // Don’t fail PDF generation just because logo embedding failed
+      console.error("[receipt-pdf] logo embed failed:", e);
+      logoImg = null;
     }
 
-    page.drawText(text, {
-      x: margin,
-      y,
-      size,
-      font: usedFont,
+  let page = pdf.addPage([PAGE_W, PAGE_H]);
+  let y = PAGE_H - TOP;
+
+  function ensure(h: number) {
+    if (y - h < BOTTOM) {
+      page = pdf.addPage([PAGE_W, PAGE_H]);
+      y = PAGE_H - TOP;
+      drawHeader(true);
+    }
+  }
+
+  function text(
+    str: string,
+    x: number,
+    yPos: number,
+    opts?: { bold?: boolean; size?: number; color?: any }
+  ) {
+    page.drawText(str, {
+      x,
+      y: yPos,
+      font: opts?.bold ? fontBold : font,
+      size: opts?.size ?? S_BODY,
+      color: opts?.color ?? C_TEXT,
     });
-    y -= lineGap;
-  };
+  }
 
-  const drawDivider = () => {
-    y -= 6;
-    if (y < margin + 20) {
-      page = pdf.addPage();
-      ({ width, height } = page.getSize());
-      y = height - margin;
-    }
+  function rule() {
+    ensure(18);
+    y -= 8;
     page.drawLine({
-      start: { x: margin, y },
-      end: { x: width - margin, y },
+      start: { x: M, y },
+      end: { x: PAGE_W - M, y },
       thickness: 1,
+      color: C_LINE,
     });
-    y -= 12;
-  };
+    y -= 14;
+  }
 
-  draw("receipt", { bold: true, size: 16 });
-  draw("Receipt Record", { bold: true, size: 22 });
-  draw(`Generated: ${formatUtc(new Date().toISOString())}`);
-  drawDivider();
+  function section(label: string) {
+    ensure(22);
+    text(label.toUpperCase(), M, y, { size: S_H, bold: true, color: C_MUTED });
+    y -= 18;
+  }
 
-  // Document section
-  draw("DOCUMENT", { bold: true });
-  draw(`Title: ${doc.title ?? "Untitled"}`);
-  draw(`Document ID: ${doc.id}`);
-  draw(`Public link: /d/${doc.public_id}`);
-  draw(`Created: ${formatUtc(doc.created_at)}`);
-  draw(`Status: ${acknowledgements > 0 ? "Acknowledged" : "Pending"}`);
-  draw(`Acknowledgements: ${acknowledgements}`);
-  draw(`Latest acknowledgement: ${formatUtc(latest)}`);
-  draw(`Storage path: ${doc.file_path ?? "—"}`);
-  draw(`SHA256: ${doc.sha256 ?? "—"}`);
-  drawDivider();
+  function kv(label: string, value: string) {
+    ensure(18);
+    const leftW = 140;
+    text(label, M, y, { bold: true });
+    const lines = wrapText(value, PAGE_W - M * 2 - leftW, font, S_BODY);
+    let first = true;
+    for (const ln of lines) {
+      ensure(14);
+      text(ln, M + leftW, y, { color: C_TEXT });
+      y -= 14;
+      first = false;
+    }
+    if (first) y -= 14;
+  }
 
-  // Completions section
-  draw("COMPLETIONS", { bold: true });
-  draw(`Total: ${completions.length}`);
-  y -= 6;
+  function panel(x: number, yTop: number, w: number, h: number) {
+    page.drawRectangle({
+      x,
+      y: yTop - h,
+      width: w,
+      height: h,
+      color: C_PANEL,
+      borderColor: C_LINE,
+      borderWidth: 1,
+    });
+  }
 
-  if (completions.length === 0) {
-    draw("No acknowledgements recorded.");
-  } else {
-    for (const c of completions) {
-      const who =
-        c.recipients?.name?.trim() ||
-        c.recipients?.email?.trim() ||
-        "Recipient";
+    function drawHeader(continued: boolean) {
+      const headerTop = PAGE_H - TOP + 12;
 
-      drawDivider();
-      draw(`${who}`, { bold: true });
-      if (c.recipients?.email && c.recipients?.name) draw(`Email: ${c.recipients.email}`);
-      draw(`Submitted: ${formatUtc(c.submitted_at ?? null)}`);
-      draw(`Acknowledged: ${c.acknowledged ? "Yes" : "No"}`);
-      draw(`Scroll depth: ${c.max_scroll_percent == null ? "—" : `${c.max_scroll_percent}%`}`);
-      draw(`Time on page: ${formatDuration(c.time_on_page_seconds ?? null)}`);
-      draw(
-        `Active time: ${c.active_seconds == null ? "—" : formatDuration(c.active_seconds)}`
-      );
-      draw(`IP: ${c.ip ?? "—"}`);
+      // logo (left) — best-effort; fall back to text if embedding failed
+      if (logoImg) {
+        const targetH = 18;
+        const scale = targetH / logoImg.height;
+        const targetW = logoImg.width * scale;
 
-      const ua = (c.user_agent ?? "—").toString();
-      const lines = wrapText(`User agent: ${ua}`, width - margin * 2, font, 10);
-      for (const ln of lines) {
-        draw(ln, { size: 10 });
+        page.drawImage(logoImg, {
+          x: M,
+          y: headerTop - targetH,
+          width: targetW,
+          height: targetH,
+        });
+      } else {
+        text("Receipt", M, headerTop - 14, { bold: true, size: 14, color: C_TEXT });
+      }
+
+      // title/meta (right)
+      const right = PAGE_W - M;
+      const gen = `Generated: ${formatUtc(new Date().toISOString())}`;
+      const gW = font.widthOfTextAtSize(gen, S_SMALL);
+
+      text(gen, right - gW, headerTop - 28, { size: S_SMALL, color: C_MUTED });
+
+      // baseline for body start
+      y = PAGE_H - TOP - 24;
+
+      // rule under header
+      page.drawLine({
+        start: { x: M, y: PAGE_H - TOP - 8 },
+        end: { x: PAGE_W - M, y: PAGE_H - TOP - 8 },
+        thickness: 1,
+        color: C_LINE,
+      });
+    }
+
+    drawHeader(false);
+
+    // ---------- Page 1: Summary ----------
+    ensure(90);
+    text(doc.title?.trim() || "Untitled document", M, y, { size: S_TITLE, bold: true });
+    y -= 24;
+
+    // summary chips
+    ensure(70);
+    const chipY = y;
+    const gap = 12;
+    const w = (PAGE_W - M * 2 - gap * 2) / 3;
+    const h = 44;
+
+    panel(M, chipY, w, h);
+    text("STATUS", M + 10, chipY - 14, { size: 8.5, bold: true, color: C_MUTED });
+    text(acknowledgements > 0 ? "Acknowledged" : "Pending", M + 10, chipY - 32, { size: 12, bold: true });
+
+    panel(M + w + gap, chipY, w, h);
+    text("ACKNOWLEDGEMENTS", M + w + gap + 10, chipY - 14, { size: 8.5, bold: true, color: C_MUTED });
+    text(String(acknowledgements), M + w + gap + 10, chipY - 32, { size: 12, bold: true });
+
+    panel(M + (w + gap) * 2, chipY, w, h);
+    text("LATEST ACK (UTC)", M + (w + gap) * 2 + 10, chipY - 14, { size: 8.5, bold: true, color: C_MUTED });
+    text(latestAck ? formatUtc(latestAck) : "—", M + (w + gap) * 2 + 10, chipY - 32, { size: 12, bold: true });
+
+    y -= (h + 14);
+
+    rule();
+
+    section("Document");
+    kv("Public link", publicUrl);
+    kv("Record ID", doc.id);
+    kv("Created", formatUtc(doc.created_at));
+    kv("Document hash (SHA-256)", doc.sha256 ?? "—");
+
+    rule();
+
+    // ---------- Completions: structured blocks ----------
+    section("Completions");
+    ensure(18);
+    text(`Total: ${completions.length}`, M, y, { size: S_SMALL, color: C_MUTED });
+    y -= 16;
+
+    if (completions.length === 0) {
+      ensure(20);
+      text("No completions recorded yet.", M, y, { color: C_MUTED });
+      y -= 16;
+    } else {
+      for (const c of completions) {
+        const who =
+          c.recipients?.name?.trim() ||
+          c.recipients?.email?.trim() ||
+          "Recipient";
+        const email = c.recipients?.email?.trim();
+        const whoLine = email && c.recipients?.name ? `${who} • ${email}` : who;
+
+        // block sizing (fixed, clean)
+        const blockH = 112;
+        ensure(blockH + 10);
+
+        panel(M, y, PAGE_W - M * 2, blockH);
+
+        // top row
+        text(whoLine, M + 12, y - 18, { bold: true, size: 11 });
+        text(`Submitted: ${formatUtc(c.submitted_at ?? null)}`, M + 12, y - 36, { size: S_SMALL, color: C_MUTED });
+
+        const ack = c.acknowledged ? "Acknowledged" : "Not acknowledged";
+        const ackW = fontBold.widthOfTextAtSize(ack, 10);
+        text(ack, PAGE_W - M - 12 - ackW, y - 20, { bold: true, size: 10, color: C_TEXT });
+
+        // two-column details grid
+        const leftX = M + 12;
+        const midX = M + (PAGE_W - M * 2) / 2;
+
+        const row1Y = y - 58;
+        const row2Y = y - 78;
+        const row3Y = y - 98;
+
+        text("Scroll depth", leftX, row1Y, { size: S_SMALL, color: C_MUTED });
+        text(c.max_scroll_percent == null ? "—" : `${c.max_scroll_percent}%`, leftX, row1Y - 14, { bold: true });
+
+        text("Time on page", midX, row1Y, { size: S_SMALL, color: C_MUTED });
+        text(formatDuration(c.time_on_page_seconds ?? null), midX, row1Y - 14, { bold: true });
+
+        text("Active time", leftX, row2Y, { size: S_SMALL, color: C_MUTED });
+        text(formatDuration(c.active_seconds ?? null), leftX, row2Y - 14, { bold: true });
+
+        text("IP address", midX, row2Y, { size: S_SMALL, color: C_MUTED });
+        text(c.ip ?? "—", midX, row2Y - 14, { bold: true });
+
+        // UA (kept minimal – not a giant wall of text)
+        const ua = (c.user_agent ?? "").toString().trim();
+        const uaLine = ua ? wrapText(ua, PAGE_W - M * 2 - 24, font, 9)[0] : "—";
+        text("User agent (truncated)", leftX, row3Y, { size: 8.5, color: C_MUTED });
+        text(uaLine, leftX, row3Y - 14, { size: 9, color: C_TEXT });
+
+        y -= (blockH + 12);
       }
     }
-    drawDivider();
-  }
 
-  // Footer / disclaimer
-  draw("DISCLAIMER", { bold: true });
-  draw(
-    "Receipt records access, review activity, and acknowledgement. It does not assess understanding and is not an e-signature product."
-  );
-  draw("Receipt is a product of LRARE Holdings Ltd (Company No. 16807366).");
+    // footer (all pages)
+    const pages = pdf.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const p = pages[i];
+      const label = `Page ${i + 1} of ${pages.length}`;
+      const wLabel = font.widthOfTextAtSize(label, 9);
+      p.drawText(label, {
+        x: PAGE_W - M - wLabel,
+        y: 24,
+        size: 9,
+        font,
+        color: C_MUTED,
+      });
 
-  const bytes = await pdf.save();
+      p.drawText("LRARE Holdings Ltd (Company No. 16807366).", {
+        x: M,
+        y: 24,
+        size: 9,
+        font,
+        color: C_MUTED,
+      });
+    }
 
-  const filename = `receipt-record-${safeFilename(doc.title || "document")}-${doc.id}.pdf`;
+    // metadata
+    pdf.setTitle("Receipt Record");
+    pdf.setProducer("Receipt");
+    pdf.setCreator("Receipt");
 
-  const pages = pdf.getPages();
-  const footerSize = 9;
+    const bytes = await pdf.save();
+    const filename = `receipt-record-${safeFilename(doc.title || "document")}-${doc.id}.pdf`;
 
-  for (let i = 0; i < pages.length; i++) {
-    const p = pages[i];
-    const { width } = p.getSize();
-    const label = `Page ${i + 1} of ${pages.length}`;
-    const w = font.widthOfTextAtSize(label, footerSize);
-
-    p.drawText(label, {
-      x: width - 50 - w,
-      y: 30,
-      size: footerSize,
-      font,
+    return new NextResponse(Buffer.from(bytes), {
+      status: 200,
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": `attachment; filename="${filename}"`,
+        "cache-control": "no-store",
+      },
     });
+  } catch (e: any) {
+    console.error("[receipt-pdf] generation failed:", e);
+    return NextResponse.json(
+      { error: "PDF generation failed", detail: e?.message ?? String(e) },
+      { status: 500 }
+    );
   }
-
-  return new NextResponse(Buffer.from(bytes), {
-    status: 200,
-    headers: {
-      "content-type": "application/pdf",
-      "content-disposition": `attachment; filename="${filename}"`,
-      "cache-control": "no-store",
-    },
-  });
 }

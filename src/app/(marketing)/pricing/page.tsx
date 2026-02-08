@@ -98,6 +98,7 @@ function PlanCard({
   priceLine,
   ctaLabel,
   ctaHref,
+  ctaOnClick,
   highlight,
   bullets,
   finePrint,
@@ -106,7 +107,8 @@ function PlanCard({
   description: string;
   priceLine: React.ReactNode;
   ctaLabel: string;
-  ctaHref: string;
+  ctaHref?: string;
+  ctaOnClick?: () => void;
   highlight?: boolean;
   bullets: string[];
   finePrint?: string;
@@ -158,19 +160,34 @@ function PlanCard({
         ))}
       </div>
 
-      <div className="mt-auto pt-6">
-        <a
-          href={ctaHref}
-          className={[
-            "inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-sm font-semibold shadow-sm transition",
-            highlight
-              ? "bg-zinc-900 text-white hover:opacity-90 dark:bg-white dark:text-zinc-950"
-              : "border border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50",
-          ].join(" ")}
-        >
-          {ctaLabel}
-        </a>
-      </div>
+  <div className="mt-auto pt-6">
+    {ctaOnClick ? (
+      <button
+        type="button"
+        onClick={ctaOnClick}
+        className={[
+          "inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-sm font-semibold shadow-sm transition",
+          highlight
+            ? "bg-zinc-900 text-white hover:opacity-90 dark:bg-white dark:text-zinc-950"
+            : "border border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50",
+        ].join(" ")}
+      >
+        {ctaLabel}
+      </button>
+    ) : (
+      <a
+        href={ctaHref}
+        className={[
+          "inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-sm font-semibold shadow-sm transition",
+          highlight
+            ? "bg-zinc-900 text-white hover:opacity-90 dark:bg-white dark:text-zinc-950"
+            : "border border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50",
+        ].join(" ")}
+      >
+        {ctaLabel}
+      </a>
+    )}
+  </div>
     </div>
   );
 }
@@ -178,6 +195,31 @@ function PlanCard({
 export default function PricingPage() {
   const [billing, setBilling] = useState<Billing>("annual");
   const [seats, setSeats] = useState<number>(5);
+  const [checkoutLoading, setCheckoutLoading] = useState<null | "personal" | "pro" | "team">(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  async function goCheckout(plan: "personal" | "pro" | "team") {
+    setCheckoutError(null);
+    setCheckoutLoading(plan);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          plan,
+          billing,
+          seats: plan === "team" ? seats : undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Checkout failed");
+      if (!json?.url) throw new Error("No checkout URL returned");
+      window.location.href = json.url;
+    } catch (e: any) {
+      setCheckoutError(e?.message ?? "Something went wrong");
+      setCheckoutLoading(null);
+    }
+  }
 
   const personal = useMemo(
     () => priceForBilling(PRICING.personal.monthly, billing),
@@ -238,6 +280,11 @@ export default function PricingPage() {
           <BillingToggle billing={billing} setBilling={setBilling} />
           <div className="text-xs text-zinc-500 dark:text-zinc-500">{annualNote}</div>
         </div>
+        {checkoutError ? (
+          <div className="mt-3 text-sm text-red-600 dark:text-red-400">
+            {checkoutError}
+          </div>
+        ) : null}
       </section>
 
       {/* Plans */}
@@ -279,8 +326,8 @@ export default function PricingPage() {
                 </span>
               </>
             }
-            ctaLabel="Choose Personal"
-            ctaHref="/app"
+            ctaLabel={checkoutLoading === "personal" ? "Redirecting…" : "Choose Personal"}
+            ctaOnClick={() => goCheckout("personal")}
             bullets={[
               `${DOC_LIMITS.personalPerMonth} documents / month`,
               "Password protection",
@@ -302,8 +349,8 @@ export default function PricingPage() {
                 </span>
               </>
             }
-            ctaLabel="Choose Pro"
-            ctaHref="/app"
+            ctaLabel={checkoutLoading === "pro" ? "Redirecting…" : "Choose Pro"}
+            ctaOnClick={() => goCheckout("pro")}
             highlight
             bullets={[
               `${DOC_LIMITS.proPerMonth} documents / month`,
@@ -377,12 +424,14 @@ export default function PricingPage() {
             </div>
 
             <div className="mt-auto pt-6">
-              <a
-                href="/app"
-                className="inline-flex w-full items-center justify-center rounded-full bg-zinc-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
+              <button
+                type="button"
+                onClick={() => goCheckout("team")}
+                disabled={checkoutLoading === "team"}
+                className="inline-flex w-full items-center justify-center rounded-full bg-zinc-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60 dark:bg-white dark:text-zinc-950"
               >
-                Choose Team
-              </a>
+                {checkoutLoading === "team" ? "Redirecting…" : "Choose Team"}
+              </button>
             </div>
           </div>
         </div>

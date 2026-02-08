@@ -17,20 +17,28 @@
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.10);
 }
 
-.dark {
-  --bg: #000000;
-  --fg: #eaeaea;
+/* Let the browser render native UI in the correct scheme */
+:root {
+  color-scheme: light dark;
+}
 
-  --muted: rgba(234, 234, 234, 0.72);
-  --muted2: rgba(234, 234, 234, 0.56);
+/* System dark mode (automatic) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --fg: #eaeaea;
 
-  --border: rgba(234, 234, 234, 0.18);
-  --border2: rgba(234, 234, 234, 0.12);
+    --muted: rgba(234, 234, 234, 0.72);
+    --muted2: rgba(234, 234, 234, 0.56);
 
-  --card: rgba(234, 234, 234, 0.06);
-  --card2: rgba(234, 234, 234, 0.09);
+    --border: rgba(234, 234, 234, 0.18);
+    --border2: rgba(234, 234, 234, 0.12);
 
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    --card: rgba(234, 234, 234, 0.06);
+    --card2: rgba(234, 234, 234, 0.09);
+
+    --shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  }
 }
 
 html,
