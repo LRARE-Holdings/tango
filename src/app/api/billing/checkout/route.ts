@@ -54,6 +54,15 @@ export async function POST(req: Request) {
 
     const priceId = getPriceId(plan, billing);
 
+    // Trial policy:
+    // - Monthly: 7 days
+    // - Annual: 14 days
+    // Only apply a trial if this customer has never had a Stripe subscription before.
+    const desiredTrialDays = billing === "annual" ? 14 : 7;
+
+    // We’ll compute this after we have a customerId.
+    let trialPeriodDays: number | undefined;
+
     // Minimal customer strategy:
     // 1) Look up stripe_customer_id in your profiles/users table
     // 2) Create one if missing, then store it
@@ -61,7 +70,7 @@ export async function POST(req: Request) {
     // Replace this with your real table/column.
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, stripe_customer_id, email")
+      .select("id, stripe_customer_id, email, has_had_trial")
       .eq("id", userRes.user.id)
       .maybeSingle();
 
@@ -80,6 +89,21 @@ export async function POST(req: Request) {
         .eq("id", userRes.user.id);
     }
 
+    // Prevent trial abuse: only allow a trial for customers with no prior subscriptions.
+    // If you later add a `has_had_trial` boolean to your Supabase profiles table,
+    // you can also enforce it here.
+    const subs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 1,
+    });
+
+    const hasEverSubscribed = (subs.data?.length ?? 0) > 0;
+    trialPeriodDays = hasEverSubscribed ? undefined : desiredTrialDays;
+
+    const hasHadTrial = Boolean((profile as any)?.has_had_trial);
+    trialPeriodDays = (hasEverSubscribed || hasHadTrial) ? undefined : desiredTrialDays;
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL!;
     const successUrl = `${baseUrl}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${baseUrl}/pricing`;
@@ -92,6 +116,7 @@ export async function POST(req: Request) {
       success_url: successUrl,
       cancel_url: cancelUrl,
       subscription_data: {
+        ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
         metadata: {
           user_id: userRes.user.id,
           plan,

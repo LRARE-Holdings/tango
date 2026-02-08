@@ -533,7 +533,8 @@ export default function OnboardingPage() {
                       <div>
                         <div className="text-sm font-semibold">Billing</div>
                         <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                          Switch anytime in Stripe.
+                          {billing === "annual" ? "Includes a 14-day free trial." : "Includes a 7-day free trial."}{" "}
+                          You can cancel anytime in Stripe.
                         </div>
                       </div>
 
@@ -601,7 +602,7 @@ export default function OnboardingPage() {
                         ? "Continue"
                         : recommendation.plan === "enterprise"
                           ? "Contact sales"
-                          : `Continue to ${billing === "annual" ? "annual" : "monthly"} checkout`}
+                          : `Continue to ${billing === "annual" ? "annual" : "monthly"} checkout (${billing === "annual" ? "14" : "7"}-day trial)`}
                   </button>
 
                   <Link
@@ -614,7 +615,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-                  You can change plans later. Receipt stays neutral — it records observable events and acknowledgement.
+                  Trial starts today. We’ll charge after the trial ends unless you cancel. Receipt stays neutral — it records observable events and acknowledgement.
                 </div>
               </div>
             )}

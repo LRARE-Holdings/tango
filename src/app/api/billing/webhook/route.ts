@@ -41,6 +41,11 @@ function subscriptionCurrentPeriodEnd(sub: Stripe.Subscription): number | null {
   return typeof v === "number" ? v : null;
 }
 
+function subscriptionTrialEnd(sub: Stripe.Subscription): number | null {
+  const v = (sub as unknown as { trial_end?: number | null }).trial_end;
+  return typeof v === "number" ? v : null;
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
@@ -82,6 +87,8 @@ export async function POST(request: Request) {
         const priceId = subscription.items.data[0]?.price.id ?? null;
         const plan = priceToPlan(priceId);
 
+        
+
         await admin
           .from("profiles")
           .upsert({
@@ -97,6 +104,10 @@ export async function POST(request: Request) {
               ? new Date(subscriptionCurrentPeriodEnd(subscription)! * 1000).toISOString()
               : null,
             cancel_at_period_end: subscription.cancel_at_period_end,
+            has_had_trial: true,
+            trial_end: subscriptionTrialEnd(subscription)
+            ? new Date(subscriptionTrialEnd(subscription)! * 1000).toISOString()
+            : null,
             updated_at: new Date().toISOString(),
           }, { onConflict: "stripe_customer_id" });
 
@@ -124,6 +135,12 @@ export async function POST(request: Request) {
               ? new Date(subscriptionCurrentPeriodEnd(subscription)! * 1000).toISOString()
               : null,
             cancel_at_period_end: subscription.cancel_at_period_end,
+
+                // NEW
+              has_had_trial: true,
+              trial_end: subscriptionTrialEnd(subscription)
+              ? new Date(subscriptionTrialEnd(subscription)! * 1000).toISOString()
+              : null,
             updated_at: new Date().toISOString(),
           })
           .eq("stripe_subscription_id", subscription.id);

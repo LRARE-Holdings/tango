@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 
 type Billing = "monthly" | "annual";
 
+
+const TRIAL_DAYS = {
+  monthly: 7,
+  annual: 14,
+} as const;
 const ANNUAL_DISCOUNT = 0.15;
 
 // Explicit, tiered limits that make sense
@@ -278,7 +283,16 @@ export default function PricingPage() {
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <BillingToggle billing={billing} setBilling={setBilling} />
-          <div className="text-xs text-zinc-500 dark:text-zinc-500">{annualNote}</div>
+
+          <div className="flex flex-col items-start gap-1 text-xs text-zinc-500 dark:text-zinc-500 sm:items-end">
+            <div>{annualNote}</div>
+            <div className="inline-flex items-center gap-2">
+              <span className="rounded-full border border-zinc-200 bg-white px-2 py-0.5 font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+                {billing === "annual" ? `${TRIAL_DAYS.annual}-day free trial` : `${TRIAL_DAYS.monthly}-day free trial`}
+              </span>
+              <span className="text-zinc-500 dark:text-zinc-500">Cancel anytime.</span>
+            </div>
+          </div>
         </div>
         {checkoutError ? (
           <div className="mt-3 text-sm text-red-600 dark:text-red-400">
@@ -335,7 +349,11 @@ export default function PricingPage() {
               "Configurable share options",
               "Standard exports",
             ]}
-            finePrint="Everything in free + more docs and access control. Resets monthly."
+            finePrint={
+              billing === "annual"
+                ? `${TRIAL_DAYS.annual}-day free trial. Billed annually after trial ends. Resets monthly.`
+                : `${TRIAL_DAYS.monthly}-day free trial. Billed monthly after trial ends. Resets monthly.`
+            }
           />
 
           <PlanCard
@@ -360,7 +378,11 @@ export default function PricingPage() {
               "Audit-friendly exports",
               "Priority support",
             ]}
-            finePrint="Higher throughput, same neutral posture."
+            finePrint={
+              billing === "annual"
+                ? `${TRIAL_DAYS.annual}-day free trial. Billed annually after trial ends.`
+                : `${TRIAL_DAYS.monthly}-day free trial. Billed monthly after trial ends.`
+            }
           />
 
           {/* Team (seat-based) */}
@@ -379,10 +401,14 @@ export default function PricingPage() {
                   {team.suffix}
                 </span>
               </div>
-              <div className="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
-                {billing === "annual" ? "Billed annually. " : "Billed monthly. "}
-                {formatGBP(teamPerSeat.amount)} {teamPerSeat.note}.
-              </div>
+            <div className="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                {billing === "annual" ? `${TRIAL_DAYS.annual}-day free trial` : `${TRIAL_DAYS.monthly}-day free trial`}
+              </span>
+              {" "}
+              • {billing === "annual" ? "Billed annually after trial. " : "Billed monthly after trial. "}
+              {formatGBP(teamPerSeat.amount)} {teamPerSeat.note}.
+            </div>
             </div>
 
             <div className="mt-6">
@@ -434,6 +460,10 @@ export default function PricingPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="mt-4 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
+          Free trial applies to paid plans only. Your trial starts today and you’ll be charged when it ends unless you cancel in Stripe.
         </div>
 
         {/* Enterprise */}
