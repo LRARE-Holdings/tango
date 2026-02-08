@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
 import { EmailVerificationGate } from "@/components/email-verification-gate";
@@ -70,8 +70,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastProvider>
-      <EmailVerificationGate />
+      <Suspense fallback={null}>
+        <EmailVerificationGate />
         <OnboardingGate />
+      </Suspense>
       <style>{`
         /* Logo inversion in system dark mode (since svg is black) */
         .receipt-logo { height: 26px; width: auto; display: block; }
@@ -131,7 +133,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Content */}
-        <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
+        <main className="mx-auto max-w-6xl px-6 py-10">
+          <Suspense fallback={null}>{children}</Suspense>
+        </main>
 
         {/* Footer */}
         <footer className="mx-auto max-w-6xl px-6 pb-10">
