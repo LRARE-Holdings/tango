@@ -14,6 +14,9 @@ export default function AuthConfirmPage() {
       try {
         const url = new URL(window.location.href);
 
+        const next = url.searchParams.get("next") || url.searchParams.get("redirect_to");
+        const redirectTo = next && next.startsWith("/") ? next : "/app";
+
         // 1) New-style links often use token_hash + type (magiclink / recovery / invite)
         const token_hash = url.searchParams.get("token_hash");
         const type = url.searchParams.get("type");
@@ -26,7 +29,7 @@ export default function AuthConfirmPage() {
 
           if (error) throw error;
 
-          router.replace("/app");
+          router.replace(redirectTo);
           return;
         }
 
@@ -35,7 +38,7 @@ export default function AuthConfirmPage() {
         if (code && typeof (supabase.auth as any).exchangeCodeForSession === "function") {
           const { error } = await (supabase.auth as any).exchangeCodeForSession(code);
           if (error) throw error;
-          router.replace("/app");
+          router.replace(redirectTo);
           return;
         }
 
@@ -51,7 +54,7 @@ export default function AuthConfirmPage() {
             refresh_token,
           });
           if (error) throw error;
-          router.replace("/app");
+          router.replace(redirectTo);
           return;
         }
 

@@ -17,10 +17,18 @@ export default function AuthPage() {
     setLoading(true);
     setError(null);
 
+    const siteUrl =
+      (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") ||
+      window.location.origin;
+
+    // Important: avoid a trailing slash here. Supabase redirect URL allow-listing
+    // is strict, and a mismatch can cause a fallback redirect to the Site URL.
+    const emailRedirectTo = `${siteUrl}/auth/confirm?next=/app`;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm/`,
+        emailRedirectTo,
       },
     });
 
