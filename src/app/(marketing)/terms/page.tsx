@@ -188,7 +188,7 @@ export default function TermsPage() {
             For questions about these terms, contact:
           </p>
           <p className="text-sm font-medium">
-            legal@getreceipt.xyz
+            legal@lrare.co.uk
           </p>
         </section>
 
