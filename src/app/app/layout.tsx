@@ -7,6 +7,7 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
 import { EmailVerificationGate } from "@/components/email-verification-gate";
 import { OnboardingGate } from "@/components/onboarding-gate";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
 function NavItem({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -58,6 +59,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     loadMe();
   }, []);
 
+  useEffect(() => {
+    // Reconcile any pending workspace invites after login
+    fetch("/api/app/invites/reconcile", { method: "POST" }).catch(() => {});
+  }, []);
+
   async function signOut() {
     setSigningOut(true);
     try {
@@ -103,8 +109,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-3">
                 <nav className="hidden sm:flex items-center gap-4">
                   <NavItem href="/app">Dashboard</NavItem>
+                  <NavItem href="/app/workspaces">Workspace</NavItem>
                   <NavItem href="/app/account">Account</NavItem>
                 </nav>
+                
+                <WorkspaceSwitcher />
 
                 <div className="hidden md:block text-xs" style={{ color: "var(--muted)" }}>
                   {meLoading ? "Loading…" : meEmail ? `Signed in as ${meEmail}` : "Not signed in"}
