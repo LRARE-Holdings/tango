@@ -85,9 +85,9 @@ export default function AuthPage() {
       });
       if (signUpErr) throw signUpErr;
 
-      // Gate new users on verification (works whether confirmation is enabled or not).
+      // Gate new users on verification using the simple holding page.
       router.replace(
-        `/auth/verify?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(email)}`
+        `/auth/check-email?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(email)}`
       );
     } catch (e: any) {
       setError(e?.message ?? "Could not continue");
