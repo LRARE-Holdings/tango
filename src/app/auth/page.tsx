@@ -54,15 +54,12 @@ export default function AuthPage() {
       });
       if (signUpErr) throw signUpErr;
 
-      // If email confirmations are enabled, Supabase typically returns no session here.
-      // Do NOT send them into /app — route them to a verification gate.
-      if (!data?.session) {
-        router.replace(`/auth/verify?next=${encodeURIComponent(nextPath)}`);
-        return;
-      }
-
-      // Confirmations disabled (or user already confirmed) — proceed
-      router.replace(nextPath);
+      // Always send new signups to the verify screen.
+      // If confirmations are disabled, verify will immediately continue.
+      router.replace(
+        `/auth/verify?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(email)}`
+      );
+      return;
     } catch (e: any) {
       setError(e?.message ?? "Could not sign in");
     } finally {
