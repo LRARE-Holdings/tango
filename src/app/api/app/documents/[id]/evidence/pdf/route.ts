@@ -63,19 +63,6 @@ function pickOrigin(req: Request) {
   }
 }
 
-async function svgToPngBytes(svgPath: string, targetWidthPx: number) {
-  // Dynamic import avoids bundler/runtime issues
-  const mod = await import("@resvg/resvg-js");
-  const Resvg = mod.Resvg;
-
-  const svg = await fs.readFile(svgPath, "utf8");
-  const resvg = new Resvg(svg, {
-    fitTo: { mode: "width", value: targetWidthPx },
-  });
-
-  const png = resvg.render().asPng();
-  return new Uint8Array(png);
-}
 
 export async function GET(
   req: Request,
@@ -145,8 +132,8 @@ export async function GET(
     let logoImg: any = null;
 
     try {
-      const svgPath = path.join(process.cwd(), "public", "receipt-logo.svg");
-      const logoPngBytes = await svgToPngBytes(svgPath, 260);
+      const logoPath = path.join(process.cwd(), "public", "receipt-logo.png");
+      const logoPngBytes = await fs.readFile(logoPath);
       logoImg = await pdf.embedPng(logoPngBytes);
     } catch (e) {
       // Don’t fail PDF generation just because logo embedding failed
