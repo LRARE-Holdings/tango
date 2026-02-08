@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
+import { EmailVerificationGate } from "@/components/email-verification-gate";
 
 function NavItem({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -68,6 +69,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastProvider>
+      <EmailVerificationGate />
       <style>{`
         /* Logo inversion in system dark mode (since svg is black) */
         .receipt-logo { height: 26px; width: auto; display: block; }

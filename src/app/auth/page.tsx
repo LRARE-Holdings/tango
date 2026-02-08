@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 type Mode = "signin" | "signup";
 
 export default function AuthPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = supabaseBrowser();
+
+  const nextParam = searchParams.get("next");
+  const nextPath = nextParam && nextParam.startsWith("/") ? nextParam : "/app";
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -31,25 +35,34 @@ export default function AuthPage() {
           password,
         });
         if (signInErr) throw signInErr;
-        router.replace("/app");
+        router.replace(nextPath);
         return;
       }
 
       // signup
-      const { error: signUpErr } = await supabase.auth.signUp({
+      const siteUrl =
+        (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") ||
+        window.location.origin;
+
+      const { data, error: signUpErr } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // optional: after email confirm, Supabase can send user here
-          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin}/auth/callback`,
+          // After email confirmation, Supabase will redirect back here
+          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
         },
       });
       if (signUpErr) throw signUpErr;
 
-      // You can either:
-      // - send them to /app immediately if you have "Confirm email" disabled
-      // - or show a “check your inbox” screen if confirm email is enabled
-      router.replace("/app");
+      // If email confirmations are enabled, Supabase typically returns no session here.
+      // Do NOT send them into /app — route them to a verification gate.
+      if (!data?.session) {
+        router.replace(`/auth/verify?next=${encodeURIComponent(nextPath)}`);
+        return;
+      }
+
+      // Confirmations disabled (or user already confirmed) — proceed
+      router.replace(nextPath);
     } catch (e: any) {
       setError(e?.message ?? "Could not sign in");
     } finally {
