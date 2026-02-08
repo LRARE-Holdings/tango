@@ -290,7 +290,7 @@ export default function OnboardingPage() {
           <div className="flex items-start justify-between gap-6">
             <h2 className="text-lg font-semibold tracking-tight">{STEPS[step].title}</h2>
             <div className="text-xs" style={{ color: "var(--muted2)" }}>
-              {STEPS[step].key !== "result" ? "Quick" : "Done"}
+              {STEPS[step].key !== "result" ? "In Progress" : "Done"}
             </div>
           </div>
 
