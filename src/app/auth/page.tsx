@@ -25,15 +25,16 @@ export default function AuthPage() {
     // redirect allow-list mismatches that can fall back to the Site URL.
     const emailRedirectTo = `${siteUrl}/auth/confirm`;
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: {
+        // Keep the redirect path exact; we handle post-login routing inside /auth/confirm
         emailRedirectTo,
       },
     });
 
-    if (error) {
-      setError(error.message);
+    if (otpError) {
+      setError(otpError.message);
       setLoading(false);
       return;
     }
