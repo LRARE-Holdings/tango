@@ -288,14 +288,6 @@ export default function OnboardingPage() {
               A couple of quick questions — then we’ll recommend the right plan.
             </p>
           </div>
-
-          <Link
-            href="/app"
-            className="text-xs underline underline-offset-4 hover:opacity-80"
-            style={{ color: "var(--muted)" }}
-          >
-            Skip for now
-          </Link>
         </div>
 
         {/* Progress */}
@@ -653,9 +645,6 @@ export default function OnboardingPage() {
           )}
         </div>
 
-        <div className="mt-6 text-xs" style={{ color: "var(--muted2)" }}>
-          Tip: keep this flow short. The goal is confidence, not a form.
-        </div>
       </div>
     </main>
   );
