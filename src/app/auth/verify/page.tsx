@@ -1,137 +1,108 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-function safeNext(next: string | null) {
-  return next && next.startsWith("/") ? next : "/app";
+function getSafeNextFromUrl(href: string) {
+  try {
+    const url = new URL(href);
+    const next = url.searchParams.get("next") || "/app";
+    return next.startsWith("/") ? next : "/app";
+  } catch {
+    return "/app";
+  }
 }
 
-export default function VerifyEmailGatePage() {
+export default function VerifyEmailPage() {
   const router = useRouter();
-  const sp = useSearchParams();
   const supabase = supabaseBrowser();
 
-  const next = useMemo(() => safeNext(sp.get("next")), [sp]);
-  const emailFromQuery = useMemo(() => sp.get("email") ?? "", [sp]);
+  const [nextPath, setNextPath] = useState("/app");
+  const [email, setEmail] = useState<string | null>(null);
 
-  const [email, setEmail] = useState(emailFromQuery);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const siteUrl = useMemo(() => {
-    return (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || window.location.origin;
+  useEffect(() => {
+    // Read params without useSearchParams (avoids Next build CSR bailout rule)
+    const href = window.location.href;
+    const url = new URL(href);
+
+    setNextPath(getSafeNextFromUrl(href));
+
+    const emailParam = url.searchParams.get("email");
+    setEmail(emailParam ? decodeURIComponent(emailParam) : null);
   }, []);
 
-  async function resend() {
+  const subtitle = useMemo(() => {
+    if (email) return `We sent a verification email to ${email}.`;
+    return "We sent a verification email to your inbox.";
+  }, [email]);
+
+  async function iHaveVerified() {
+    setChecking(true);
     setError(null);
-    setSent(false);
 
-    const trimmed = email.trim();
-    if (!trimmed) {
-      setError("Enter your email address to resend the verification email.");
-      return;
-    }
-
-    setSending(true);
     try {
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email: trimmed,
-        options: {
-          // After verification click, user returns here to complete session
-          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(next)}`,
-        },
-      });
+      const { data, error: meErr } = await supabase.auth.getUser();
+      if (meErr) throw meErr;
 
-      if (error) throw error;
-      setSent(true);
+      // Supabase user object includes email_confirmed_at when confirmed
+      const confirmedAt = (data?.user as any)?.email_confirmed_at as string | null;
+
+      if (!confirmedAt) {
+        setError("Still not verified — please check your inbox (and spam), then try again.");
+        setChecking(false);
+        return;
+      }
+
+      router.replace(nextPath);
     } catch (e: any) {
-      setError(e?.message ?? "Could not resend verification email.");
-    } finally {
-      setSending(false);
+      setError(e?.message ?? "Could not check verification status.");
+      setChecking(false);
     }
-  }
-
-  function backToSignIn() {
-    router.replace(`/auth?next=${encodeURIComponent(next)}`);
   }
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
-      <div
-        className="w-full max-w-md rounded-3xl border p-6 shadow-sm md:p-8"
-        style={{
-          borderColor: "var(--border)",
-          background: "color-mix(in srgb, var(--bg) 88%, transparent)",
-        }}
-      >
+      <div className="w-full max-w-sm space-y-5">
         <div className="space-y-2">
-          <div className="text-xs font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
-            VERIFY EMAIL
-          </div>
-
-          <h1 className="text-2xl font-semibold tracking-tight">Check your inbox</h1>
-
+          <h1 className="text-2xl font-semibold tracking-tight">Verify your email</h1>
           <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-            We’ve sent you a verification link. You must click it before you can access your
-            workspace.
+            {subtitle} Click the link inside it to activate your account.
           </p>
         </div>
 
-        <div className="mt-6 space-y-3">
-          <div className="text-xs" style={{ color: "var(--muted2)" }}>
-            EMAIL ADDRESS
-          </div>
-
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@firm.com"
-            className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
-            style={{ borderColor: "var(--border)", color: "var(--fg)" }}
-            autoComplete="email"
-          />
-
+        <div className="space-y-3">
           <button
             type="button"
-            onClick={resend}
-            disabled={sending}
+            onClick={iHaveVerified}
+            disabled={checking}
             className="focus-ring w-full rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
             style={{ background: "var(--fg)", color: "var(--bg)" }}
           >
-            {sending ? "Sending…" : "Resend verification email"}
+            {checking ? "Checking…" : "I’ve verified"}
           </button>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={backToSignIn}
-              className="focus-ring w-full rounded-full border px-6 py-2.5 text-sm font-medium transition hover:opacity-80"
-              style={{ borderColor: "var(--border)", color: "var(--fg)" }}
-            >
-              Back to sign in
-            </button>
+          <Link
+            href={`/auth?next=${encodeURIComponent(nextPath)}`}
+            className="focus-ring inline-flex w-full items-center justify-center rounded-full border px-6 py-2.5 text-sm font-medium transition hover:opacity-80"
+            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+          >
+            Back to sign in
+          </Link>
+        </div>
+
+        {error && (
+          <div className="text-sm" style={{ color: "#ff3b30" }}>
+            {error}
           </div>
+        )}
 
-          {sent && (
-            <div className="text-sm" style={{ color: "var(--muted)" }}>
-              Sent. Check your inbox (and spam).
-            </div>
-          )}
-
-          {error && (
-            <div className="text-sm" style={{ color: "#ff3b30" }}>
-              {error}
-            </div>
-          )}
-
-          <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-            After you click the link, you’ll be redirected back to Receipt and taken straight into
-            your workspace.
-          </div>
+        <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+          Didn’t get it? Check spam/junk. If you used the wrong email, go back and sign up again.
         </div>
       </div>
     </main>
