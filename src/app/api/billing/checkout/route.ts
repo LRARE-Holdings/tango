@@ -131,7 +131,7 @@ export async function POST(req: Request) {
     /* URLs                                                                    */
     /* ---------------------------------------------------------------------- */
 
-    const siteUrl = requireEnv("NEXT_PUBLIC_SITE_URL");
+    const siteUrl = requireEnv("NEXT_PUBLIC_APP_URL");
 
     const successUrl =
       `${siteUrl}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`;

@@ -4,7 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 function getSiteUrl(req: Request) {
-  const env = process.env.NEXT_PUBLIC_SITE_URL;
+  const env = process.env.NEXT_PUBLIC_APP_URL;
   if (env) return env.replace(/\/$/, "");
   const url = new URL(req.url);
   return `${url.protocol}//${url.host}`;

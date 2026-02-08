@@ -10,7 +10,7 @@ function isSafeNext(v: string | null) {
 }
 
 function getSiteUrl() {
-  const raw = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
+  const raw = (process.env.NEXT_PUBLIC_APP_URL || "").trim();
   return raw ? raw.replace(/\/$/, "") : window.location.origin;
 }
 
