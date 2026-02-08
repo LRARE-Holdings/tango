@@ -19,6 +19,7 @@ type NeedKey =
   | "templates_defaults";
 
 type RecommendedPlan = "free" | "personal" | "pro" | "team" | "enterprise";
+type Billing = "monthly" | "annual";
 
 type Answers = {
   intent: UsageIntent | null;
@@ -140,6 +141,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billing, setBilling] = useState<Billing>("annual");
+  const [seats, setSeats] = useState<number>(5);
 
   const [answers, setAnswers] = useState<Answers>({
     intent: null,
@@ -179,6 +182,40 @@ export default function OnboardingPage() {
     });
   }
 
+  async function startCheckout(plan: RecommendedPlan) {
+    // Free goes straight in.
+    if (plan === "free") {
+      router.replace("/app");
+      return;
+    }
+
+    // Enterprise routes to contact.
+    if (plan === "enterprise") {
+      router.replace("/enterprise");
+      return;
+    }
+
+    const body: any = {
+      plan,
+      billing,
+    };
+
+    // Only Team uses seats.
+    if (plan === "team") body.seats = seats;
+
+    const res = await fetch("/api/billing/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(json?.error ?? "Could not start checkout");
+    if (!json?.url) throw new Error("No checkout URL returned");
+
+    window.location.href = json.url;
+  }
+
   async function finish() {
     setSubmitting(true);
     setError(null);
@@ -188,10 +225,8 @@ export default function OnboardingPage() {
         recommended_plan: recommendation.plan,
       });
 
-      // After onboarding:
-      // - send them to checkout if they came here from an upgrade flow (later)
-      // - otherwise take them to /app
-      router.replace("/app");
+      // After onboarding, send them into the correct purchase flow.
+      await startCheckout(recommendation.plan);
     } catch (e: any) {
       setError(e?.message ?? "Something went wrong");
     } finally {
@@ -491,6 +526,67 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
+                {/* Billing choice (only for paid plans) */}
+                {recommendation.plan !== "free" && recommendation.plan !== "enterprise" && (
+                  <div className="border p-5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <div className="text-sm font-semibold">Billing</div>
+                        <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                          Switch anytime in Stripe.
+                        </div>
+                      </div>
+
+                      <div className="inline-flex border" style={{ borderColor: "var(--border)" }}>
+                        <button
+                          type="button"
+                          onClick={() => setBilling("monthly")}
+                          className="px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+                          style={{
+                            background: billing === "monthly" ? "var(--fg)" : "transparent",
+                            color: billing === "monthly" ? "var(--bg)" : "var(--fg)",
+                          }}
+                        >
+                          Monthly
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBilling("annual")}
+                          className="px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+                          style={{
+                            borderLeft: `1px solid var(--border)`,
+                            background: billing === "annual" ? "var(--fg)" : "transparent",
+                            color: billing === "annual" ? "var(--bg)" : "var(--fg)",
+                          }}
+                        >
+                          Annual
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Seats (Team only) */}
+                    {recommendation.plan === "team" && (
+                      <div className="mt-5">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="font-semibold">Seats</div>
+                          <div style={{ color: "var(--muted)" }}>{seats}</div>
+                        </div>
+                        <input
+                          type="range"
+                          min={2}
+                          max={50}
+                          value={seats}
+                          onChange={(e) => setSeats(Number(e.target.value))}
+                          className="mt-3 w-full"
+                        />
+                        <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                          You’ll confirm seats and billing in Stripe checkout.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex flex-col md:flex-row gap-3">
                   <button
                     type="button"
@@ -499,7 +595,13 @@ export default function OnboardingPage() {
                     className="focus-ring px-6 py-3 text-sm font-semibold transition disabled:opacity-50"
                     style={{ background: "var(--fg)", color: "var(--bg)" }}
                   >
-                    {submitting ? "Saving…" : `Continue with ${recommendation.plan}`}
+                    {submitting
+                      ? "Redirecting…"
+                      : recommendation.plan === "free"
+                        ? "Continue"
+                        : recommendation.plan === "enterprise"
+                          ? "Contact sales"
+                          : `Continue to ${billing === "annual" ? "annual" : "monthly"} checkout`}
                   </button>
 
                   <Link
