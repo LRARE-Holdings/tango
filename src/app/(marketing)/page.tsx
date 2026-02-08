@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
@@ -142,7 +143,19 @@ function SectionTitle({
   );
 }
 
-export default function Home() {
+export default function Home({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
+  const code = typeof searchParams?.code === "string" ? searchParams.code : null;
+  const next = typeof searchParams?.next === "string" ? searchParams.next : null;
+
+  if (code) {
+    const qs = new URLSearchParams({ code });
+    if (next) qs.set("next", next);
+    redirect(`/auth/confirm?${qs.toString()}`);
+  }
   return (
     <main className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       {/* subtle background texture */}
