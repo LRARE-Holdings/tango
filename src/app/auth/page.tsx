@@ -1,26 +1,58 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 type Mode = "signin" | "signup";
 
+function getSafeNextFromHref(href: string) {
+  try {
+    const url = new URL(href);
+    const next = url.searchParams.get("next") || "/app";
+    return next.startsWith("/") ? next : "/app";
+  } catch {
+    return "/app";
+  }
+}
+
+function getSiteUrl() {
+  const raw = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
+  const base = raw ? raw.replace(/\/$/, "") : window.location.origin;
+  return base;
+}
+
 export default function AuthPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = supabaseBrowser();
-
-  const nextParam = searchParams.get("next");
-  const nextPath = nextParam && nextParam.startsWith("/") ? nextParam : "/app";
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [nextPath, setNextPath] = useState("/app");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentReset, setSentReset] = useState(false);
+
+  useEffect(() => {
+    // Avoid `useSearchParams()` to keep builds stable.
+    setNextPath(getSafeNextFromHref(window.location.href));
+  }, []);
+
+  const title = useMemo(
+    () => (mode === "signin" ? "Sign in" : "Create your account"),
+    [mode]
+  );
+
+  const subtitle = useMemo(
+    () =>
+      mode === "signin"
+        ? "Sign in with email and password."
+        : "Create an account to start using Receipt.",
+    [mode]
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,28 +72,25 @@ export default function AuthPage() {
       }
 
       // signup
-      const siteUrl =
-        (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") ||
-        window.location.origin;
+      const siteUrl = getSiteUrl();
 
-      const { data, error: signUpErr } = await supabase.auth.signUp({
+      const { error: signUpErr } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // After email confirmation, Supabase will redirect back here
-          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
+          // After email confirmation, Supabase can send the user here.
+          // (If confirmations are disabled, the user will be immediately authenticated anyway.)
+          emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
         },
       });
       if (signUpErr) throw signUpErr;
 
-      // Always send new signups to the verify screen.
-      // If confirmations are disabled, verify will immediately continue.
+      // Gate new users on verification (works whether confirmation is enabled or not).
       router.replace(
         `/auth/verify?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(email)}`
       );
-      return;
     } catch (e: any) {
-      setError(e?.message ?? "Could not sign in");
+      setError(e?.message ?? "Could not continue");
     } finally {
       setLoading(false);
     }
@@ -71,14 +100,12 @@ export default function AuthPage() {
     setLoading(true);
     setError(null);
     try {
-      const siteUrl =
-        (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") ||
-        window.location.origin;
+      const siteUrl = getSiteUrl();
 
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${siteUrl}/auth/callback`,
+          redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
         },
       });
       if (oauthErr) throw oauthErr;
@@ -95,9 +122,7 @@ export default function AuthPage() {
     setSentReset(false);
 
     try {
-      const siteUrl =
-        (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") ||
-        window.location.origin;
+      const siteUrl = getSiteUrl();
 
       const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${siteUrl}/auth/reset`,
@@ -116,13 +141,9 @@ export default function AuthPage() {
     <main className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {mode === "signin" ? "Sign in" : "Create your account"}
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            {mode === "signin"
-              ? "Sign in with email and password."
-              : "Create an account to start using Receipt."}
+            {subtitle}
           </p>
         </div>
 
