@@ -1,85 +1,47 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-function isSafeNext(next: string | null) {
-  return !!next && next.startsWith("/") && !next.startsWith("//");
+function safeNext(next: string | null) {
+  return next && next.startsWith("/") ? next : "/app";
 }
 
-export default function VerifyEmailPage() {
+export default function VerifyEmailGatePage() {
   const router = useRouter();
   const sp = useSearchParams();
   const supabase = supabaseBrowser();
 
-  const next = useMemo(() => {
-    const raw = sp.get("next");
-    return isSafeNext(raw) ? raw! : "/app";
-  }, [sp]);
+  const next = useMemo(() => safeNext(sp.get("next")), [sp]);
+  const emailFromQuery = useMemo(() => sp.get("email") ?? "", [sp]);
 
-  const [email, setEmail] = useState<string | null>(null);
-  const [checking, setChecking] = useState(true);
-
+  const [email, setEmail] = useState(emailFromQuery);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setChecking(true);
-      setError(null);
-
-      const { data, error } = await supabase.auth.getUser();
-      if (!cancelled) {
-        if (error) {
-          setError(error.message);
-          setChecking(false);
-          return;
-        }
-
-        const user = data?.user;
-        if (!user) {
-          router.replace(`/auth?next=${encodeURIComponent(next)}`);
-          return;
-        }
-
-        setEmail(user.email ?? null);
-
-        // If confirmed already, continue
-        const confirmed = Boolean((user as any)?.email_confirmed_at || (user as any)?.confirmed_at);
-        if (confirmed) {
-          router.replace(next);
-          return;
-        }
-
-        setChecking(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [next, router, supabase]);
+  const siteUrl = useMemo(() => {
+    return (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || window.location.origin;
+  }, []);
 
   async function resend() {
-    if (!email) return;
-    setSending(true);
     setError(null);
     setSent(false);
 
-    try {
-      const siteUrl =
-        (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || window.location.origin;
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError("Enter your email address to resend the verification email.");
+      return;
+    }
 
+    setSending(true);
+    try {
       const { error } = await supabase.auth.resend({
         type: "signup",
-        email,
+        email: trimmed,
         options: {
-          // Where Supabase sends them after clicking verification:
+          // After verification click, user returns here to complete session
           emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(next)}`,
         },
       });
@@ -87,74 +49,90 @@ export default function VerifyEmailPage() {
       if (error) throw error;
       setSent(true);
     } catch (e: any) {
-      setError(e?.message ?? "Could not resend email");
+      setError(e?.message ?? "Could not resend verification email.");
     } finally {
       setSending(false);
     }
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    router.replace("/auth");
+  function backToSignIn() {
+    router.replace(`/auth?next=${encodeURIComponent(next)}`);
   }
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-sm space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Verify your email</h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            We’ve sent a verification link to your email. You’ll need to confirm it before you can
-            use Receipt.
+      <div
+        className="w-full max-w-md rounded-3xl border p-6 shadow-sm md:p-8"
+        style={{
+          borderColor: "var(--border)",
+          background: "color-mix(in srgb, var(--bg) 88%, transparent)",
+        }}
+      >
+        <div className="space-y-2">
+          <div className="text-xs font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
+            VERIFY EMAIL
+          </div>
+
+          <h1 className="text-2xl font-semibold tracking-tight">Check your inbox</h1>
+
+          <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+            We’ve sent you a verification link. You must click it before you can access your
+            workspace.
           </p>
         </div>
 
-        {checking ? (
-          <div className="text-sm" style={{ color: "var(--muted)" }}>
-            Checking…
+        <div className="mt-6 space-y-3">
+          <div className="text-xs" style={{ color: "var(--muted2)" }}>
+            EMAIL ADDRESS
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="text-sm" style={{ color: "var(--muted)" }}>
-              Email: <span style={{ color: "var(--fg)" }}>{email ?? "—"}</span>
-            </div>
 
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@firm.com"
+            className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", color: "var(--fg)" }}
+            autoComplete="email"
+          />
+
+          <button
+            type="button"
+            onClick={resend}
+            disabled={sending}
+            className="focus-ring w-full rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
+            style={{ background: "var(--fg)", color: "var(--bg)" }}
+          >
+            {sending ? "Sending…" : "Resend verification email"}
+          </button>
+
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={resend}
-              disabled={sending || !email}
-              className="focus-ring w-full rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
-              style={{ background: "var(--fg)", color: "var(--bg)" }}
-            >
-              {sending ? "Sending…" : "Resend verification email"}
-            </button>
-
-            <button
-              type="button"
-              onClick={signOut}
+              onClick={backToSignIn}
               className="focus-ring w-full rounded-full border px-6 py-2.5 text-sm font-medium transition hover:opacity-80"
               style={{ borderColor: "var(--border)", color: "var(--fg)" }}
             >
-              Sign out
+              Back to sign in
             </button>
-
-            {sent && (
-              <div className="text-sm" style={{ color: "var(--muted)" }}>
-                Sent. Check your inbox (and spam).
-              </div>
-            )}
-
-            {error && (
-              <div className="text-sm" style={{ color: "#ff3b30" }}>
-                {error}
-              </div>
-            )}
-
-            <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-              After you click the link, you’ll be redirected back to Receipt automatically.
-            </div>
           </div>
-        )}
+
+          {sent && (
+            <div className="text-sm" style={{ color: "var(--muted)" }}>
+              Sent. Check your inbox (and spam).
+            </div>
+          )}
+
+          {error && (
+            <div className="text-sm" style={{ color: "#ff3b30" }}>
+              {error}
+            </div>
+          )}
+
+          <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+            After you click the link, you’ll be redirected back to Receipt and taken straight into
+            your workspace.
+          </div>
+        </div>
       </div>
     </main>
   );
