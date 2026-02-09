@@ -135,17 +135,21 @@ function SectionTitle({
   );
 }
 
-export default function Home({
+function firstValue(v: string | string[] | undefined) {
+  return typeof v === "string" ? v : Array.isArray(v) ? (v[0] ?? null) : null;
+}
+
+export default async function Home({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const code = typeof searchParams?.code === "string" ? searchParams.code : null;
-  const tokenHash = typeof searchParams?.token_hash === "string" ? searchParams.token_hash : null;
-  const type = typeof searchParams?.type === "string" ? searchParams.type : null;
-  const next = typeof searchParams?.next === "string" ? searchParams.next : null;
-  const redirectTo =
-    typeof searchParams?.redirect_to === "string" ? searchParams.redirect_to : null;
+  const params = (await searchParams) ?? {};
+  const code = firstValue(params.code);
+  const tokenHash = firstValue(params.token_hash);
+  const type = firstValue(params.type);
+  const next = firstValue(params.next);
+  const redirectTo = firstValue(params.redirect_to);
 
   if (code || (tokenHash && type)) {
     const qs = new URLSearchParams();

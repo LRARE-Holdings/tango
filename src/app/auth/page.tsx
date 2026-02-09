@@ -22,6 +22,10 @@ function getSiteUrl() {
   return base;
 }
 
+function hardRedirect(path: string) {
+  window.location.replace(path);
+}
+
 export default function AuthPage() {
   const router = useRouter();
   const supabase = supabaseBrowser();
@@ -38,7 +42,15 @@ export default function AuthPage() {
 
   useEffect(() => {
     // Avoid `useSearchParams()` to keep builds stable.
-    setNextPath(getSafeNextFromHref(window.location.href));
+    const href = window.location.href;
+    setNextPath(getSafeNextFromHref(href));
+    try {
+      const url = new URL(href);
+      const authError = url.searchParams.get("error");
+      if (authError) setError(authError);
+    } catch {
+      // ignore
+    }
   }, []);
 
   const title = useMemo(
@@ -67,7 +79,7 @@ export default function AuthPage() {
           password,
         });
         if (signInErr) throw signInErr;
-        router.replace(nextPath);
+        hardRedirect(nextPath);
         return;
       }
 
@@ -80,7 +92,7 @@ export default function AuthPage() {
         options: {
           // After email confirmation, Supabase can send the user here.
           // (If confirmations are disabled, the user will be immediately authenticated anyway.)
-          emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
         },
       });
       if (signUpErr) throw signUpErr;

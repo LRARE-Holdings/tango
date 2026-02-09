@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
+type VerifyOtpType = "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "email";
+
+function hardRedirect(path: string) {
+  window.location.replace(path);
+}
+
 export default function AuthConfirmPage() {
-  const router = useRouter();
   const supabase = supabaseBrowser();
   const [error, setError] = useState<string | null>(null);
 
@@ -21,24 +25,24 @@ export default function AuthConfirmPage() {
         const token_hash = url.searchParams.get("token_hash");
         const type = url.searchParams.get("type");
 
-        if (token_hash && type && typeof (supabase.auth as any).verifyOtp === "function") {
-          const { error } = await (supabase.auth as any).verifyOtp({
-            type,
+        if (token_hash && type) {
+          const { error } = await supabase.auth.verifyOtp({
+            type: type as VerifyOtpType,
             token_hash,
           });
 
           if (error) throw error;
 
-          router.replace(redirectTo);
+          hardRedirect(redirectTo);
           return;
         }
 
         // 2) PKCE flow: /auth/confirm?code=...
         const code = url.searchParams.get("code");
-        if (code && typeof (supabase.auth as any).exchangeCodeForSession === "function") {
-          const { error } = await (supabase.auth as any).exchangeCodeForSession(code);
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
-          router.replace(redirectTo);
+          hardRedirect(redirectTo);
           return;
         }
 
@@ -48,35 +52,34 @@ export default function AuthConfirmPage() {
         const access_token = hashParams.get("access_token");
         const refresh_token = hashParams.get("refresh_token");
 
-        if (access_token && refresh_token && typeof (supabase.auth as any).setSession === "function") {
-          const { error } = await (supabase.auth as any).setSession({
+        if (access_token && refresh_token) {
+          const { error } = await supabase.auth.setSession({
             access_token,
             refresh_token,
           });
           if (error) throw error;
-          router.replace(redirectTo);
+          hardRedirect(redirectTo);
           return;
         }
 
         // 4) Fallback: if already signed in, continue
-        if (typeof (supabase.auth as any).getSession === "function") {
-          const { data, error } = await (supabase.auth as any).getSession();
-          if (error) throw error;
-          if (data?.session) {
-            router.replace("/app");
-            return;
-          }
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (data?.session) {
+          hardRedirect(redirectTo);
+          return;
         }
 
         // Otherwise back to login
-        router.replace("/auth");
-      } catch (e: any) {
-        setError(e?.message ?? "Could not complete sign-in");
+        hardRedirect(`/auth?next=${encodeURIComponent(redirectTo)}&error=${encodeURIComponent("Verification link is invalid or expired.")}`);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Could not complete sign-in";
+        setError(message);
       }
     }
 
     run();
-  }, [router, supabase]);
+  }, [supabase]);
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
