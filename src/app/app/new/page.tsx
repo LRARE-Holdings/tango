@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/toast";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
-type TabKey = "basics" | "recipients" | "rules" | "protection" | "templates";
 
 type Recipient = {
   id: string;
@@ -47,8 +46,6 @@ function planRank(p: Plan) {
 function can(plan: Plan, min: Plan) {
   return planRank(plan) >= planRank(min);
 }
-
-/* ---------- small UI primitives (minimal + consistent) ---------- */
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
@@ -92,7 +89,7 @@ function Input({
       className="focus-ring w-full px-4 py-3 text-sm"
       style={{
         borderRadius: 12,
-        border: `1px solid var(--border)`,
+        border: "1px solid var(--border)",
         background: "transparent",
         color: "var(--fg)",
         opacity: disabled ? 0.6 : 1,
@@ -120,7 +117,7 @@ function Select({
       className="focus-ring w-full px-4 py-3 text-sm"
       style={{
         borderRadius: 12,
-        border: `1px solid var(--border)`,
+        border: "1px solid var(--border)",
         background: "transparent",
         color: "var(--fg)",
         opacity: disabled ? 0.6 : 1,
@@ -170,7 +167,7 @@ function SecondaryButton({
       className="focus-ring px-5 py-2.5 text-sm font-semibold transition hover:opacity-90 disabled:opacity-50"
       style={{
         borderRadius: 12,
-        border: `1px solid var(--border)`,
+        border: "1px solid var(--border)",
         background: "transparent",
         color: "var(--fg)",
       }}
@@ -200,7 +197,7 @@ function Toggle({
         width: 44,
         height: 26,
         borderRadius: 999,
-        border: `1px solid var(--border)`,
+        border: "1px solid var(--border)",
         background: checked ? "var(--fg)" : "transparent",
         opacity: disabled ? 0.6 : 1,
         position: "relative",
@@ -223,24 +220,27 @@ function Toggle({
 }
 
 function Panel({
+  id,
   title,
   subtitle,
   children,
   right,
 }: {
+  id?: string;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   right?: React.ReactNode;
 }) {
   return (
-    <div
+    <section
+      id={id}
       className="p-6 md:p-7"
       style={{
         borderRadius: 18,
-        border: `1px solid var(--border)`,
-        background: "color-mix(in srgb, var(--bg) 92%, var(--card))",
-        boxShadow: "var(--shadow)",
+        border: "1px solid var(--border)",
+        background: "color-mix(in srgb, var(--bg) 90%, var(--card))",
+        boxShadow: "0 12px 40px rgba(0,0,0,0.06)",
       }}
     >
       <div className="flex items-start justify-between gap-4">
@@ -255,48 +255,9 @@ function Panel({
         {right ? <div className="shrink-0">{right}</div> : null}
       </div>
       <div className="mt-6">{children}</div>
-    </div>
+    </section>
   );
 }
-
-function SubmenuItem({
-  active,
-  onClick,
-  label,
-  hint,
-  badge,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  hint?: string;
-  badge?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="focus-ring w-full text-left px-3 py-2.5 transition"
-      style={{
-        borderRadius: 12,
-        background: active ? "var(--card2)" : "transparent",
-        border: `1px solid ${active ? "transparent" : "transparent"}`,
-      }}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold">{label}</div>
-        {badge ? <div className="shrink-0">{badge}</div> : null}
-      </div>
-      {hint ? (
-        <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-          {hint}
-        </div>
-      ) : null}
-    </button>
-  );
-}
-
-/* --------------------- Page --------------------- */
 
 export default function NewReceipt() {
   const toast = useToast();
@@ -309,42 +270,25 @@ export default function NewReceipt() {
   const personalPlus = can(plan, "personal");
   const proPlus = can(plan, "pro");
 
-  const [tab, setTab] = useState<TabKey>("basics");
-
-  // base fields
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
-  // share rules
   const [maxAcknowledgersEnabled, setMaxAcknowledgersEnabled] = useState(true);
   const [maxAcknowledgers, setMaxAcknowledgers] = useState<number>(1);
 
-  // recipients + emails
   const [sendEmails, setSendEmails] = useState(false);
-  const [recipients, setRecipients] = useState<Recipient[]>([
-    { id: uid(), name: "", email: "", save: true },
-  ]);
+  const [recipients, setRecipients] = useState<Recipient[]>([{ id: uid(), name: "", email: "", save: true }]);
 
-  // password (Personal+)
   const [passwordEnabled, setPasswordEnabled] = useState(false);
   const [password, setPassword] = useState("");
 
-  // templates/defaults (Pro+)
   const [useTemplate, setUseTemplate] = useState(false);
   const [templateId, setTemplateId] = useState<string>("default");
   const [saveAsDefault, setSaveAsDefault] = useState(false);
 
-  // create state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-
-  const copiedTimerRef = useRef<number | null>(null);
-  useEffect(() => {
-    return () => {
-      if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     async function loadMe() {
@@ -378,15 +322,14 @@ export default function NewReceipt() {
   }, [plan, workspaceCount, primaryWorkspaceId]);
 
   const fileLabel = useMemo(() => {
-    if (!file) return "Choose a PDF";
-    const mb = file ? (file.size / (1024 * 1024)).toFixed(1) : "0.0";
+    if (!file) return "No file selected";
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
     return `${file.name} (${mb}MB)`;
   }, [file]);
 
-  const recipientsCount = useMemo(
-    () => recipients.filter((r) => r.name.trim() || r.email.trim()).length,
-    [recipients]
-  );
+  const hasFile = Boolean(file);
+
+  const recipientsCount = useMemo(() => recipients.filter((r) => r.name.trim() || r.email.trim()).length, [recipients]);
 
   const recipientsValid = useMemo(() => {
     if (!sendEmails) return true;
@@ -452,17 +395,12 @@ export default function NewReceipt() {
       const form = new FormData();
       form.append("title", title || "Untitled");
       form.append("file", file as File);
-
-      // backend can ignore until wired
       form.append("send_emails", String(sendEmails && personalPlus));
       form.append("recipients", JSON.stringify(configuredRecipients));
-
       form.append("password_enabled", String(passwordEnabled && personalPlus));
       form.append("password", passwordEnabled && personalPlus ? password : "");
-
       form.append("max_acknowledgers_enabled", String(maxAcknowledgersEnabled));
       form.append("max_acknowledgers", String(maxAcknowledgersEnabled ? maxAcknowledgers : 0));
-
       form.append("template_enabled", String(useTemplate && proPlus));
       form.append("template_id", useTemplate && proPlus ? templateId : "");
       form.append("save_default", String(saveAsDefault && proPlus));
@@ -500,6 +438,8 @@ export default function NewReceipt() {
     const templateState = useTemplate && proPlus ? templateId : "Off";
     return [
       { k: "Plan", v: plan.toUpperCase() },
+      { k: "Mode", v: primaryWorkspaceId ? "Workspace" : "Personal" },
+      { k: "PDF", v: hasFile ? "Attached" : "Missing" },
       { k: "Email", v: emailState },
       { k: "Recipients", v: String(recipientsCount) },
       { k: "Acknowledgers", v: ackState },
@@ -508,6 +448,8 @@ export default function NewReceipt() {
     ];
   }, [
     plan,
+    primaryWorkspaceId,
+    hasFile,
     sendEmails,
     personalPlus,
     recipientsCount,
@@ -519,47 +461,105 @@ export default function NewReceipt() {
     templateId,
   ]);
 
-  const gating = {
-    recipients: !personalPlus ? <Pill>PERSONAL+</Pill> : <Pill>{sendEmails ? "Email on" : "Email off"}</Pill>,
-    protection: !personalPlus ? <Pill>PERSONAL+</Pill> : <Pill>{passwordEnabled ? "On" : "Off"}</Pill>,
-    templates: !proPlus ? <Pill>PRO+</Pill> : <Pill>{useTemplate ? "On" : "Off"}</Pill>,
-  };
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-6 flex-col lg:flex-row">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">New share link</h1>
-            <Pill>{plan.toUpperCase()}</Pill>
-            <Pill>{primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE"}</Pill>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-            Upload a PDF, configure the rules, then generate a link.
-          </p>
-          {meEmail ? (
-            <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-              Signed in as {meEmail}
+      <section
+        className="relative overflow-hidden p-6 md:p-8"
+        style={{
+          borderRadius: 24,
+          border: "1px solid var(--border)",
+          background:
+            "radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--card) 70%, transparent), transparent 45%), linear-gradient(155deg, color-mix(in srgb, var(--bg) 92%, var(--card2)), color-mix(in srgb, var(--bg) 84%, var(--card)))",
+        }}
+      >
+        <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
+              PREMIUM CREATION FLOW
             </div>
-          ) : null}
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Create New Receipt Link</h1>
+              <Pill>{plan.toUpperCase()}</Pill>
+              <Pill>{primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE"}</Pill>
+            </div>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+              Start with the document. Once uploaded, every advanced control appears below.
+            </p>
+            {meEmail ? (
+              <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                Signed in as {meEmail}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex gap-2">
+            <Link
+              href="/app"
+              className="focus-ring px-5 py-2.5 text-sm font-semibold transition hover:opacity-90"
+              style={{ borderRadius: 12, border: "1px solid var(--border)", color: "var(--fg)" }}
+            >
+              Back
+            </Link>
+            <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasFile}>
+              {loading ? "Creating…" : "Create link"}
+            </PrimaryButton>
+          </div>
         </div>
 
-        <div className="flex gap-2">
-          <Link
-            href="/app"
-            className="focus-ring px-5 py-2.5 text-sm font-semibold transition hover:opacity-90"
-            style={{ borderRadius: 12, border: `1px solid var(--border)`, color: "var(--fg)" }}
-          >
-            Back
-          </Link>
-          <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection}>
-            {loading ? "Creating…" : "Create link"}
-          </PrimaryButton>
-        </div>
-      </div>
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+          <div className="lg:col-span-7 space-y-2">
+            <Label>TITLE (OPTIONAL)</Label>
+            <Input
+              value={title}
+              onChange={setTitle}
+              placeholder="e.g. Client Care Letter , Residential Conveyancing"
+            />
+            <div className="text-xs" style={{ color: "var(--muted2)" }}>
+              This appears on your dashboard and evidence export.
+            </div>
+          </div>
 
-      {/* Layout */}
+          <div className="lg:col-span-5">
+            <Label>UPLOAD PDF</Label>
+            <label
+              className="focus-ring mt-2 block cursor-pointer p-5"
+              style={{
+                borderRadius: 16,
+                border: hasFile ? "1px solid var(--fg)" : "1px solid var(--border)",
+                background: hasFile
+                  ? "color-mix(in srgb, var(--card2) 78%, transparent)"
+                  : "color-mix(in srgb, var(--bg) 92%, var(--card))",
+                transition: "all 180ms ease",
+              }}
+            >
+              <input
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">{hasFile ? "PDF attached" : "Select your PDF"}</div>
+                  <div className="mt-1 text-xs truncate" style={{ color: "var(--muted)" }}>
+                    {fileLabel}
+                  </div>
+                  <div className="mt-2 text-[11px]" style={{ color: "var(--muted2)" }}>
+                    Max 20MB. PDF only.
+                  </div>
+                </div>
+                <span
+                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold"
+                  style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
+                >
+                  {hasFile ? "Replace" : "Browse"}
+                </span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </section>
+
       {needsWorkspaceSelection ? (
         <div
           className="border px-4 py-3 text-sm"
@@ -570,142 +570,75 @@ export default function NewReceipt() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Left submenu */}
-        <aside
-          className="lg:col-span-3 p-3"
+      {!hasFile ? (
+        <section
+          className="p-6"
           style={{
             borderRadius: 18,
-            border: `1px solid var(--border)`,
-            background: "color-mix(in srgb, var(--bg) 94%, var(--card))",
+            border: "1px solid var(--border)",
+            background: "color-mix(in srgb, var(--bg) 92%, var(--card))",
           }}
         >
-          <div className="px-2 pb-2">
-            <div className="text-xs font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
-              SETUP
+          <div className="text-sm font-semibold">Upload to unlock configuration</div>
+          <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+            Recipient controls, password protection, closure rules, and template defaults appear here after your PDF is added.
+          </div>
+        </section>
+      ) : null}
+
+      <div
+        style={{
+          opacity: hasFile ? 1 : 0,
+          transform: hasFile ? "translateY(0)" : "translateY(8px)",
+          maxHeight: hasFile ? "6000px" : "0px",
+          overflow: "hidden",
+          pointerEvents: hasFile ? "auto" : "none",
+          transition: "opacity 280ms ease, transform 280ms ease, max-height 560ms ease",
+        }}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <section className="lg:col-span-9 space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href="#recipients"
+                className="focus-ring px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+                style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
+              >
+                Recipients
+              </a>
+              <a
+                href="#rules"
+                className="focus-ring px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+                style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
+              >
+                Rules
+              </a>
+              <a
+                href="#protection"
+                className="focus-ring px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+                style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
+              >
+                Protection
+              </a>
+              <a
+                href="#templates"
+                className="focus-ring px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+                style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
+              >
+                Templates
+              </a>
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <SubmenuItem
-              active={tab === "basics"}
-              onClick={() => setTab("basics")}
-              label="Basics"
-              hint="Title + PDF"
-              badge={file ? <Pill>Ready</Pill> : <Pill>PDF</Pill>}
-            />
-            <SubmenuItem
-              active={tab === "recipients"}
-              onClick={() => setTab("recipients")}
-              label="Recipients"
-              hint="Email + saved recipients"
-              badge={gating.recipients}
-            />
-            <SubmenuItem
-              active={tab === "rules"}
-              onClick={() => setTab("rules")}
-              label="Rules"
-              hint="Close after acknowledgements"
-              badge={<Pill>{maxAcknowledgersEnabled ? `Max ${maxAcknowledgers}` : "Unlimited"}</Pill>}
-            />
-            <SubmenuItem
-              active={tab === "protection"}
-              onClick={() => setTab("protection")}
-              label="Protection"
-              hint="Password gate"
-              badge={gating.protection}
-            />
-            <SubmenuItem
-              active={tab === "templates"}
-              onClick={() => setTab("templates")}
-              label="Templates"
-              hint="Pro defaults"
-              badge={gating.templates}
-            />
-          </div>
-
-          <div className="mt-3 px-2">
-            <a
-              href="/pricing"
-              className="focus-ring inline-flex items-center justify-center w-full px-4 py-2.5 text-xs font-semibold"
-              style={{
-                borderRadius: 12,
-                border: `1px solid var(--border)`,
-                color: "var(--fg)",
-                background: "transparent",
-              }}
-            >
-              View pricing
-            </a>
-          </div>
-        </aside>
-
-        {/* Main panel */}
-        <section className="lg:col-span-6">
-          {tab === "basics" ? (
             <Panel
-              title="Basics"
-              subtitle="Give it a title (optional) and choose a PDF."
-              right={<Pill>PDF</Pill>}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>TITLE (OPTIONAL)</Label>
-                  <Input
-                    value={title}
-                    onChange={setTitle}
-                    placeholder="e.g. Client Care Letter , Residential Conveyancing"
-                  />
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                    This appears on your dashboard and evidence export.
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>PDF</Label>
-                  <div
-                    className="flex items-center justify-between gap-3 px-4 py-3"
-                    style={{ borderRadius: 12, border: `1px solid var(--border)` }}
-                  >
-                    <span className="truncate text-sm" style={{ color: "var(--muted)" }}>
-                      {fileLabel}
-                    </span>
-                    <label
-                      className="focus-ring px-3 py-1.5 text-xs font-semibold cursor-pointer hover:opacity-90"
-                      style={{
-                        borderRadius: 999,
-                        border: `1px solid var(--border)`,
-                        color: "var(--fg)",
-                      }}
-                    >
-                      Browse
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        className="hidden"
-                        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                      />
-                    </label>
-                  </div>
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                    Max 20MB. PDF only.
-                  </div>
-                </div>
-              </div>
-            </Panel>
-          ) : null}
-
-          {tab === "recipients" ? (
-            <Panel
+              id="recipients"
               title="Recipients"
               subtitle="Add recipients, optionally send from Receipt, and save recipients on Pro+."
               right={!personalPlus ? <Pill>PERSONAL+</Pill> : <Pill>{sendEmails ? "Email on" : "Email off"}</Pill>}
             >
               <div className="space-y-5">
-                {/* email toggle */}
                 <div
                   className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: `1px solid var(--border)`, background: "transparent" }}
+                  style={{ borderRadius: 14, border: "1px solid var(--border)", background: "transparent" }}
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">Send link by email</div>
@@ -718,7 +651,6 @@ export default function NewReceipt() {
                   <Toggle checked={sendEmails} setChecked={setSendEmails} disabled={!personalPlus} />
                 </div>
 
-                {/* recipients list */}
                 <div className="space-y-3">
                   {recipients.map((r) => {
                     const emailOk = !r.email.trim() || isEmail(r.email);
@@ -726,15 +658,11 @@ export default function NewReceipt() {
                       <div
                         key={r.id}
                         className="grid grid-cols-12 gap-3 items-start p-4"
-                        style={{ borderRadius: 14, border: `1px solid var(--border)` }}
+                        style={{ borderRadius: 14, border: "1px solid var(--border)" }}
                       >
                         <div className="col-span-12 md:col-span-4 space-y-2">
                           <Label>NAME</Label>
-                          <Input
-                            value={r.name}
-                            onChange={(v) => setRecipient(r.id, { name: v })}
-                            placeholder="Alex Smith"
-                          />
+                          <Input value={r.name} onChange={(v) => setRecipient(r.id, { name: v })} placeholder="Alex Smith" />
                         </div>
 
                         <div className="col-span-12 md:col-span-5 space-y-2">
@@ -765,16 +693,11 @@ export default function NewReceipt() {
                             </label>
                             {!proPlus ? <Pill>PRO+</Pill> : null}
                           </div>
-
                           {recipients.length > 1 ? (
                             <button
                               type="button"
                               className="focus-ring text-xs px-3 py-2 hover:opacity-80"
-                              style={{
-                                borderRadius: 999,
-                                border: `1px solid var(--border)`,
-                                color: "var(--muted)",
-                              }}
+                              style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--muted)" }}
                               onClick={() => removeRecipient(r.id)}
                             >
                               Remove
@@ -794,7 +717,7 @@ export default function NewReceipt() {
                       className="focus-ring text-xs px-3 py-2 hover:opacity-90"
                       style={{
                         borderRadius: 999,
-                        border: `1px solid var(--border)`,
+                        border: "1px solid var(--border)",
                         color: "var(--fg)",
                         background: "transparent",
                       }}
@@ -812,10 +735,9 @@ export default function NewReceipt() {
                 </div>
               </div>
             </Panel>
-          ) : null}
 
-          {tab === "rules" ? (
             <Panel
+              id="rules"
               title="Rules"
               subtitle="Limit acknowledgements and close the link when complete."
               right={<Pill>{maxAcknowledgersEnabled ? `Max ${maxAcknowledgers}` : "Unlimited"}</Pill>}
@@ -823,7 +745,7 @@ export default function NewReceipt() {
               <div className="space-y-4">
                 <div
                   className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: `1px solid var(--border)` }}
+                  style={{ borderRadius: 14, border: "1px solid var(--border)" }}
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">Close after acknowledgements</div>
@@ -851,25 +773,19 @@ export default function NewReceipt() {
 
                   <div
                     className="p-4"
-                    style={{
-                      borderRadius: 14,
-                      border: `1px solid var(--border)`,
-                      background: "var(--card)",
-                    }}
+                    style={{ borderRadius: 14, border: "1px solid var(--border)", background: "var(--card)" }}
                   >
                     <div className="text-sm font-semibold">Server-side next</div>
                     <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      This UI is ready , once your API enforces closure, the link can hard-stop further
-                      acknowledgements.
+                      This UI is ready. Once your API enforces closure, the link can hard-stop further acknowledgements.
                     </div>
                   </div>
                 </div>
               </div>
             </Panel>
-          ) : null}
 
-          {tab === "protection" ? (
             <Panel
+              id="protection"
               title="Protection"
               subtitle="Optionally require a password before the PDF can be opened."
               right={!personalPlus ? <Pill>PERSONAL+</Pill> : <Pill>{passwordEnabled ? "On" : "Off"}</Pill>}
@@ -877,7 +793,7 @@ export default function NewReceipt() {
               <div className="space-y-4">
                 <div
                   className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: `1px solid var(--border)` }}
+                  style={{ borderRadius: 14, border: "1px solid var(--border)" }}
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">Require a password</div>
@@ -907,24 +823,23 @@ export default function NewReceipt() {
                       disabled={!personalPlus}
                     />
                     <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                      Share this separately. Receipt records access; it doesn’t verify identity.
+                      Share this separately. Receipt records access; it does not verify identity.
                     </div>
                   </div>
                 ) : null}
               </div>
             </Panel>
-          ) : null}
 
-          {tab === "templates" ? (
             <Panel
+              id="templates"
               title="Templates"
-              subtitle="Use presets + save defaults (Pro+)."
+              subtitle="Use presets and save defaults (Pro+)."
               right={!proPlus ? <Pill>PRO+</Pill> : <Pill>{useTemplate ? "On" : "Off"}</Pill>}
             >
               <div className="space-y-4">
                 <div
                   className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: `1px solid var(--border)` }}
+                  style={{ borderRadius: 14, border: "1px solid var(--border)" }}
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">Use a template</div>
@@ -952,7 +867,7 @@ export default function NewReceipt() {
 
                 <div
                   className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: `1px solid var(--border)` }}
+                  style={{ borderRadius: 14, border: "1px solid var(--border)" }}
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">Save these settings as default</div>
@@ -964,105 +879,95 @@ export default function NewReceipt() {
                 </div>
               </div>
             </Panel>
-          ) : null}
 
-          {/* Inline feedback */}
-          {error ? (
-            <div
-              className="mt-4 p-4 text-sm"
-              style={{
-                borderRadius: 14,
-                border: `1px solid rgba(255,59,48,0.35)`,
-                background: "color-mix(in srgb, var(--bg) 90%, rgba(255,59,48,0.10))",
-                color: "#ff3b30",
-              }}
-            >
-              {error}
-            </div>
-          ) : null}
+            {error ? (
+              <div
+                className="p-4 text-sm"
+                style={{
+                  borderRadius: 14,
+                  border: "1px solid rgba(255,59,48,0.35)",
+                  background: "color-mix(in srgb, var(--bg) 90%, rgba(255,59,48,0.10))",
+                  color: "#ff3b30",
+                }}
+              >
+                {error}
+              </div>
+            ) : null}
 
-          {shareUrl ? (
-            <div
-              className="mt-4 p-5"
-              style={{
-                borderRadius: 16,
-                border: `1px solid var(--border)`,
-                background: "var(--card2)",
-              }}
-            >
-              <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
-                    SHARE LINK
+            {shareUrl ? (
+              <div className="p-5" style={{ borderRadius: 16, border: "1px solid var(--border)", background: "var(--card2)" }}>
+                <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
+                      SHARE LINK
+                    </div>
+                    <div className="mt-2 text-sm">
+                      <Link className="underline underline-offset-4 break-all" href={shareUrl}>
+                        {shareUrl}
+                      </Link>
+                    </div>
+                    <div className="mt-3 text-xs" style={{ color: "var(--muted)" }}>
+                      {sendEmails && personalPlus
+                        ? "Email sending is enabled (wire server-side to actually send)."
+                        : "Share manually, or enable email sending on Personal+."}
+                    </div>
                   </div>
-                  <div className="mt-2 text-sm">
-                    <Link className="underline underline-offset-4 break-all" href={shareUrl}>
-                      {shareUrl}
-                    </Link>
-                  </div>
-                  <div className="mt-3 text-xs" style={{ color: "var(--muted)" }}>
-                    {sendEmails && personalPlus
-                      ? "Email sending is enabled (wire server-side to actually send)."
-                      : "Share manually, or enable email sending on Personal+."}
-                  </div>
-                </div>
 
-                <div className="flex gap-2">
-                  <SecondaryButton onClick={copyLink}>Copy</SecondaryButton>
-                  <PrimaryButton onClick={() => (window.location.href = shareUrl)}>Open</PrimaryButton>
+                  <div className="flex gap-2">
+                    <SecondaryButton onClick={copyLink}>Copy</SecondaryButton>
+                    <PrimaryButton onClick={() => (window.location.href = shareUrl)}>Open</PrimaryButton>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : null}
-        </section>
+            ) : null}
+          </section>
 
-        {/* Right summary (sticky) */}
-        <aside className="lg:col-span-3">
-          <div
-            className="p-5"
-            style={{
-              position: "sticky",
-              top: 18,
-              borderRadius: 18,
-              border: `1px solid var(--border)`,
-              background: "color-mix(in srgb, var(--bg) 92%, var(--card))",
-            }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold">Summary</div>
-              <Pill>{loading ? "Working…" : "Ready"}</Pill>
-            </div>
+          <aside className="lg:col-span-3">
+            <div
+              className="p-5"
+              style={{
+                position: "sticky",
+                top: 18,
+                borderRadius: 18,
+                border: "1px solid var(--border)",
+                background: "color-mix(in srgb, var(--bg) 92%, var(--card))",
+              }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold">Summary</div>
+                <Pill>{loading ? "Working…" : hasFile ? "Configured" : "Waiting for PDF"}</Pill>
+              </div>
 
-            <div className="mt-4 space-y-2">
-              {summary.map((x) => (
-                <div key={x.k} className="flex items-center justify-between gap-3">
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                    {x.k}
+              <div className="mt-4 space-y-2">
+                {summary.map((x) => (
+                  <div key={x.k} className="flex items-center justify-between gap-3">
+                    <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                      {x.k}
+                    </div>
+                    <div className="text-xs font-semibold" style={{ color: "var(--fg)" }}>
+                      {x.v}
+                    </div>
                   </div>
-                  <div className="text-xs font-semibold" style={{ color: "var(--fg)" }}>
-                    {x.v}
-                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5">
+                <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+                  Receipt records access, review activity, and acknowledgement. It does not assess understanding and is not an e-signature product.
                 </div>
-              ))}
-            </div>
+              </div>
 
-            <div className="mt-5">
-              <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-                Receipt records access, review activity, and acknowledgement. It does not assess understanding
-                and is not an e-signature product.
+              <div className="mt-5 flex gap-2">
+                <SecondaryButton onClick={() => (window.location.href = "/app")} disabled={loading}>
+                  Cancel
+                </SecondaryButton>
+                <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasFile}>
+                  {loading ? "Creating…" : "Create"}
+                </PrimaryButton>
               </div>
             </div>
-
-            <div className="mt-5 flex gap-2">
-              <SecondaryButton onClick={() => (window.location.href = "/app")} disabled={loading}>
-                Cancel
-              </SecondaryButton>
-              <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection}>
-                {loading ? "Creating…" : "Create"}
-              </PrimaryButton>
-            </div>
-          </div>
-        </aside>
+          </aside>
+        </div>
       </div>
     </div>
   );
