@@ -27,148 +27,182 @@ function priceToPlan(priceId: string | null) {
   }
 }
 
-function subFieldNumber(sub: Stripe.Subscription, key: "current_period_end" | "trial_end") {
-  const v = (sub as unknown as Record<string, unknown>)[key];
+function numField(sub: Stripe.Subscription, key: "current_period_end" | "trial_end") {
+  const v = (sub as any)?.[key];
   return typeof v === "number" ? v : null;
 }
 
-function resolveUserIdFromSession(session: Stripe.Checkout.Session) {
-  const a = typeof session.client_reference_id === "string" ? session.client_reference_id : null;
-  const b =
-    typeof session.metadata?.supabase_user_id === "string" ? session.metadata.supabase_user_id : null;
-  return a ?? b;
+function sessionUserId(session: Stripe.Checkout.Session) {
+  return (
+    (typeof session.client_reference_id === "string" ? session.client_reference_id : null) ??
+    (typeof session.metadata?.supabase_user_id === "string" ? session.metadata.supabase_user_id : null)
+  );
 }
 
-function resolveUserIdFromSubscription(sub: Stripe.Subscription) {
+function subscriptionUserId(sub: Stripe.Subscription) {
   const v = (sub.metadata as any)?.supabase_user_id;
   return typeof v === "string" ? v : null;
 }
 
 export async function POST(request: Request) {
   const body = await request.text();
-  const signature = request.headers.get("stripe-signature");
+  const sig = request.headers.get("stripe-signature");
 
-  if (!signature) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
+  if (!sig) return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
   } catch (err: any) {
-    console.error("❌ Stripe signature verification failed:", err?.message ?? err);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    console.error("❌ Webhook signature verification failed:", err?.message ?? err);
+    return NextResponse.json(
+      { error: "Invalid signature", detail: err?.message ?? String(err) },
+      { status: 400 }
+    );
   }
 
   const admin = supabaseAdmin();
 
   try {
-    switch (event.type) {
-      case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
 
-        const customerId = typeof session.customer === "string" ? session.customer : null;
-        const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+      const customerId = typeof session.customer === "string" ? session.customer : null;
+      const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
 
-        if (!customerId || !subscriptionId) break;
-
-        const userId = resolveUserIdFromSession(session);
-        if (!userId) {
-          console.error("⚠️ Missing supabase user id on checkout session", {
-            sessionId: session.id,
-            customerId,
-            subscriptionId,
-          });
-          break;
-        }
-
-        const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        const priceId = sub.items.data[0]?.price?.id ?? null;
-        const plan = priceToPlan(priceId);
-
-        const cpe = subFieldNumber(sub, "current_period_end");
-        const te = subFieldNumber(sub, "trial_end");
-        const hasTrial = typeof te === "number" && te > 0;
-
-        const { error } = await admin
-          .from("profiles")
-          .upsert(
-            {
-              id: userId,
-              stripe_customer_id: customerId,
-              stripe_subscription_id: sub.id,
-              plan,
-              subscription_status: sub.status,
-              billing_interval: sub.items.data[0]?.price.recurring?.interval ?? null,
-              seats: sub.items.data[0]?.quantity ?? 1,
-              current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
-              cancel_at_period_end: sub.cancel_at_period_end,
-              has_had_trial: hasTrial ? true : undefined,
-              trial_end: te ? new Date(te * 1000).toISOString() : null,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "id" }
-          );
-
-        if (error) {
-          console.error("🔥 Supabase upsert error (checkout.session.completed):", error);
-          throw error;
-        }
-
-        break;
+      if (!customerId || !subscriptionId) {
+        console.warn("⚠️ Missing customer/subscription on session", session.id);
+        return NextResponse.json({ received: true });
       }
 
-      case "customer.subscription.updated":
-      case "customer.subscription.deleted": {
-        const sub = event.data.object as Stripe.Subscription;
-
-        const userId = resolveUserIdFromSubscription(sub);
-        if (!userId) {
-          // If metadata got stripped somehow, you can fallback to customer lookup,
-          // but metadata should be present because we set it in checkout.
-          console.error("⚠️ Missing supabase_user_id in subscription metadata", {
-            subId: sub.id,
-            customer: sub.customer,
-          });
-          break;
-        }
-
-        const priceId = sub.items.data[0]?.price?.id ?? null;
-        const plan = priceToPlan(priceId);
-
-        const cpe = subFieldNumber(sub, "current_period_end");
-        const te = subFieldNumber(sub, "trial_end");
-        const hasTrial = typeof te === "number" && te > 0;
-
-        const { error } = await admin
-          .from("profiles")
-          .update({
-            stripe_subscription_id: sub.id,
-            plan,
-            subscription_status: sub.status,
-            billing_interval: sub.items.data[0]?.price.recurring?.interval ?? null,
-            seats: sub.items.data[0]?.quantity ?? 1,
-            current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
-            cancel_at_period_end: sub.cancel_at_period_end,
-            has_had_trial: hasTrial ? true : undefined,
-            trial_end: te ? new Date(te * 1000).toISOString() : null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", userId);
-
-        if (error) {
-          console.error("🔥 Supabase update error (subscription.*):", error);
-          throw error;
-        }
-
-        break;
+      const userId = sessionUserId(session);
+      if (!userId) {
+        console.error("⚠️ Missing supabase_user_id mapping on checkout session", {
+          sessionId: session.id,
+          customerId,
+          subscriptionId,
+          metadata: session.metadata,
+        });
+        return NextResponse.json({ received: true });
       }
 
-      default:
-        break;
+      const sub = await stripe.subscriptions.retrieve(subscriptionId);
+
+      const priceId = sub.items.data[0]?.price?.id ?? null;
+      const plan = priceToPlan(priceId);
+
+      const cpe = numField(sub, "current_period_end");
+      const te = numField(sub, "trial_end");
+      const hasTrial = !!te && te > 0;
+
+      const payload = {
+        stripe_customer_id: customerId,
+        stripe_subscription_id: sub.id,
+        plan,
+        subscription_status: sub.status,
+        billing_interval: sub.items.data[0]?.price?.recurring?.interval ?? null,
+        seats: sub.items.data[0]?.quantity ?? 1,
+        current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
+        cancel_at_period_end: sub.cancel_at_period_end,
+        has_had_trial: hasTrial ? true : undefined,
+        trial_end: te ? new Date(te * 1000).toISOString() : null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error, data } = await admin
+        .from("profiles")
+        .update(payload)
+        .eq("id", userId)
+        .select("id, plan, subscription_status, stripe_customer_id, stripe_subscription_id")
+        .maybeSingle();
+
+      if (error) {
+        console.error("🔥 Supabase update failed (checkout.session.completed):", error);
+        return NextResponse.json(
+          { error: "Supabase update failed", detail: error.message, hint: (error as any).hint },
+          { status: 500 }
+        );
+      }
+
+      if (!data) {
+        console.error("🔥 No profile row matched id for userId:", userId);
+        return NextResponse.json(
+          { error: "No profile row found for user", userId },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ received: true });
     }
-  } catch (err) {
-    console.error("🔥 Webhook processing error:", err);
-    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
-  }
 
-  return NextResponse.json({ received: true });
+    if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+      const sub = event.data.object as Stripe.Subscription;
+
+      const userId = subscriptionUserId(sub);
+      const customerId = typeof sub.customer === "string" ? sub.customer : null;
+
+      if (!userId) {
+        console.error("⚠️ Subscription missing metadata.supabase_user_id", {
+          subId: sub.id,
+          customerId,
+          metadata: sub.metadata,
+        });
+        return NextResponse.json({ received: true });
+      }
+
+      const priceId = sub.items.data[0]?.price?.id ?? null;
+      const plan = priceToPlan(priceId);
+
+      const cpe = numField(sub, "current_period_end");
+      const te = numField(sub, "trial_end");
+      const hasTrial = !!te && te > 0;
+
+      const payload = {
+        stripe_customer_id: customerId ?? undefined,
+        stripe_subscription_id: sub.id,
+        plan,
+        subscription_status: sub.status,
+        billing_interval: sub.items.data[0]?.price?.recurring?.interval ?? null,
+        seats: sub.items.data[0]?.quantity ?? 1,
+        current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
+        cancel_at_period_end: sub.cancel_at_period_end,
+        has_had_trial: hasTrial ? true : undefined,
+        trial_end: te ? new Date(te * 1000).toISOString() : null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error, data } = await admin
+        .from("profiles")
+        .update(payload)
+        .eq("id", userId)
+        .select("id, plan, subscription_status, stripe_customer_id, stripe_subscription_id")
+        .maybeSingle();
+
+      if (error) {
+        console.error("🔥 Supabase update failed (subscription.*):", error);
+        return NextResponse.json(
+          { error: "Supabase update failed", detail: error.message, hint: (error as any).hint },
+          { status: 500 }
+        );
+      }
+
+      if (!data) {
+        console.error("🔥 No profile row matched id for userId:", userId);
+        return NextResponse.json(
+          { error: "No profile row found for user", userId },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ received: true });
+    }
+
+    return NextResponse.json({ received: true });
+  } catch (err: any) {
+    console.error("🔥 Webhook handler crash:", err);
+    return NextResponse.json(
+      { error: "Webhook handler failed", detail: err?.message ?? String(err) },
+      { status: 500 }
+    );
+  }
 }
