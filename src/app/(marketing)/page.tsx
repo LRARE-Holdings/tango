@@ -196,7 +196,7 @@ export default function Home({
                 See what it records
               </a>
               <a
-                href="/login"
+                href="/auth"
                 className="inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900 sm:hidden"
               >
                 Login

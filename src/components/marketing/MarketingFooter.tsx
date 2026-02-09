@@ -57,7 +57,7 @@ export function MarketingFooter() {
               <div className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Account</div>
               <ul className="space-y-1">
                 <li>
-                  <a href="/login" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Login</a>
+                  <a href="/auth" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Login</a>
                 </li>
                 <li>
                   <a href="/app" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Get started</a>
