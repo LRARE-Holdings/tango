@@ -64,8 +64,8 @@ export async function POST(
 
     // Trigger Supabase invite email (their template)
     const redirectTo =
-      process.env.NEXT_PUBLIC_SITE_URL
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/app`
+      process.env.NEXT_PUBLIC_APP_URL
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/app`
         : "https://www.getreceipt.xyz/app";
 
     const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
