@@ -79,7 +79,7 @@ function MiniPreview() {
               Document
             </div>
             <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Terms Update — Client Portal
+              Terms Update , Client Portal
             </div>
             <div className="text-xs text-zinc-500 dark:text-zinc-500">
               Version hash: 1a7c…0d2e
@@ -146,7 +146,7 @@ export default function ProductPage() {
             </h1>
 
             <p className="mt-4 max-w-xl text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Receipt captures what’s observable — delivery, access, review activity, acknowledgement —
+              Receipt captures what’s observable , delivery, access, review activity, acknowledgement ,
               and turns it into a clean record you can keep on file. No interpretation. No over-claiming.
             </p>
 
@@ -168,7 +168,7 @@ export default function ProductPage() {
             <div className="mt-8 max-w-xl rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
               Receipt is <span className="font-medium">not</span> an e-signature tool and does{" "}
               <span className="font-medium">not</span> verify identity by default. It records activity
-              and acknowledgement — nothing more.
+              and acknowledgement , nothing more.
             </div>
           </div>
 
@@ -188,7 +188,7 @@ export default function ProductPage() {
             Because “we sent it” isn’t evidence.
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Receipt is for the moments where you need a clean record — not a debate. It keeps the
+            Receipt is for the moments where you need a clean record , not a debate. It keeps the
             output consistent, readable, and easy to file.
           </p>
         </div>
@@ -196,7 +196,7 @@ export default function ProductPage() {
         <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
           <Feature
             title="Neutral by design"
-            body="Records what happened, when it happened, and what was viewed — without assumptions, interpretation, or “understanding” claims."
+            body="Records what happened, when it happened, and what was viewed , without assumptions, interpretation, or “understanding” claims."
           />
           <Feature
             title="Frictionless for recipients"
@@ -204,7 +204,7 @@ export default function ProductPage() {
           />
           <Feature
             title="Clean output for the file"
-            body="Exports a tidy record with timestamps and activity fields — consistent, readable, and audit-friendly."
+            body="Exports a tidy record with timestamps and activity fields , consistent, readable, and audit-friendly."
           />
         </div>
 
@@ -212,7 +212,7 @@ export default function ProductPage() {
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card title="What it records" subtle>
             <div className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-              Receipt stays neutral: it records timestamps, activity, and acknowledgement — not consent,
+              Receipt stays neutral: it records timestamps, activity, and acknowledgement , not consent,
               intent, or comprehension.
             </div>
 
@@ -235,7 +235,7 @@ export default function ProductPage() {
 
           <Card title="Where teams use it">
             <div className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Common use cases are boring — which is the point. It’s the practical stuff that needs
+              Common use cases are boring , which is the point. It’s the practical stuff that needs
               evidence.
             </div>
 
@@ -266,7 +266,7 @@ export default function ProductPage() {
                 },
                 {
                   t: "Not consent capture",
-                  b: "It doesn’t claim intent, agreement, or comprehension — just observable events.",
+                  b: "It doesn’t claim intent, agreement, or comprehension , just observable events.",
                 },
                 {
                   t: "Not analysis",

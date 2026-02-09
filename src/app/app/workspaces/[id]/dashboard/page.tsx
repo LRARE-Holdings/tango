@@ -63,7 +63,7 @@ function fmtUtc(iso: string) {
 }
 
 function fmtDur(seconds: number | null) {
-  if (seconds == null) return "—";
+  if (seconds == null) return ",";
   const s = Math.max(0, Math.floor(seconds));
   const m = Math.floor(s / 60);
   const r = s % 60;
@@ -125,7 +125,7 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
   }, [data?.workspace]);
 
   const healthHint = useMemo(() => {
-    if (!data) return "—";
+    if (!data) return ",";
     const total = data.counts.documents_total || 0;
     const pending = data.counts.documents_pending || 0;
     if (total === 0) return "Create your first receipt to start tracking activity.";
@@ -155,7 +155,7 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
             </h1>
           </div>
           <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Awareness at a glance — pending items, activity, and signal.
+            Awareness at a glance , pending items, activity, and signal.
           </p>
         </div>
 
@@ -224,7 +224,7 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Stat
               label="AVG SCROLL"
-              value={data.averages.max_scroll_percent == null ? "—" : `${Math.round(data.averages.max_scroll_percent)}%`}
+              value={data.averages.max_scroll_percent == null ? "," : `${Math.round(data.averages.max_scroll_percent)}%`}
               hint="Across recent completions"
             />
             <Stat
@@ -335,7 +335,7 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
                         </div>
 
                         <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                          Scroll {a.metrics.max_scroll_percent == null ? "—" : `${a.metrics.max_scroll_percent}%`} •{" "}
+                          Scroll {a.metrics.max_scroll_percent == null ? "," : `${a.metrics.max_scroll_percent}%`} •{" "}
                           Time {fmtDur(a.metrics.time_on_page_seconds)} • Active {fmtDur(a.metrics.active_seconds)}
                         </div>
 

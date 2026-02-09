@@ -16,7 +16,7 @@ function safeFilename(input: string) {
 }
 
 function formatUtc(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return ",";
   const d = new Date(iso);
   const yyyy = d.getUTCFullYear();
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -27,7 +27,7 @@ function formatUtc(iso: string | null) {
 }
 
 function formatDuration(seconds: number | null) {
-  if (seconds == null) return "—";
+  if (seconds == null) return ",";
   const s = Math.max(0, Math.floor(seconds));
   const m = Math.floor(s / 60);
   const r = s % 60;
@@ -49,7 +49,7 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number) {
     }
   }
   if (line) lines.push(line);
-  return lines.length ? lines : ["—"];
+  return lines.length ? lines : [","];
 }
 
 function pickOrigin(req: Request) {
@@ -215,7 +215,7 @@ export async function GET(
     function drawHeader(continued: boolean) {
       const headerTop = PAGE_H - TOP + 12;
 
-      // logo (left) — best-effort; fall back to text if embedding failed
+      // logo (left) , best-effort; fall back to text if embedding failed
       if (logoImg) {
         const targetH = 18;
         const scale = targetH / logoImg.height;
@@ -274,7 +274,7 @@ export async function GET(
 
     panel(M + (w + gap) * 2, chipY, w, h);
     text("LATEST ACK (UTC)", M + (w + gap) * 2 + 10, chipY - 14, { size: 8.5, bold: true, color: C_MUTED });
-    text(latestAck ? formatUtc(latestAck) : "—", M + (w + gap) * 2 + 10, chipY - 32, { size: 12, bold: true });
+    text(latestAck ? formatUtc(latestAck) : ",", M + (w + gap) * 2 + 10, chipY - 32, { size: 12, bold: true });
 
     y -= (h + 14);
 
@@ -284,7 +284,7 @@ export async function GET(
     kv("Public link", publicUrl);
     kv("Record ID", doc.id);
     kv("Created", formatUtc(doc.created_at));
-    kv("Document hash (SHA-256)", doc.sha256 ?? "—");
+    kv("Document hash (SHA-256)", doc.sha256 ?? ",");
 
     rule();
 
@@ -330,7 +330,7 @@ export async function GET(
         const row3Y = y - 98;
 
         text("Scroll depth", leftX, row1Y, { size: S_SMALL, color: C_MUTED });
-        text(c.max_scroll_percent == null ? "—" : `${c.max_scroll_percent}%`, leftX, row1Y - 14, { bold: true });
+        text(c.max_scroll_percent == null ? "," : `${c.max_scroll_percent}%`, leftX, row1Y - 14, { bold: true });
 
         text("Time on page", midX, row1Y, { size: S_SMALL, color: C_MUTED });
         text(formatDuration(c.time_on_page_seconds ?? null), midX, row1Y - 14, { bold: true });
@@ -339,11 +339,11 @@ export async function GET(
         text(formatDuration(c.active_seconds ?? null), leftX, row2Y - 14, { bold: true });
 
         text("IP address", midX, row2Y, { size: S_SMALL, color: C_MUTED });
-        text(c.ip ?? "—", midX, row2Y - 14, { bold: true });
+        text(c.ip ?? ",", midX, row2Y - 14, { bold: true });
 
         // UA (kept minimal – not a giant wall of text)
         const ua = (c.user_agent ?? "").toString().trim();
-        const uaLine = ua ? wrapText(ua, PAGE_W - M * 2 - 24, font, 9)[0] : "—";
+        const uaLine = ua ? wrapText(ua, PAGE_W - M * 2 - 24, font, 9)[0] : ",";
         text("User agent (truncated)", leftX, row3Y, { size: 8.5, color: C_MUTED });
         text(uaLine, leftX, row3Y - 14, { size: 9, color: C_TEXT });
 

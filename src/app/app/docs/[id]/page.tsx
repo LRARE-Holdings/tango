@@ -33,7 +33,7 @@ type Doc = {
 };
 
 function formatDate(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return ",";
   const d = new Date(iso);
   const yyyy = d.getUTCFullYear();
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -44,7 +44,7 @@ function formatDate(iso: string | null) {
 }
 
 function formatDuration(seconds: number | null) {
-  if (seconds == null) return "—";
+  if (seconds == null) return ",";
   const s = Math.max(0, Math.floor(seconds));
   const m = Math.floor(s / 60);
   const r = s % 60;
@@ -213,7 +213,7 @@ export default function DocDetailPage({
             DOCUMENT
           </div>
           <h1 className="mt-1 text-2xl md:text-3xl font-semibold tracking-tight">
-            {doc?.title ?? "—"}
+            {doc?.title ?? ","}
           </h1>
 
           {doc && (
@@ -386,7 +386,7 @@ export default function DocDetailPage({
                             Scroll
                           </div>
                           <div className="text-sm font-medium">
-                            {c.max_scroll_percent == null ? "—" : `${c.max_scroll_percent}%`}
+                            {c.max_scroll_percent == null ? "," : `${c.max_scroll_percent}%`}
                           </div>
                         </div>
 
@@ -422,7 +422,7 @@ export default function DocDetailPage({
                             IP
                           </div>
                           <div className="text-sm font-medium">
-                            {c.ip ?? "—"}
+                            {c.ip ?? ","}
                           </div>
                         </div>
                       </div>
@@ -441,8 +441,8 @@ export default function DocDetailPage({
                       >
                         <div><span style={{ color: "var(--muted2)" }}>Completion ID:</span> {c.id}</div>
                         <div><span style={{ color: "var(--muted2)" }}>Active time:</span> {formatDuration(c.active_seconds)}</div>
-                        <div><span style={{ color: "var(--muted2)" }}>IP:</span> {c.ip ?? "—"}</div>
-                        <div><span style={{ color: "var(--muted2)" }}>User agent:</span> {c.user_agent ?? "—"}</div>
+                        <div><span style={{ color: "var(--muted2)" }}>IP:</span> {c.ip ?? ","}</div>
+                        <div><span style={{ color: "var(--muted2)" }}>User agent:</span> {c.user_agent ?? ","}</div>
                       </div>
                     </details>
                   </div>

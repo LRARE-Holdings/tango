@@ -232,7 +232,7 @@ export default function AccountPage() {
               EMAIL
             </div>
             <div className="mt-1 text-sm font-semibold">
-              {meLoading ? "Loading…" : email ?? "—"}
+              {meLoading ? "Loading…" : email ?? ","}
             </div>
           </div>
 

@@ -627,7 +627,7 @@ export default function NewReceipt() {
                   <Input
                     value={title}
                     onChange={setTitle}
-                    placeholder="e.g. Client Care Letter — Residential Conveyancing"
+                    placeholder="e.g. Client Care Letter , Residential Conveyancing"
                   />
                   <div className="text-xs" style={{ color: "var(--muted2)" }}>
                     This appears on your dashboard and evidence export.
@@ -832,7 +832,7 @@ export default function NewReceipt() {
                   >
                     <div className="text-sm font-semibold">Server-side next</div>
                     <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      This UI is ready — once your API enforces closure, the link can hard-stop further
+                      This UI is ready , once your API enforces closure, the link can hard-stop further
                       acknowledgements.
                     </div>
                   </div>

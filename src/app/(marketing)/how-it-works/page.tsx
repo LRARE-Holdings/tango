@@ -68,7 +68,7 @@ function MiniRecordPreview() {
               Document
             </div>
             <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Client Care Letter — Residential Conveyancing
+              Client Care Letter , Residential Conveyancing
             </div>
             <div className="text-xs text-zinc-500 dark:text-zinc-500">
               Version hash: 9f2c…a81d
@@ -160,7 +160,7 @@ export default function HowItWorksPage() {
 
             <p className="mt-4 max-w-xl text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
               Receipt gives you a timestamped record of delivery, access, review activity and
-              acknowledgement — designed to drop straight into the file.
+              acknowledgement , designed to drop straight into the file.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -180,7 +180,7 @@ export default function HowItWorksPage() {
 
             <div className="mt-8 max-w-xl rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
               Receipt is <span className="font-medium">not</span> an e-signature tool. It doesn’t
-              give legal advice or assess understanding — it simply records what happened.
+              give legal advice or assess understanding , it simply records what happened.
             </div>
           </div>
 
@@ -213,7 +213,7 @@ export default function HowItWorksPage() {
                   Share
                 </div>
                 <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  Upload a PDF and send a single link. Recipients don’t need an account — they just
+                  Upload a PDF and send a single link. Recipients don’t need an account , they just
                   open and view.
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -233,7 +233,7 @@ export default function HowItWorksPage() {
                   Review
                 </div>
                 <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  Receipt logs access and on-page review activity — time spent and scroll depth —
+                  Receipt logs access and on-page review activity , time spent and scroll depth ,
                   while the PDF is viewed.
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -270,7 +270,7 @@ export default function HowItWorksPage() {
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card title="What gets recorded" subtle>
             <div className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-              Receipt records timestamps, activity, and acknowledgement — nothing more.
+              Receipt records timestamps, activity, and acknowledgement , nothing more.
             </div>
             <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
               <div className="font-semibold text-zinc-900 dark:text-zinc-100">Fields</div>
@@ -287,11 +287,11 @@ export default function HowItWorksPage() {
 
           <Card title="What it’s for">
             <div className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Perfect for moments where “we sent it” isn’t enough — client care letters, policy
+              Perfect for moments where “we sent it” isn’t enough , client care letters, policy
               updates, terms changes, internal rollouts, and anything you need to evidence cleanly.
             </div>
             <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
-              It’s a file-ready record — not a signature product.
+              It’s a file-ready record , not a signature product.
             </div>
           </Card>
 

@@ -119,16 +119,16 @@ export default function PrivacyPage() {
           </p>
           <ul className="list-disc pl-5 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
             <li>
-              <strong>Vercel</strong> — application hosting and infrastructure
+              <strong>Vercel</strong> , application hosting and infrastructure
             </li>
             <li>
-              <strong>Supabase</strong> — database, authentication and file storage
+              <strong>Supabase</strong> , database, authentication and file storage
             </li>
             <li>
-              <strong>Google</strong> — optional authentication via Google sign-in
+              <strong>Google</strong> , optional authentication via Google sign-in
             </li>
             <li>
-              <strong>Stripe</strong> — payment processing and billing
+              <strong>Stripe</strong> , payment processing and billing
             </li>
           </ul>
         </section>

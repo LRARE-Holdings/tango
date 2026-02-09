@@ -111,10 +111,10 @@ export default function CheckEmailPage() {
           <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
             EMAIL
           </div>
-          <div className="mt-1 text-sm font-semibold">{email ?? "—"}</div>
+          <div className="mt-1 text-sm font-semibold">{email ?? ","}</div>
 
           <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-            If you can’t see it, check spam — some corporate filters are aggressive.
+            If you can’t see it, check spam , some corporate filters are aggressive.
           </div>
 
           <div className="mt-5 flex flex-col sm:flex-row gap-2">

@@ -96,7 +96,7 @@ export default function SecurityPage() {
 
             <p className="mt-4 max-w-xl text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
               Receipt is built to be a focused utility: it records document access, review activity,
-              and acknowledgement — then produces a file-ready record. No analysis. No inference.
+              and acknowledgement , then produces a file-ready record. No analysis. No inference.
               No magical claims.
             </p>
 
@@ -130,7 +130,7 @@ export default function SecurityPage() {
                 Security posture
               </div>
               <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                Receipt is designed around a simple idea: do less, but do it cleanly — and make the
+                Receipt is designed around a simple idea: do less, but do it cleanly , and make the
                 output useful.
               </div>
 
@@ -151,7 +151,7 @@ export default function SecurityPage() {
 
               <div className="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-xs leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
                 If you need identity verification, signing, or advanced compliance workflows, Receipt
-                should sit alongside those tools — not pretend to replace them.
+                should sit alongside those tools , not pretend to replace them.
               </div>
             </div>
           </div>
@@ -185,7 +185,7 @@ export default function SecurityPage() {
                 </div>
                 <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
                   Receipt records observable events. It doesn’t assert understanding, intent, or
-                  consent — because those aren’t observable.
+                  consent , because those aren’t observable.
                 </div>
               </div>
             </div>
@@ -256,7 +256,7 @@ export default function SecurityPage() {
                   Document integrity
                 </div>
                 <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  Document hashing helps you evidence what was actually sent and reviewed — useful
+                  Document hashing helps you evidence what was actually sent and reviewed , useful
                   when versions change.
                 </div>
               </div>
@@ -284,7 +284,7 @@ export default function SecurityPage() {
             </div>
 
             <div className="mt-4 text-[12px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-              You control what you store and how long you keep it — align this with your internal
+              You control what you store and how long you keep it , align this with your internal
               policies and your Privacy notice.
             </div>
           </Card>

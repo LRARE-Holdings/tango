@@ -36,7 +36,7 @@ export default function EnterprisePage() {
           </h1>
           <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
             Enterprise plans are designed for firms with procurement requirements,
-            bespoke workflows, or enhanced governance needs. We scope these properly —
+            bespoke workflows, or enhanced governance needs. We scope these properly ,
             no generic bundles, no vague promises.
           </p>
         </div>
@@ -142,7 +142,7 @@ export default function EnterprisePage() {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
                 Tell us a little about your organisation and what you need.
-                We’ll respond with clarity — not a hard sell.
+                We’ll respond with clarity , not a hard sell.
               </p>
             </div>
 

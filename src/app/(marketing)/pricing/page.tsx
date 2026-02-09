@@ -94,7 +94,7 @@ function Tick() {
 }
 
 function Dash() {
-  return <span className="text-zinc-400 dark:text-zinc-600">—</span>;
+  return <span className="text-zinc-400 dark:text-zinc-600">,</span>;
 }
 
 function PlanCard({
@@ -276,7 +276,7 @@ export default function PricingPage() {
             Clear tiers. Real limits.
           </h1>
           <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Receipt records delivery, access, review activity and acknowledgement — and stays
+            Receipt records delivery, access, review activity and acknowledgement , and stays
             intentionally neutral. Pick the tier based on volume and workflow.
           </p>
         </div>
@@ -505,7 +505,7 @@ export default function PricingPage() {
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
             Clear limits, clear capabilities. Receipt records observable events and acknowledgement
-            — not intent or understanding.
+            , not intent or understanding.
           </p>
         </div>
 
