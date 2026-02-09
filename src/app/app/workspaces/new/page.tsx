@@ -22,10 +22,12 @@ export default function NewWorkspacePage() {
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to create workspace");
       const id = json?.workspace?.id;
-      if (!id) throw new Error("No workspace returned");
-      router.replace(`/app/workspaces/${id}`);
-    } catch (e: any) {
-      setError(e?.message ?? "Something went wrong");
+      const slug = json?.workspace?.slug;
+      const identifier = typeof slug === "string" && slug.trim().length > 0 ? slug : id;
+      if (!identifier) throw new Error("No workspace returned");
+      router.replace(`/app/workspaces/${identifier}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setLoading(false);
     }

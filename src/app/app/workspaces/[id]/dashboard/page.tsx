@@ -8,6 +8,7 @@ type DashboardPayload = {
   workspace: {
     id: string;
     name: string;
+    slug: string | null;
     created_at: string;
     brand_logo_updated_at: string | null;
   };
@@ -53,10 +54,6 @@ type DashboardPayload = {
   >;
 };
 
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
-
 function fmtUtc(iso: string) {
   const d = new Date(iso);
   const yyyy = d.getUTCFullYear();
@@ -97,8 +94,7 @@ function Stat({ label, value, hint }: { label: string; value: React.ReactNode; h
 export default function WorkspaceDashboardPage() {
   const params = useParams<{ id?: string }>();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
-
-  const validWorkspaceId = useMemo(() => (workspaceId && isUuid(workspaceId) ? workspaceId : null), [workspaceId]);
+  const workspaceIdentifier = useMemo(() => workspaceId.trim(), [workspaceId]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,11 +103,10 @@ export default function WorkspaceDashboardPage() {
   useEffect(() => {
     let alive = true;
 
-    // ✅ Don't even attempt the request until we have a valid UUID
-    if (!validWorkspaceId) {
+    if (!workspaceIdentifier) {
       setData(null);
       setLoading(false);
-      setError(workspaceId ? "Invalid workspace id." : null);
+      setError(workspaceId ? "Invalid workspace." : null);
       return () => {
         alive = false;
       };
@@ -121,13 +116,13 @@ export default function WorkspaceDashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/app/workspaces/${validWorkspaceId}/dashboard`, { cache: "no-store" });
+        const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/dashboard`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load dashboard");
         if (!alive) return;
         setData(json as DashboardPayload);
-      } catch (e: any) {
-        if (alive) setError(e?.message ?? "Something went wrong");
+      } catch (e: unknown) {
+        if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
         if (alive) setLoading(false);
       }
@@ -137,7 +132,7 @@ export default function WorkspaceDashboardPage() {
     return () => {
       alive = false;
     };
-  }, [validWorkspaceId, workspaceId]);
+  }, [workspaceIdentifier, workspaceId]);
 
   const logoSrc = useMemo(() => {
     const w = data?.workspace;
@@ -158,7 +153,7 @@ export default function WorkspaceDashboardPage() {
     return "Attention: many documents are pending acknowledgement.";
   }, [data]);
 
-  const idForLinks = validWorkspaceId ?? workspaceId;
+  const idForLinks = data?.workspace?.slug ?? workspaceIdentifier;
 
   return (
     <div className="space-y-6">

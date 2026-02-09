@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
 
 function isEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
@@ -20,10 +17,13 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const { id: workspaceId } = (await ctx.params) as { id: string };
-    if (!workspaceId || !isUuid(workspaceId)) {
-      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    const { id: workspaceIdentifier } = (await ctx.params) as { id: string };
+    if (!workspaceIdentifier) {
+      return NextResponse.json({ error: "Invalid workspace identifier" }, { status: 400 });
     }
+    const resolved = await resolveWorkspaceIdentifier(workspaceIdentifier);
+    if (!resolved) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const workspaceId = resolved.id;
 
     const supabase = await supabaseServer();
     const admin = supabaseAdmin();
@@ -83,7 +83,7 @@ export async function POST(
     if (inviteErr) throw new Error(inviteErr.message);
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 500 });
   }
 }

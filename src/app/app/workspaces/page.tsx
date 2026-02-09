@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 type Workspace = {
   id: string;
   name: string;
+  slug?: string | null;
   created_at: string;
   brand_logo_updated_at?: string | null;
 };
@@ -26,8 +27,8 @@ export default function WorkspacesPage() {
         if (!res.ok) throw new Error(json?.error ?? "Failed to load workspaces");
         if (!alive) return;
         setWorkspaces(json?.workspaces ?? []);
-      } catch (e: any) {
-        if (alive) setError(e?.message ?? "Something went wrong");
+      } catch (e: unknown) {
+        if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
         if (alive) setLoading(false);
       }
@@ -42,6 +43,7 @@ export default function WorkspacesPage() {
 
   const cards = useMemo(() => {
     return workspaces.map((w) => {
+      const identifier = w.slug ?? w.id;
       const logoSrc = `/api/app/workspaces/${w.id}/branding/logo/view${
         w.brand_logo_updated_at ? `?v=${encodeURIComponent(w.brand_logo_updated_at)}` : ""
       }`;
@@ -73,7 +75,7 @@ export default function WorkspacesPage() {
 
           <div className="mt-4 flex gap-2">
             <Link
-              href={`/app/workspaces/${w.id}/dashboard`}
+              href={`/app/workspaces/${identifier}/dashboard`}
               className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-80"
               style={{
                 background: "var(--fg)",
@@ -85,7 +87,7 @@ export default function WorkspacesPage() {
             </Link>
 
             <Link
-              href={`/app/workspaces/${w.id}/members`}
+              href={`/app/workspaces/${identifier}/members`}
               className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
               style={{
                 border: "1px solid var(--border)",
@@ -97,7 +99,7 @@ export default function WorkspacesPage() {
             </Link>
 
             <Link
-              href={`/app/workspaces/${w.id}/branding`}
+              href={`/app/workspaces/${identifier}/branding`}
               className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
               style={{
                 border: "1px solid var(--border)",
@@ -109,7 +111,7 @@ export default function WorkspacesPage() {
             </Link>
 
             <Link
-              href={`/app/workspaces/${w.id}/settings`}
+              href={`/app/workspaces/${identifier}/settings`}
               className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
               style={{
                 border: "1px solid var(--border)",

@@ -9,14 +9,10 @@ type Workspace = {
   slug: string | null;
 };
 
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
-
 export default function WorkspaceGeneralSettingsPage() {
   const params = useParams<{ id?: string }>();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
-  const validWorkspaceId = useMemo(() => (workspaceId && isUuid(workspaceId) ? workspaceId : null), [workspaceId]);
+  const workspaceIdentifier = useMemo(() => workspaceId.trim(), [workspaceId]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,9 +25,9 @@ export default function WorkspaceGeneralSettingsPage() {
 
   useEffect(() => {
     let alive = true;
-    if (!validWorkspaceId) {
+    if (!workspaceIdentifier) {
       setLoading(false);
-      setError(workspaceId ? "Invalid workspace id." : null);
+      setError(workspaceId ? "Invalid workspace." : null);
       return () => {
         alive = false;
       };
@@ -41,7 +37,7 @@ export default function WorkspaceGeneralSettingsPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/app/workspaces/${validWorkspaceId}`, { cache: "no-store" });
+        const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load workspace");
         if (!alive) return;
@@ -61,7 +57,7 @@ export default function WorkspaceGeneralSettingsPage() {
     return () => {
       alive = false;
     };
-  }, [validWorkspaceId, workspaceId]);
+  }, [workspaceIdentifier, workspaceId]);
 
   const previewSlug = slug
     .trim()
@@ -72,14 +68,14 @@ export default function WorkspaceGeneralSettingsPage() {
     .replace(/^-|-$/g, "");
 
   async function save() {
-    if (!validWorkspaceId) return;
+    if (!workspaceIdentifier) return;
 
     setSaving(true);
     setError(null);
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/app/workspaces/${validWorkspaceId}`, {
+      const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

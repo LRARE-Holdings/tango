@@ -11,6 +11,35 @@ function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Failed";
 }
 
+function normalizeSlug(v: string) {
+  return v
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+async function findAvailableSlug(admin: ReturnType<typeof supabaseAdmin>, baseName: string) {
+  const base = normalizeSlug(baseName) || "workspace";
+  let candidate = base;
+
+  for (let i = 0; i < 30; i++) {
+    const { data, error } = await admin
+      .from("workspaces")
+      .select("id")
+      .eq("slug", candidate)
+      .maybeSingle();
+    if (error && error.code === "42703") return null; // slug column not present yet
+    if (error) throw new Error(error.message);
+    if (!data) return candidate;
+    candidate = `${base}-${i + 2}`;
+  }
+
+  return `${base}-${Date.now().toString().slice(-4)}`;
+}
+
 async function requireUser() {
   const supabase = await supabaseServer();
   const { data, error } = await supabase.auth.getUser();
@@ -48,7 +77,7 @@ export async function GET() {
 
     const { data: ownedWorkspaces, error: ownedErr } = await admin
       .from("workspaces")
-      .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
+      .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
       .eq("created_by", user.id);
     if (ownedErr) throw new Error(ownedErr.message);
 
@@ -83,7 +112,7 @@ export async function GET() {
     if (missingIds.length > 0) {
       const { data: viaMembership, error: viaMembershipErr } = await supabase
         .from("workspaces")
-        .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
+        .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
         .in("id", missingIds);
       if (viaMembershipErr) throw new Error(viaMembershipErr.message);
       memberWorkspaces = viaMembership ?? [];
@@ -116,11 +145,18 @@ export async function POST(req: Request) {
       );
     }
 
+    const admin = supabaseAdmin();
+    const availableSlug = await findAvailableSlug(admin, name);
+
     // Create workspace (RLS allows insert when created_by = auth.uid())
     const { data: ws, error: wsErr } = await supabase
       .from("workspaces")
-      .insert({ name, created_by: user.id })
-      .select("id,name,created_at")
+      .insert({
+        name,
+        created_by: user.id,
+        ...(availableSlug ? { slug: availableSlug } : {}),
+      })
+      .select("id,name,slug,created_at")
       .single();
 
     if (wsErr) throw new Error(wsErr.message);
@@ -133,7 +169,6 @@ export async function POST(req: Request) {
     if (memErr) throw new Error(memErr.message);
 
     // Set primary workspace (admin to avoid any RLS mismatch)
-    const admin = supabaseAdmin();
     await admin
       .from("profiles")
       .update({ primary_workspace_id: ws.id, updated_at: new Date().toISOString() })

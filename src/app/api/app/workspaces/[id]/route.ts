@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
+import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
 
 function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, column: string) {
   if (!error) return false;
@@ -34,9 +31,9 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const { id } = (await ctx.params) as { id: string };
-    if (!id || !isUuid(id)) {
-      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    const { id: workspaceIdentifier } = (await ctx.params) as { id: string };
+    if (!workspaceIdentifier) {
+      return NextResponse.json({ error: "Invalid workspace identifier" }, { status: 400 });
     }
 
     const supabase = await supabaseServer();
@@ -45,10 +42,13 @@ export async function GET(
     if (userErr) throw new Error(userErr.message);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const resolved = await resolveWorkspaceIdentifier(workspaceIdentifier);
+    if (!resolved) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
     const withSlug = await supabase
       .from("workspaces")
       .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
-      .eq("id", id)
+      .eq("id", resolved.id)
       .single();
 
     let workspace = withSlug.data as Record<string, unknown> | null;
@@ -58,7 +58,7 @@ export async function GET(
       const fallback = await supabase
         .from("workspaces")
         .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
-        .eq("id", id)
+        .eq("id", resolved.id)
         .single();
       workspace = fallback.data as Record<string, unknown> | null;
       wsErr = fallback.error;
@@ -70,7 +70,7 @@ export async function GET(
     const { data: members, error: memErr } = await supabase
       .from("workspace_members")
       .select("user_id,role,joined_at")
-      .eq("workspace_id", id)
+      .eq("workspace_id", resolved.id)
       .order("joined_at", { ascending: true });
 
     if (memErr) throw new Error(memErr.message);
@@ -86,9 +86,9 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const { id } = (await ctx.params) as { id: string };
-    if (!id || !isUuid(id)) {
-      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    const { id: workspaceIdentifier } = (await ctx.params) as { id: string };
+    if (!workspaceIdentifier) {
+      return NextResponse.json({ error: "Invalid workspace identifier" }, { status: 400 });
     }
 
     const supabase = await supabaseServer();
@@ -98,10 +98,13 @@ export async function PATCH(
     if (userErr) throw new Error(userErr.message);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const resolved = await resolveWorkspaceIdentifier(workspaceIdentifier);
+    if (!resolved) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
     const { data: member, error: memberErr } = await supabase
       .from("workspace_members")
       .select("role")
-      .eq("workspace_id", id)
+      .eq("workspace_id", resolved.id)
       .eq("user_id", userData.user.id)
       .maybeSingle();
 
@@ -142,7 +145,7 @@ export async function PATCH(
     const result = await admin
       .from("workspaces")
       .update(payload)
-      .eq("id", id)
+      .eq("id", resolved.id)
       .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
       .single();
 
@@ -157,7 +160,7 @@ export async function PATCH(
       const fallback = await admin
         .from("workspaces")
         .update(payload)
-        .eq("id", id)
+        .eq("id", resolved.id)
         .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
         .single();
 

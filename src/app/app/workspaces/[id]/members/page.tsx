@@ -13,16 +13,13 @@ type Member = {
 type Workspace = {
   id: string;
   name: string;
+  slug?: string | null;
 };
-
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
 
 export default function WorkspaceMembersPage() {
   const params = useParams<{ id?: string }>();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
-  const validWorkspaceId = useMemo(() => (workspaceId && isUuid(workspaceId) ? workspaceId : null), [workspaceId]);
+  const workspaceIdentifier = useMemo(() => workspaceId.trim(), [workspaceId]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,11 +35,11 @@ export default function WorkspaceMembersPage() {
   useEffect(() => {
     let alive = true;
 
-    if (!validWorkspaceId) {
+    if (!workspaceIdentifier) {
       setWorkspace(null);
       setMembers([]);
       setLoading(false);
-      setError(workspaceId ? "Invalid workspace id." : null);
+      setError(workspaceId ? "Invalid workspace." : null);
       return () => {
         alive = false;
       };
@@ -52,14 +49,14 @@ export default function WorkspaceMembersPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/app/workspaces/${validWorkspaceId}`, { cache: "no-store" });
+        const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load");
         if (!alive) return;
         setWorkspace(json?.workspace ?? null);
         setMembers(json?.members ?? []);
-      } catch (e: any) {
-        if (alive) setError(e?.message ?? "Something went wrong");
+      } catch (e: unknown) {
+        if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
         if (alive) setLoading(false);
       }
@@ -68,17 +65,17 @@ export default function WorkspaceMembersPage() {
     return () => {
       alive = false;
     };
-  }, [validWorkspaceId, workspaceId]);
+  }, [workspaceIdentifier, workspaceId]);
 
   const owners = useMemo(() => members.filter((m) => m.role === "owner").length, [members]);
 
   async function invite() {
-    if (!validWorkspaceId) return;
+    if (!workspaceIdentifier) return;
 
     setInviteMsg(null);
     setInviting(true);
     try {
-      const res = await fetch(`/api/app/workspaces/${validWorkspaceId}/invite`, {
+      const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/invite`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, role }),
@@ -89,14 +86,14 @@ export default function WorkspaceMembersPage() {
 
       setInviteMsg("Invite sent.");
       setEmail("");
-    } catch (e: any) {
-      setInviteMsg(e?.message ?? "Invite failed");
+    } catch (e: unknown) {
+      setInviteMsg(e instanceof Error ? e.message : "Invite failed");
     } finally {
       setInviting(false);
     }
   }
 
-  const idForLinks = validWorkspaceId ?? workspaceId;
+  const idForLinks = workspace?.slug ?? workspaceIdentifier;
 
   return (
     <div className="space-y-6">
@@ -162,7 +159,7 @@ export default function WorkspaceMembersPage() {
                 </label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
+                  onChange={(e) => setRole(e.target.value as "member" | "admin")}
                   className="mt-2 w-full border px-4 py-3 text-sm bg-transparent focus-ring"
                   style={{ borderColor: "var(--border)", borderRadius: 10 }}
                 >

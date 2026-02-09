@@ -14,14 +14,10 @@ type DomainItem = {
   created_at: string;
 };
 
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
-
 export default function WorkspaceDomainsSettingsPage() {
   const params = useParams<{ id?: string }>();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
-  const validWorkspaceId = useMemo(() => (workspaceId && isUuid(workspaceId) ? workspaceId : null), [workspaceId]);
+  const workspaceIdentifier = useMemo(() => workspaceId.trim(), [workspaceId]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,19 +28,19 @@ export default function WorkspaceDomainsSettingsPage() {
   const [domains, setDomains] = useState<DomainItem[]>([]);
 
   const loadDomains = useCallback(async () => {
-    if (!validWorkspaceId) return;
+    if (!workspaceIdentifier) return;
 
-    const res = await fetch(`/api/app/workspaces/${validWorkspaceId}/domains`, { cache: "no-store" });
+    const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/domains`, { cache: "no-store" });
     const json = await res.json().catch(() => null);
     if (!res.ok) throw new Error(json?.error ?? "Failed to load domains");
     setDomains((json?.domains ?? []) as DomainItem[]);
-  }, [validWorkspaceId]);
+  }, [workspaceIdentifier]);
 
   useEffect(() => {
     let alive = true;
-    if (!validWorkspaceId) {
+    if (!workspaceIdentifier) {
       setLoading(false);
-      setError(workspaceId ? "Invalid workspace id." : null);
+      setError(workspaceId ? "Invalid workspace." : null);
       return () => {
         alive = false;
       };
@@ -66,15 +62,15 @@ export default function WorkspaceDomainsSettingsPage() {
     return () => {
       alive = false;
     };
-  }, [loadDomains, validWorkspaceId, workspaceId]);
+  }, [loadDomains, workspaceIdentifier, workspaceId]);
 
   async function addDomain() {
-    if (!validWorkspaceId) return;
+    if (!workspaceIdentifier) return;
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/api/app/workspaces/${validWorkspaceId}/domains`, {
+      const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/domains`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ domain: domainInput }),
@@ -92,12 +88,12 @@ export default function WorkspaceDomainsSettingsPage() {
   }
 
   async function removeDomain(domainId: string) {
-    if (!validWorkspaceId) return;
+    if (!workspaceIdentifier) return;
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/api/app/workspaces/${validWorkspaceId}/domains/${domainId}`, { method: "DELETE" });
+      const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/domains/${domainId}`, { method: "DELETE" });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to remove domain");
       setMessage("Domain removed.");

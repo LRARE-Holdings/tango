@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +24,6 @@ type ActivityItem =
       };
     };
 
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
-
 function safeIso(s: any): string | null {
   if (!s) return null;
   const d = new Date(s);
@@ -44,17 +41,14 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const { id: workspaceIdRaw } = (await ctx.params) as { id: string };
-
-    // ✅ Critical: reject "undefined", "null", etc. before hitting Postgres
-    if (!workspaceIdRaw || !isUuid(workspaceIdRaw)) {
-      return NextResponse.json(
-        { error: "Invalid workspace id" },
-        { status: 400 }
-      );
+    const { id: workspaceIdentifier } = (await ctx.params) as { id: string };
+    if (!workspaceIdentifier) {
+      return NextResponse.json({ error: "Invalid workspace identifier" }, { status: 400 });
     }
 
-    const workspaceId = workspaceIdRaw;
+    const resolved = await resolveWorkspaceIdentifier(workspaceIdentifier);
+    if (!resolved) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const workspaceId = resolved.id;
 
     const supabase = await supabaseServer();
 
@@ -78,7 +72,7 @@ export async function GET(
     // Workspace basics
     const { data: workspace, error: wsErr } = await supabase
       .from("workspaces")
-      .select("id,name,created_at,brand_logo_updated_at")
+      .select("id,name,slug,created_at,brand_logo_updated_at")
       .eq("id", workspaceId)
       .maybeSingle();
 
@@ -210,6 +204,7 @@ export async function GET(
       workspace: {
         id: workspace.id,
         name: workspace.name,
+        slug: (workspace as { slug?: string | null }).slug ?? null,
         created_at: workspace.created_at,
         brand_logo_updated_at: workspace.brand_logo_updated_at ?? null,
       },

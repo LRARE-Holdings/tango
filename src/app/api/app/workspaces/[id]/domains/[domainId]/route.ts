@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
-
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
+import { isWorkspaceUuid, resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 
 export async function DELETE(
   _req: Request,
@@ -15,10 +12,14 @@ export async function DELETE(
   }
 ) {
   try {
-    const { id: workspaceId, domainId } = (await ctx.params) as { id: string; domainId: string };
-    if (!workspaceId || !isUuid(workspaceId) || !domainId || !isUuid(domainId)) {
+    const { id: workspaceIdentifier, domainId } = (await ctx.params) as { id: string; domainId: string };
+    if (!workspaceIdentifier || !domainId || !isWorkspaceUuid(domainId)) {
       return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
     }
+
+    const resolved = await resolveWorkspaceIdentifier(workspaceIdentifier);
+    if (!resolved) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const workspaceId = resolved.id;
 
     const supabase = await supabaseServer();
     const admin = supabaseAdmin();

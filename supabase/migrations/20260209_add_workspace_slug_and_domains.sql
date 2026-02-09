@@ -26,6 +26,50 @@ create unique index if not exists workspaces_slug_unique_idx
   on public.workspaces (lower(slug))
   where slug is not null;
 
+with prepared as (
+  select
+    id,
+    lower(
+      regexp_replace(
+        regexp_replace(
+          regexp_replace(trim(name), '[^a-zA-Z0-9\s-]', '', 'g'),
+          '\s+',
+          '-',
+          'g'
+        ),
+        '-+',
+        '-',
+        'g'
+      )
+    ) as base_slug
+  from public.workspaces
+  where slug is null
+),
+ranked as (
+  select
+    id,
+    case
+      when base_slug is null or base_slug = '' then 'workspace'
+      else trim(both '-' from base_slug)
+    end as normalized_slug,
+    row_number() over (partition by base_slug order by id) as rn
+  from prepared
+),
+final_slugs as (
+  select
+    id,
+    case
+      when rn = 1 then left(normalized_slug, 63)
+      else left(normalized_slug, 58) || '-' || rn::text
+    end as slug_candidate
+  from ranked
+)
+update public.workspaces w
+set slug = f.slug_candidate
+from final_slugs f
+where w.id = f.id
+  and w.slug is null;
+
 create table if not exists public.workspace_domains (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
@@ -47,4 +91,3 @@ create unique index if not exists workspace_domains_domain_unique_idx
 
 create index if not exists workspace_domains_workspace_idx
   on public.workspace_domains (workspace_id, created_at desc);
-
