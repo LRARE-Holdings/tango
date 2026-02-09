@@ -13,6 +13,25 @@ function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Failed";
 }
 
+async function persistPrimaryWorkspace(
+  admin: ReturnType<typeof supabaseAdmin>,
+  userId: string,
+  workspaceId: string | null
+) {
+  const { error } = await admin
+    .from("profiles")
+    .upsert(
+      {
+        id: userId,
+        primary_workspace_id: workspaceId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+
+  if (error) throw new Error(error.message);
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await supabaseServer();
@@ -31,12 +50,7 @@ export async function POST(req: Request) {
 
     // Personal mode: clear active workspace
     if (workspaceId === null) {
-      const { error: clearErr } = await admin
-        .from("profiles")
-        .update({ primary_workspace_id: null, updated_at: new Date().toISOString() })
-        .eq("id", userData.user.id);
-
-      if (clearErr) throw new Error(clearErr.message);
+      await persistPrimaryWorkspace(admin, userData.user.id, null);
       return NextResponse.json({ ok: true, workspace_id: null });
     }
 
@@ -78,12 +92,7 @@ export async function POST(req: Request) {
       if (insErr) throw new Error(insErr.message);
     }
 
-    const { error: upErr } = await admin
-      .from("profiles")
-      .update({ primary_workspace_id: workspaceId, updated_at: new Date().toISOString() })
-      .eq("id", userData.user.id);
-
-    if (upErr) throw new Error(upErr.message);
+    await persistPrimaryWorkspace(admin, userData.user.id, workspaceId);
 
     return NextResponse.json({ ok: true, workspace_id: workspaceId });
   } catch (e: unknown) {

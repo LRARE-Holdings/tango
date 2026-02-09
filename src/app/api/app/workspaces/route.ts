@@ -7,6 +7,10 @@ export const dynamic = "force-dynamic";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 
+function errMessage(e: unknown) {
+  return e instanceof Error ? e.message : "Failed";
+}
+
 async function requireUser() {
   const supabase = await supabaseServer();
   const { data, error } = await supabase.auth.getUser();
@@ -30,18 +34,67 @@ async function getMyPlan(userId: string): Promise<Plan> {
 export async function GET() {
   try {
     const { supabase, user } = await requireUser();
+    const admin = supabaseAdmin();
 
-    // RLS should restrict to member workspaces
-    const { data, error } = await supabase
+    const { data: memberships, error: memErr } = await supabase
+      .from("workspace_members")
+      .select("workspace_id,role")
+      .eq("user_id", user.id);
+    if (memErr) throw new Error(memErr.message);
+
+    const memberWorkspaceIds = Array.from(
+      new Set((memberships ?? []).map((m) => m.workspace_id).filter(Boolean))
+    );
+
+    const { data: ownedWorkspaces, error: ownedErr } = await admin
       .from("workspaces")
       .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
-      .order("created_at", { ascending: false });
+      .eq("created_by", user.id);
+    if (ownedErr) throw new Error(ownedErr.message);
 
-    if (error) throw new Error(error.message);
+    const ownedWorkspaceIds = new Set((ownedWorkspaces ?? []).map((w) => w.id));
+    const missingOwnerMemberships = (ownedWorkspaces ?? [])
+      .filter((w) => !memberWorkspaceIds.includes(w.id))
+      .map((w) => ({
+        workspace_id: w.id,
+        user_id: user.id,
+        role: "owner" as const,
+      }));
 
-    return NextResponse.json({ workspaces: data ?? [] });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status: 401 });
+    if (missingOwnerMemberships.length > 0) {
+      const { error: healErr } = await admin
+        .from("workspace_members")
+        .upsert(missingOwnerMemberships, { onConflict: "workspace_id,user_id" });
+      if (healErr) throw new Error(healErr.message);
+      for (const row of missingOwnerMemberships) memberWorkspaceIds.push(row.workspace_id);
+    }
+
+    let memberWorkspaces: Array<{
+      id: string;
+      name: string;
+      created_by: string;
+      created_at: string;
+      updated_at: string;
+      brand_logo_path: string | null;
+      brand_logo_updated_at: string | null;
+    }> = [];
+
+    const missingIds = memberWorkspaceIds.filter((id) => !ownedWorkspaceIds.has(id));
+    if (missingIds.length > 0) {
+      const { data: viaMembership, error: viaMembershipErr } = await supabase
+        .from("workspaces")
+        .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
+        .in("id", missingIds);
+      if (viaMembershipErr) throw new Error(viaMembershipErr.message);
+      memberWorkspaces = viaMembership ?? [];
+    }
+
+    const all = [...(ownedWorkspaces ?? []), ...memberWorkspaces];
+    all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    return NextResponse.json({ workspaces: all });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: errMessage(e) }, { status: 401 });
   }
 }
 
@@ -87,7 +140,7 @@ export async function POST(req: Request) {
       .eq("id", user.id);
 
     return NextResponse.json({ workspace: ws });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: errMessage(e) }, { status: 500 });
   }
 }
