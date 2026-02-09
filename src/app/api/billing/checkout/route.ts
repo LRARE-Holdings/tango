@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type Billing = "monthly" | "annual";
 type Plan = "personal" | "pro" | "team";
-
-/* -------------------------------------------------------------------------- */
-/* Utilities                                                                  */
-/* -------------------------------------------------------------------------- */
 
 function requireEnv(name: string) {
   const v = process.env[name];
@@ -22,25 +18,15 @@ function priceEnvKey(plan: Plan, billing: Billing) {
   return `STRIPE_PRICE_${plan.toUpperCase()}_${billing.toUpperCase()}`;
 }
 
-function getPriceId(plan: Plan, billing: Billing) {
-  return requireEnv(priceEnvKey(plan, billing));
-}
-
 function assertPlan(x: unknown): asserts x is Plan {
   if (x !== "personal" && x !== "pro" && x !== "team") throw new Error("Invalid plan");
 }
-
 function assertBilling(x: unknown): asserts x is Billing {
   if (x !== "monthly" && x !== "annual") throw new Error("Invalid billing");
 }
 
-/* -------------------------------------------------------------------------- */
-/* Route                                                                      */
-/* -------------------------------------------------------------------------- */
-
 export async function POST(req: Request) {
   try {
-    // Auth
     const supabase = await supabaseServer();
     const { data: auth, error: authError } = await supabase.auth.getUser();
 
@@ -51,7 +37,6 @@ export async function POST(req: Request) {
     const userId = auth.user.id;
     const email = auth.user.email ?? undefined;
 
-    // Input
     const body = await req.json();
     const plan = body.plan;
     const billing = body.billing;
@@ -62,24 +47,20 @@ export async function POST(req: Request) {
 
     const seats =
       plan === "team"
-        ? Math.max(2, Math.min(500, Number(seatsRaw) || 2))
+        ? Math.max(2, Math.min(500, Number.isFinite(Number(seatsRaw)) ? Number(seatsRaw) : 2))
         : 1;
 
-    const priceId = getPriceId(plan, billing);
+    const priceId = requireEnv(priceEnvKey(plan, billing));
 
-    // Admin client (bypass RLS for profile writes)
-    const admin = supabaseAdmin();
-
-    // Load profile by id (NOT user_id)
-    const { data: profile, error: profileErr } = await admin
+    // Pull profile by profiles.id (your schema)
+    const { data: profile, error: profileErr } = await supabase
       .from("profiles")
       .select("id, stripe_customer_id, has_had_trial")
       .eq("id", userId)
       .maybeSingle();
 
-    if (profileErr) throw new Error(profileErr.message);
+    if (profileErr) throw profileErr;
 
-    // Ensure Stripe customer exists
     let customerId = profile?.stripe_customer_id ?? null;
 
     if (!customerId) {
@@ -90,24 +71,26 @@ export async function POST(req: Request) {
 
       customerId = customer.id;
 
-      // Upsert profile row (works whether it exists or not)
-      const { error: upsertErr } = await admin
+      // Use UPSERT so it works whether or not the profile row exists yet.
+      const { error: upsertErr } = await supabase
         .from("profiles")
         .upsert(
           {
             id: userId,
+            email: email ?? null,
             stripe_customer_id: customerId,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "id" }
         );
 
-      if (upsertErr) throw new Error(upsertErr.message);
+      if (upsertErr) throw upsertErr;
     }
 
-    // Trial policy (abuse-safe)
+    // Trial policy:
     const desiredTrialDays = billing === "annual" ? 14 : 7;
 
+    // Stripe-side: block trials if customer ever subscribed
     const existingSubs = await stripe.subscriptions.list({
       customer: customerId,
       status: "all",
@@ -119,41 +102,32 @@ export async function POST(req: Request) {
 
     const trialPeriodDays = hasEverSubscribed || hasHadTrial ? undefined : desiredTrialDays;
 
-    // URLs
-    const siteUrl = requireEnv("NEXT_PUBLIC_APP_URL");
+    const siteUrl = requireEnv("NEXT_PUBLIC_APP_URL").replace(/\/$/, "");
     const successUrl = `${siteUrl}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${siteUrl}/pricing`;
 
-    // Checkout session
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
+
+      // Key for webhook correlation
       client_reference_id: userId,
+
       line_items: [{ price: priceId, quantity: seats }],
       allow_promotion_codes: true,
       success_url: successUrl,
       cancel_url: cancelUrl,
+
       subscription_data: {
         ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
-        metadata: {
-          supabase_user_id: userId,
-          plan,
-          billing,
-        },
+        metadata: { supabase_user_id: userId, plan, billing },
       },
-      metadata: {
-        supabase_user_id: userId,
-        plan,
-        billing,
-      },
+      metadata: { supabase_user_id: userId, plan, billing },
     });
 
     return NextResponse.json({ url: session.url }, { status: 200 });
-  } catch (err: any) {
-    console.error("❌ Checkout error:", err);
-    return NextResponse.json(
-      { error: err?.message ?? "Checkout failed" },
-      { status: 500 }
-    );
+  } catch (e: any) {
+    console.error("❌ Checkout error:", e?.message ?? e, e);
+    return NextResponse.json({ error: e?.message ?? "Checkout failed" }, { status: 500 });
   }
 }
