@@ -6,7 +6,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  // Use a valid Stripe API version string you’re pinned to
   apiVersion: "2026-01-28.clover",
 });
 
@@ -28,41 +27,30 @@ function priceToPlan(priceId: string | null) {
   }
 }
 
-function subCurrentPeriodEnd(sub: Stripe.Subscription): number | null {
-  const v = (sub as unknown as { current_period_end?: number | null }).current_period_end;
+function subFieldNumber(sub: Stripe.Subscription, key: "current_period_end" | "trial_end") {
+  const v = (sub as unknown as Record<string, unknown>)[key];
   return typeof v === "number" ? v : null;
 }
 
-function subTrialEnd(sub: Stripe.Subscription): number | null {
-  const v = (sub as unknown as { trial_end?: number | null }).trial_end;
-  return typeof v === "number" ? v : null;
+function resolveUserIdFromSession(session: Stripe.Checkout.Session) {
+  const a = typeof session.client_reference_id === "string" ? session.client_reference_id : null;
+  const b =
+    typeof session.metadata?.supabase_user_id === "string" ? session.metadata.supabase_user_id : null;
+  return a ?? b;
 }
 
-async function resolveProfileIdFromCustomer(
-  admin: ReturnType<typeof supabaseAdmin>,
-  customerId: string
-) {
-  const { data, error } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("stripe_customer_id", customerId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data?.id ?? null;
+function resolveUserIdFromSubscription(sub: Stripe.Subscription) {
+  const v = (sub.metadata as any)?.supabase_user_id;
+  return typeof v === "string" ? v : null;
 }
 
 export async function POST(request: Request) {
-  // Stripe requires raw body for signature verification
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
 
-  if (!signature) {
-    return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
-  }
+  if (!signature) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
 
   let event: Stripe.Event;
-
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err: any) {
@@ -80,65 +68,48 @@ export async function POST(request: Request) {
         const customerId = typeof session.customer === "string" ? session.customer : null;
         const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
 
-        if (!customerId || !subscriptionId) {
-          console.warn("⚠️ Missing customer/subscription on checkout.session.completed", {
-            sessionId: session.id,
-            customerId,
-            subscriptionId,
-          });
-          break;
-        }
+        if (!customerId || !subscriptionId) break;
 
-        // ✅ Identify Supabase profiles.id
-        const userId =
-          (typeof session.client_reference_id === "string" ? session.client_reference_id : null) ??
-          (typeof session.metadata?.supabase_user_id === "string"
-            ? session.metadata.supabase_user_id
-            : null);
-
+        const userId = resolveUserIdFromSession(session);
         if (!userId) {
-          console.error("❌ Missing supabase user id on session (client_reference_id/metadata).", {
+          console.error("⚠️ Missing supabase user id on checkout session", {
             sessionId: session.id,
             customerId,
             subscriptionId,
-            meta: session.metadata,
           });
           break;
         }
 
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-
-        const priceId = subscription.items.data[0]?.price?.id ?? null;
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        const priceId = sub.items.data[0]?.price?.id ?? null;
         const plan = priceToPlan(priceId);
 
-        const cpe = subCurrentPeriodEnd(subscription);
-        const te = subTrialEnd(subscription);
+        const cpe = subFieldNumber(sub, "current_period_end");
+        const te = subFieldNumber(sub, "trial_end");
         const hasTrial = typeof te === "number" && te > 0;
 
-        const payload = {
-          id: userId, // <-- profiles.id (auth uuid)
-          stripe_customer_id: customerId,
-          stripe_subscription_id: subscription.id,
-
-          plan,
-          subscription_status: subscription.status,
-          billing_interval: subscription.items.data[0]?.price.recurring?.interval ?? null,
-          seats: subscription.items.data[0]?.quantity ?? 1,
-
-          current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
-          cancel_at_period_end: subscription.cancel_at_period_end,
-
-          ...(hasTrial ? { has_had_trial: true } : {}),
-          trial_end: te ? new Date(te * 1000).toISOString() : null,
-
-          updated_at: new Date().toISOString(),
-        };
-
-        // ✅ Use UPSERT so it works even if the profile row didn’t exist yet
-        const { error } = await admin.from("profiles").upsert(payload, { onConflict: "id" });
+        const { error } = await admin
+          .from("profiles")
+          .upsert(
+            {
+              id: userId,
+              stripe_customer_id: customerId,
+              stripe_subscription_id: sub.id,
+              plan,
+              subscription_status: sub.status,
+              billing_interval: sub.items.data[0]?.price.recurring?.interval ?? null,
+              seats: sub.items.data[0]?.quantity ?? 1,
+              current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
+              cancel_at_period_end: sub.cancel_at_period_end,
+              has_had_trial: hasTrial ? true : undefined,
+              trial_end: te ? new Date(te * 1000).toISOString() : null,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id" }
+          );
 
         if (error) {
-          console.error("🔥 Supabase upsert failed (checkout.session.completed):", error);
+          console.error("🔥 Supabase upsert error (checkout.session.completed):", error);
           throw error;
         }
 
@@ -147,43 +118,44 @@ export async function POST(request: Request) {
 
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        const subscription = event.data.object as Stripe.Subscription;
+        const sub = event.data.object as Stripe.Subscription;
 
-        const customerId = typeof subscription.customer === "string" ? subscription.customer : null;
-        if (!customerId) break;
-
-        const profileId = await resolveProfileIdFromCustomer(admin, customerId);
-
-        if (!profileId) {
-          console.warn("⚠️ No profile found for stripe_customer_id", customerId);
+        const userId = resolveUserIdFromSubscription(sub);
+        if (!userId) {
+          // If metadata got stripped somehow, you can fallback to customer lookup,
+          // but metadata should be present because we set it in checkout.
+          console.error("⚠️ Missing supabase_user_id in subscription metadata", {
+            subId: sub.id,
+            customer: sub.customer,
+          });
           break;
         }
 
-        const priceId = subscription.items.data[0]?.price?.id ?? null;
+        const priceId = sub.items.data[0]?.price?.id ?? null;
         const plan = priceToPlan(priceId);
 
-        const cpe = subCurrentPeriodEnd(subscription);
-        const te = subTrialEnd(subscription);
+        const cpe = subFieldNumber(sub, "current_period_end");
+        const te = subFieldNumber(sub, "trial_end");
         const hasTrial = typeof te === "number" && te > 0;
 
         const { error } = await admin
           .from("profiles")
           .update({
-            stripe_subscription_id: subscription.id,
+            stripe_subscription_id: sub.id,
             plan,
-            subscription_status: subscription.status,
-            billing_interval: subscription.items.data[0]?.price.recurring?.interval ?? null,
-            seats: subscription.items.data[0]?.quantity ?? 1,
+            subscription_status: sub.status,
+            billing_interval: sub.items.data[0]?.price.recurring?.interval ?? null,
+            seats: sub.items.data[0]?.quantity ?? 1,
             current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
-            cancel_at_period_end: subscription.cancel_at_period_end,
-            ...(hasTrial ? { has_had_trial: true } : {}),
+            cancel_at_period_end: sub.cancel_at_period_end,
+            has_had_trial: hasTrial ? true : undefined,
             trial_end: te ? new Date(te * 1000).toISOString() : null,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", profileId);
+          .eq("id", userId);
 
         if (error) {
-          console.error("🔥 Supabase update failed (subscription.*):", error);
+          console.error("🔥 Supabase update error (subscription.*):", error);
           throw error;
         }
 
@@ -191,11 +163,10 @@ export async function POST(request: Request) {
       }
 
       default:
-        // ignore
         break;
     }
-  } catch (err: any) {
-    console.error("🔥 Webhook processing error:", err?.message ?? err, err);
+  } catch (err) {
+    console.error("🔥 Webhook processing error:", err);
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 
