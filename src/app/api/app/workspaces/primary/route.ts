@@ -53,7 +53,30 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (memErr) throw new Error(memErr.message);
-    if (!mem) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!mem) {
+      // Fallback: allow the workspace creator to switch even if membership row is missing.
+      // This can happen with legacy rows or partial migrations.
+      const { data: ws, error: wsErr } = await admin
+        .from("workspaces")
+        .select("id,created_by")
+        .eq("id", workspaceId)
+        .maybeSingle();
+
+      if (wsErr) throw new Error(wsErr.message);
+      if (!ws || ws.created_by !== userData.user.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      // Self-heal: restore owner membership so downstream workspace checks stay consistent.
+      const { error: insErr } = await admin
+        .from("workspace_members")
+        .upsert(
+          { workspace_id: workspaceId, user_id: userData.user.id, role: "owner" },
+          { onConflict: "workspace_id,user_id" }
+        );
+
+      if (insErr) throw new Error(insErr.message);
+    }
 
     const { error: upErr } = await admin
       .from("profiles")

@@ -26,6 +26,7 @@ export function WorkspaceSwitcher() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -61,6 +62,7 @@ export function WorkspaceSwitcher() {
 
   async function setPrimary(workspaceId: string | null) {
     setSwitching(workspaceId ?? "__personal__");
+    setSwitchError(null);
     try {
       const res = await fetch("/api/app/workspaces/primary", {
         method: "POST",
@@ -75,6 +77,8 @@ export function WorkspaceSwitcher() {
 
       // Hard refresh gives immediate consistency everywhere without plumbing context yet
       window.location.reload();
+    } catch (e: unknown) {
+      setSwitchError(e instanceof Error ? e.message : "Failed to switch workspace");
     } finally {
       setSwitching(null);
     }
@@ -241,6 +245,11 @@ export function WorkspaceSwitcher() {
               </div>
             </div>
           </div>
+          {switchError ? (
+            <div className="px-3 pb-3 text-xs" style={{ color: "#ff3b30" }}>
+              {switchError}
+            </div>
+          ) : null}
         </div>
       )}
     </div>
