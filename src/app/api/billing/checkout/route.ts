@@ -8,6 +8,10 @@ export const runtime = "nodejs";
 type Billing = "monthly" | "annual";
 type Plan = "personal" | "pro" | "team";
 
+/* -------------------------------------------------------------------------- */
+/* Utilities                                                                  */
+/* -------------------------------------------------------------------------- */
+
 function requireEnv(name: string) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env var: ${name}`);
@@ -23,21 +27,23 @@ function getPriceId(plan: Plan, billing: Billing) {
 }
 
 function assertPlan(x: unknown): asserts x is Plan {
-  if (x !== "personal" && x !== "pro" && x !== "team") {
-    throw new Error("Invalid plan");
-  }
+  if (x !== "personal" && x !== "pro" && x !== "team") throw new Error("Invalid plan");
 }
+
 function assertBilling(x: unknown): asserts x is Billing {
-  if (x !== "monthly" && x !== "annual") {
-    throw new Error("Invalid billing");
-  }
+  if (x !== "monthly" && x !== "annual") throw new Error("Invalid billing");
 }
+
+/* -------------------------------------------------------------------------- */
+/* Route                                                                      */
+/* -------------------------------------------------------------------------- */
 
 export async function POST(req: Request) {
   try {
-    // Auth (user must be logged in)
+    // Auth
     const supabase = await supabaseServer();
     const { data: auth, error: authError } = await supabase.auth.getUser();
+
     if (authError || !auth?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -61,14 +67,14 @@ export async function POST(req: Request) {
 
     const priceId = getPriceId(plan, billing);
 
-    // Admin client for reliable DB writes (bypasses RLS)
+    // Admin client (bypass RLS for profile writes)
     const admin = supabaseAdmin();
 
-    // Load profile (admin)
+    // Load profile by id (NOT user_id)
     const { data: profile, error: profileErr } = await admin
       .from("profiles")
-      .select("user_id, stripe_customer_id, has_had_trial")
-      .eq("user_id", userId)
+      .select("id, stripe_customer_id, has_had_trial")
+      .eq("id", userId)
       .maybeSingle();
 
     if (profileErr) throw new Error(profileErr.message);
@@ -84,22 +90,22 @@ export async function POST(req: Request) {
 
       customerId = customer.id;
 
-      // IMPORTANT: upsert so it works even if the profile row doesn't exist yet
+      // Upsert profile row (works whether it exists or not)
       const { error: upsertErr } = await admin
         .from("profiles")
         .upsert(
           {
-            user_id: userId,
+            id: userId,
             stripe_customer_id: customerId,
             updated_at: new Date().toISOString(),
           },
-          { onConflict: "user_id" }
+          { onConflict: "id" }
         );
 
       if (upsertErr) throw new Error(upsertErr.message);
     }
 
-    // Trial policy
+    // Trial policy (abuse-safe)
     const desiredTrialDays = billing === "annual" ? 14 : 7;
 
     const existingSubs = await stripe.subscriptions.list({
@@ -111,15 +117,14 @@ export async function POST(req: Request) {
     const hasEverSubscribed = existingSubs.data.length > 0;
     const hasHadTrial = Boolean(profile?.has_had_trial);
 
-    const trialPeriodDays =
-      hasEverSubscribed || hasHadTrial ? undefined : desiredTrialDays;
+    const trialPeriodDays = hasEverSubscribed || hasHadTrial ? undefined : desiredTrialDays;
 
     // URLs
     const siteUrl = requireEnv("NEXT_PUBLIC_APP_URL");
     const successUrl = `${siteUrl}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${siteUrl}/pricing`;
 
-    // Create Checkout Session
+    // Checkout session
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
@@ -128,7 +133,6 @@ export async function POST(req: Request) {
       allow_promotion_codes: true,
       success_url: successUrl,
       cancel_url: cancelUrl,
-
       subscription_data: {
         ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
         metadata: {
