@@ -1,13 +1,5 @@
 import { redirect } from "next/navigation";
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-      {children}
-    </span>
-  );
-}
-
 function FeatureCard({
   title,
   children,
@@ -149,11 +141,19 @@ export default function Home({
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const code = typeof searchParams?.code === "string" ? searchParams.code : null;
+  const tokenHash = typeof searchParams?.token_hash === "string" ? searchParams.token_hash : null;
+  const type = typeof searchParams?.type === "string" ? searchParams.type : null;
   const next = typeof searchParams?.next === "string" ? searchParams.next : null;
+  const redirectTo =
+    typeof searchParams?.redirect_to === "string" ? searchParams.redirect_to : null;
 
-  if (code) {
-    const qs = new URLSearchParams({ code });
+  if (code || (tokenHash && type)) {
+    const qs = new URLSearchParams();
+    if (code) qs.set("code", code);
+    if (tokenHash) qs.set("token_hash", tokenHash);
+    if (type) qs.set("type", type);
     if (next) qs.set("next", next);
+    if (redirectTo) qs.set("redirect_to", redirectTo);
     redirect(`/auth/confirm?${qs.toString()}`);
   }
   return (

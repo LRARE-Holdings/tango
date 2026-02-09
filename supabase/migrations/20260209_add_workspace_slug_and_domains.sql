@@ -22,17 +22,24 @@ begin
   end if;
 end $$;
 
-create unique index if not exists workspaces_slug_unique_idx
-  on public.workspaces (lower(slug))
-  where slug is not null;
-
-with prepared as (
-  select
-    id,
-    lower(
+-- Backfill missing slugs with collision-safe candidates.
+do $$
+declare
+  r record;
+  base_slug text;
+  candidate text;
+  n integer;
+begin
+  for r in
+    select id, name
+    from public.workspaces
+    where slug is null
+    order by created_at nulls first, id
+  loop
+    base_slug := lower(
       regexp_replace(
         regexp_replace(
-          regexp_replace(trim(name), '[^a-zA-Z0-9\s-]', '', 'g'),
+          regexp_replace(trim(coalesce(r.name, 'workspace')), '[^a-zA-Z0-9\s-]', '', 'g'),
           '\s+',
           '-',
           'g'
@@ -41,34 +48,39 @@ with prepared as (
         '-',
         'g'
       )
-    ) as base_slug
-  from public.workspaces
-  where slug is null
-),
-ranked as (
-  select
-    id,
-    case
-      when base_slug is null or base_slug = '' then 'workspace'
-      else trim(both '-' from base_slug)
-    end as normalized_slug,
-    row_number() over (partition by base_slug order by id) as rn
-  from prepared
-),
-final_slugs as (
-  select
-    id,
-    case
-      when rn = 1 then left(normalized_slug, 63)
-      else left(normalized_slug, 58) || '-' || rn::text
-    end as slug_candidate
-  from ranked
-)
-update public.workspaces w
-set slug = f.slug_candidate
-from final_slugs f
-where w.id = f.id
-  and w.slug is null;
+    );
+
+    base_slug := trim(both '-' from coalesce(base_slug, ''));
+    if base_slug = '' then
+      base_slug := 'workspace';
+    end if;
+
+    base_slug := left(base_slug, 63);
+    candidate := base_slug;
+    n := 2;
+
+    while exists (
+      select 1
+      from public.workspaces w
+      where w.id <> r.id
+        and lower(w.slug) = lower(candidate)
+    ) loop
+      candidate := left(base_slug, greatest(1, 63 - length(n::text) - 1)) || '-' || n::text;
+      n := n + 1;
+    end loop;
+
+    update public.workspaces
+    set slug = candidate
+    where id = r.id;
+  end loop;
+end $$;
+
+alter table public.workspaces
+  alter column slug set not null;
+
+create unique index if not exists workspaces_slug_unique_idx
+  on public.workspaces (lower(slug))
+  where slug is not null;
 
 create table if not exists public.workspace_domains (
   id uuid primary key default gen_random_uuid(),
@@ -91,3 +103,105 @@ create unique index if not exists workspace_domains_domain_unique_idx
 
 create index if not exists workspace_domains_workspace_idx
   on public.workspace_domains (workspace_id, created_at desc);
+
+alter table public.workspace_domains enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'workspace_domains'
+      and policyname = 'workspace_domains_select_member'
+  ) then
+    create policy workspace_domains_select_member
+      on public.workspace_domains
+      for select
+      using (
+        exists (
+          select 1
+          from public.workspace_members wm
+          where wm.workspace_id = workspace_domains.workspace_id
+            and wm.user_id = auth.uid()
+        )
+      );
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'workspace_domains'
+      and policyname = 'workspace_domains_insert_admin'
+  ) then
+    create policy workspace_domains_insert_admin
+      on public.workspace_domains
+      for insert
+      with check (
+        exists (
+          select 1
+          from public.workspace_members wm
+          where wm.workspace_id = workspace_domains.workspace_id
+            and wm.user_id = auth.uid()
+            and wm.role in ('owner', 'admin')
+        )
+      );
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'workspace_domains'
+      and policyname = 'workspace_domains_update_admin'
+  ) then
+    create policy workspace_domains_update_admin
+      on public.workspace_domains
+      for update
+      using (
+        exists (
+          select 1
+          from public.workspace_members wm
+          where wm.workspace_id = workspace_domains.workspace_id
+            and wm.user_id = auth.uid()
+            and wm.role in ('owner', 'admin')
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.workspace_members wm
+          where wm.workspace_id = workspace_domains.workspace_id
+            and wm.user_id = auth.uid()
+            and wm.role in ('owner', 'admin')
+        )
+      );
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'workspace_domains'
+      and policyname = 'workspace_domains_delete_admin'
+  ) then
+    create policy workspace_domains_delete_admin
+      on public.workspace_domains
+      for delete
+      using (
+        exists (
+          select 1
+          from public.workspace_members wm
+          where wm.workspace_id = workspace_domains.workspace_id
+            and wm.user_id = auth.uid()
+            and wm.role in ('owner', 'admin')
+        )
+      );
+  end if;
+end $$;

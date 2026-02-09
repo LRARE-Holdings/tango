@@ -4,11 +4,13 @@ import { supabaseServer } from "@/lib/supabase/server";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
+  const next = url.searchParams.get("next") || url.searchParams.get("redirect_to");
+  const redirectTo = next && next.startsWith("/") ? next : "/app";
 
   if (code) {
     const supabase = await supabaseServer();
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  return NextResponse.redirect(new URL("/app", url.origin));
+  return NextResponse.redirect(new URL(redirectTo, url.origin));
 }

@@ -12,7 +12,6 @@ async function submitEnterpriseEnquiry(formData: FormData) {
   };
 
   // TODO: Wire this to your email/CRM.
-  // eslint-disable-next-line no-console
   console.log("Enterprise enquiry", payload);
 }
 

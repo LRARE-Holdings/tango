@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-function isEmailConfirmed(user: any) {
+function isEmailConfirmed(user: { email_confirmed_at?: string | null; confirmed_at?: string | null } | null | undefined) {
   // Supabase/GoTrue commonly exposes one or both of these
   return Boolean(user?.email_confirmed_at || user?.confirmed_at);
 }
@@ -46,7 +46,7 @@ export function EmailVerificationGate() {
         if (!isEmailConfirmed(user)) {
           const next = sp.get("next");
           const redirectTo = next && next.startsWith("/") ? next : pathname || "/app";
-          router.replace(`/auth/verify?next=${encodeURIComponent(redirectTo)}`);
+          router.replace(`/auth/check-email?next=${encodeURIComponent(redirectTo)}`);
           return;
         }
 

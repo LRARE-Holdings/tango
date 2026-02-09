@@ -45,11 +45,21 @@ export async function GET(
     const resolved = await resolveWorkspaceIdentifier(workspaceIdentifier);
     if (!resolved) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    const { data: member, error: memberErr } = await supabase
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", resolved.id)
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+
+    if (memberErr) throw new Error(memberErr.message);
+    if (!member) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
     const withSlug = await supabase
       .from("workspaces")
       .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
       .eq("id", resolved.id)
-      .single();
+      .maybeSingle();
 
     let workspace = withSlug.data as Record<string, unknown> | null;
     let wsErr = withSlug.error;
@@ -59,13 +69,14 @@ export async function GET(
         .from("workspaces")
         .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
         .eq("id", resolved.id)
-        .single();
+        .maybeSingle();
       workspace = fallback.data as Record<string, unknown> | null;
       wsErr = fallback.error;
       if (workspace) workspace.slug = null;
     }
 
     if (wsErr) throw new Error(wsErr.message);
+    if (!workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const { data: members, error: memErr } = await supabase
       .from("workspace_members")
@@ -115,7 +126,7 @@ export async function PATCH(
 
     const body = (await req.json().catch(() => null)) as { name?: string; slug?: string | null } | null;
     const nextName = typeof body?.name === "string" ? body.name.trim() : undefined;
-    const slugRaw = typeof body?.slug === "string" ? body.slug : body?.slug === null ? "" : undefined;
+    const slugRaw = typeof body?.slug === "string" ? body.slug : undefined;
 
     if (nextName !== undefined && nextName.length === 0) {
       return NextResponse.json({ error: "Workspace name is required." }, { status: 400 });
@@ -124,18 +135,37 @@ export async function PATCH(
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (nextName !== undefined) payload.name = nextName;
 
+    const { data: existingWorkspace, error: existingErr } = await admin
+      .from("workspaces")
+      .select("name,slug")
+      .eq("id", resolved.id)
+      .maybeSingle();
+    if (existingErr && !isMissingColumnError(existingErr, "slug")) throw new Error(existingErr.message);
+
+    const existingSlug =
+      existingErr && isMissingColumnError(existingErr, "slug")
+        ? null
+        : ((existingWorkspace as { slug?: string | null } | null)?.slug ?? null);
+    const existingName = ((existingWorkspace as { name?: string } | null)?.name ?? "") as string;
+
     if (slugRaw !== undefined) {
       const slug = normalizeSlug(slugRaw);
-      if (slug.length === 0) {
-        payload.slug = null;
-      } else if (!isValidSlug(slug)) {
+      if (!isValidSlug(slug)) {
         return NextResponse.json(
           { error: "Slug must be 3-63 chars using lowercase letters, numbers, and hyphens only." },
           { status: 400 }
         );
-      } else {
-        payload.slug = slug;
       }
+      payload.slug = slug;
+    } else if (existingSlug === null) {
+      const autoSlug = normalizeSlug(nextName ?? existingName);
+      if (!isValidSlug(autoSlug)) {
+        return NextResponse.json(
+          { error: "Workspace slug is required. Set a valid slug (3-63 lowercase chars/numbers/hyphens)." },
+          { status: 400 }
+        );
+      }
+      payload.slug = autoSlug;
     }
 
     if (Object.keys(payload).length === 1) {

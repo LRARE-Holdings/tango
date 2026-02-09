@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function MarketingFooter() {
   return (
     <footer className="border-t border-zinc-200 bg-white py-10 dark:border-zinc-800 dark:bg-zinc-950">
@@ -15,16 +17,16 @@ export function MarketingFooter() {
               <div className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Product</div>
               <ul className="space-y-1">
                 <li>
-                  <a href="/product" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Product</a>
+                  <Link href="/product" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Product</Link>
                 </li>
                 <li>
-                  <a href="/how-it-works" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">How it works</a>
+                  <Link href="/how-it-works" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">How it works</Link>
                 </li>
                 <li>
-                  <a href="/pricing" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Pricing</a>
+                  <Link href="/pricing" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Pricing</Link>
                 </li>
                 <li>
-                  <a href="/security" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Security</a>
+                  <Link href="/security" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Security</Link>
                 </li>
               </ul>
             </div>
@@ -33,13 +35,13 @@ export function MarketingFooter() {
               <div className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Company</div>
               <ul className="space-y-1">
                 <li>
-                  <a href="/" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Home</a>
+                  <Link href="/" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Home</Link>
                 </li>
                 <li>
                   <a href="https://lrare.co.uk" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">LRARE</a>
                 </li>
                 <li>
-                  <a href="/enterprise" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Enterprise</a>
+                  <Link href="/enterprise" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Enterprise</Link>
                 </li>
               </ul>
             </div>
@@ -48,10 +50,10 @@ export function MarketingFooter() {
               <div className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Legal</div>
               <ul className="space-y-1">
                 <li>
-                  <a href="/terms" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Terms</a>
+                  <Link href="/terms" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Terms</Link>
                 </li>
                 <li>
-                  <a href="/privacy" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Privacy</a>
+                  <Link href="/privacy" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Privacy</Link>
                 </li>
               </ul>
             </div>
@@ -63,10 +65,10 @@ export function MarketingFooter() {
                   <a href="https://status.getreceipt.xyz" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Status</a>
                 </li>
                 <li>
-                  <a href="/auth" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Login</a>
+                  <Link href="/auth" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Login</Link>
                 </li>
                 <li>
-                  <a href="/app" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Get started</a>
+                  <Link href="/app" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Get started</Link>
                 </li>
               </ul>
             </div>

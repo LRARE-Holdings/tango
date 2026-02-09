@@ -147,6 +147,12 @@ export async function POST(req: Request) {
 
     const admin = supabaseAdmin();
     const availableSlug = await findAvailableSlug(admin, name);
+    if (!availableSlug) {
+      return NextResponse.json(
+        { error: "Workspace slug support is not configured. Run the workspace slug migration first." },
+        { status: 500 }
+      );
+    }
 
     // Create workspace (RLS allows insert when created_by = auth.uid())
     const { data: ws, error: wsErr } = await supabase
@@ -154,7 +160,7 @@ export async function POST(req: Request) {
       .insert({
         name,
         created_by: user.id,
-        ...(availableSlug ? { slug: availableSlug } : {}),
+        slug: availableSlug,
       })
       .select("id,name,slug,created_at")
       .single();

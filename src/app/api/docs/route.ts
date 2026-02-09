@@ -4,11 +4,117 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import crypto from "crypto";
 import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
+import { sendWithResend } from "@/lib/email/resend";
 
 const MAX_MB = 20;
 
 function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Server error";
+}
+
+type ParsedRecipient = {
+  name: string;
+  email: string;
+};
+
+function isEmail(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim().toLowerCase());
+}
+
+function parseRecipients(raw: FormDataEntryValue | null): ParsedRecipient[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  const out: ParsedRecipient[] = [];
+  for (const item of parsed) {
+    if (!item || typeof item !== "object") continue;
+    const name = String((item as { name?: unknown }).name ?? "").trim();
+    const email = String((item as { email?: unknown }).email ?? "").trim().toLowerCase();
+    if (!email || !isEmail(email)) continue;
+    out.push({ name, email });
+  }
+
+  const dedup = new Map<string, ParsedRecipient>();
+  for (const r of out) dedup.set(r.email, r);
+  return [...dedup.values()].slice(0, 50);
+}
+
+function appBaseUrl(req: Request) {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (envUrl) return envUrl.replace(/\/$/, "");
+
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+  if (host) return `${proto}://${host}`;
+  return "https://www.getreceipt.xyz";
+}
+
+function escapeHtml(v: string) {
+  return v
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildReceiptEmail({
+  recipientName,
+  workspaceName,
+  title,
+  shareUrl,
+  passwordEnabled,
+}: {
+  recipientName: string;
+  workspaceName: string | null;
+  title: string;
+  shareUrl: string;
+  passwordEnabled: boolean;
+}) {
+  const safeTitle = escapeHtml(title);
+  const safeWorkspace = workspaceName ? escapeHtml(workspaceName) : "Receipt";
+  const intro = recipientName
+    ? `Hi ${escapeHtml(recipientName)},`
+    : "Hello,";
+
+  const passwordNote = passwordEnabled
+    ? `<p style="margin:16px 0 0;color:#5f6368;font-size:13px;line-height:1.5;">This link is password-protected. The sender should share the password separately.</p>`
+    : "";
+
+  const html = `
+  <div style="margin:0;padding:24px;background:#f7f7f8;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;">
+    <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:24px;">
+      <div style="font-size:11px;letter-spacing:0.08em;color:#666;font-weight:700;">RECEIPT</div>
+      <h1 style="margin:10px 0 0;font-size:20px;line-height:1.3;">${safeWorkspace} shared a document</h1>
+      <p style="margin:14px 0 0;color:#333;font-size:14px;line-height:1.6;">${intro}</p>
+      <p style="margin:10px 0 0;color:#333;font-size:14px;line-height:1.6;">You have been asked to review and acknowledge:</p>
+      <p style="margin:8px 0 0;color:#111;font-size:15px;font-weight:600;">${safeTitle}</p>
+      <div style="margin-top:20px;">
+        <a href="${shareUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:11px 16px;border-radius:999px;font-size:14px;font-weight:600;">Open document</a>
+      </div>
+      <p style="margin:14px 0 0;color:#5f6368;font-size:12px;line-height:1.5;">If the button does not work, open this URL:</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.5;word-break:break-all;"><a href="${shareUrl}" style="color:#111;">${shareUrl}</a></p>
+      ${passwordNote}
+    </div>
+  </div>`;
+
+  const text = `${recipientName ? `Hi ${recipientName},` : "Hello,"}
+
+${workspaceName ?? "Receipt"} shared a document with you:
+${title}
+
+Open document: ${shareUrl}
+${passwordEnabled ? "\nThis link is password-protected. The sender should share the password separately." : ""}
+`;
+
+  return { html, text };
 }
 
 export async function POST(req: Request) {
@@ -20,6 +126,8 @@ export async function POST(req: Request) {
     const passwordRaw = typeof form.get("password") === "string" ? String(form.get("password")).trim() : "";
     const requireRecipientIdentityRaw =
       String(form.get("require_recipient_identity") ?? "false").toLowerCase() === "true";
+    const sendEmailsRaw = String(form.get("send_emails") ?? "false").toLowerCase() === "true";
+    const recipients = parseRecipients(form.get("recipients"));
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
@@ -63,6 +171,7 @@ export async function POST(req: Request) {
 
     const plan = String(profile?.plan ?? "free").toLowerCase();
     const isPaidPlan = plan !== "free";
+    const personalPlus = plan === "personal" || plan === "pro" || plan === "team" || plan === "enterprise";
     const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
     const isWorkspacePlan = plan === "team" || plan === "enterprise";
 
@@ -71,6 +180,18 @@ export async function POST(req: Request) {
         { error: "Requiring name/email acknowledgement is available on paid plans." },
         { status: 403 }
       );
+    }
+    if (sendEmailsRaw && !personalPlus) {
+      return NextResponse.json(
+        { error: "Email sending is available on Personal plans and above." },
+        { status: 403 }
+      );
+    }
+    if (sendEmailsRaw && recipients.length === 0) {
+      return NextResponse.json({ error: "Add at least one valid recipient email." }, { status: 400 });
+    }
+    if (sendEmailsRaw && !process.env.RESEND_API_KEY) {
+      return NextResponse.json({ error: "Email sending is not configured yet." }, { status: 500 });
     }
 
     if (activeWorkspaceId) {
@@ -110,7 +231,7 @@ export async function POST(req: Request) {
     }
 
     const public_id = nanoid(10);
-    const password_hash = passwordEnabledRaw ? hashPassword(passwordRaw) : null;
+    const password_hash = passwordEnabledRaw ? await hashPassword(passwordRaw) : null;
 
     const insertPayload: Record<string, unknown> = {
       owner_id,
@@ -183,11 +304,58 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: updErr.message }, { status: 500 });
     }
 
+    const sharePath = passwordEnabledRaw ? `/d/${doc.public_id}/access` : `/d/${doc.public_id}`;
+    const shareUrl = `${appBaseUrl(req)}${sharePath}`;
+
+    const emailFailures: Array<{ email: string; error: string }> = [];
+    if (sendEmailsRaw && recipients.length > 0) {
+      const workspaceName =
+        workspace_id
+          ? (
+              (
+                await admin
+                  .from("workspaces")
+                  .select("name")
+                  .eq("id", workspace_id)
+                  .maybeSingle()
+              ).data as { name?: string } | null
+            )?.name ?? null
+          : null;
+
+      await Promise.all(
+        recipients.map(async (r) => {
+          const content = buildReceiptEmail({
+            recipientName: r.name,
+            workspaceName,
+            title,
+            shareUrl,
+            passwordEnabled: passwordEnabledRaw,
+          });
+          const subject = `${workspaceName ?? "Receipt"}: ${title}`;
+          const result = await sendWithResend({
+            to: r.email,
+            subject,
+            html: content.html,
+            text: content.text,
+          });
+          if (!result.ok) {
+            emailFailures.push({ email: r.email, error: result.error ?? "Failed to send." });
+          }
+        })
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       id: doc.id,
       public_id: doc.public_id,
-      share_url: passwordEnabledRaw ? `/d/${doc.public_id}/access` : `/d/${doc.public_id}`,
+      share_url: sharePath,
+      emails: {
+        requested: sendEmailsRaw,
+        attempted: sendEmailsRaw ? recipients.length : 0,
+        sent: sendEmailsRaw ? recipients.length - emailFailures.length : 0,
+        failed: emailFailures,
+      },
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: errMessage(e) }, { status: 500 });

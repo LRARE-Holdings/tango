@@ -412,7 +412,18 @@ export default function NewReceipt() {
       if (!res.ok) throw new Error(json?.error ?? "Upload failed");
 
       setShareUrl(json.share_url);
-      toast.success("Created", "Your link is ready.");
+      const failedEmails = Array.isArray(json?.emails?.failed) ? json.emails.failed.length : 0;
+      if (failedEmails > 0) {
+        toast.error(
+          "Created with email issues",
+          `${failedEmails} recipient email${failedEmails === 1 ? "" : "s"} failed to send.`
+        );
+      } else if (json?.emails?.requested) {
+        const sent = Number(json?.emails?.sent ?? 0);
+        toast.success("Created", `Link ready. Sent to ${sent} recipient${sent === 1 ? "" : "s"}.`);
+      } else {
+        toast.success("Created", "Your link is ready.");
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       setError(msg);

@@ -5,16 +5,14 @@ import { useEffect, useState } from "react";
 type Theme = "light" | "dark";
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "light";
+    return document.documentElement.classList.contains("dark") ? "dark" : "light";
+  });
 
   useEffect(() => {
-    setMounted(true);
-    const rootIsDark = document.documentElement.classList.contains("dark");
-    setTheme(rootIsDark ? "dark" : "light");
-
     const stored = localStorage.getItem("receipt-theme");
-    if (stored) return;
+    if (stored) return () => {};
 
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
@@ -33,8 +31,6 @@ export function ThemeToggle() {
     localStorage.setItem("receipt-theme", next);
     setTheme(next);
   }
-
-  if (!mounted) return null;
 
   return (
     <button
