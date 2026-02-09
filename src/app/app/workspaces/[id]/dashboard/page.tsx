@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type DashboardPayload = {
@@ -52,6 +53,10 @@ type DashboardPayload = {
   >;
 };
 
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
 function fmtUtc(iso: string) {
   const d = new Date(iso);
   const yyyy = d.getUTCFullYear();
@@ -63,7 +68,7 @@ function fmtUtc(iso: string) {
 }
 
 function fmtDur(seconds: number | null) {
-  if (seconds == null) return ",";
+  if (seconds == null) return "—";
   const s = Math.max(0, Math.floor(seconds));
   const m = Math.floor(s / 60);
   const r = s % 60;
@@ -72,7 +77,10 @@ function fmtDur(seconds: number | null) {
 
 function Stat({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
   return (
-    <div className="border p-4" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}>
+    <div
+      className="border p-4"
+      style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
+    >
       <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
         {label}
       </div>
@@ -86,21 +94,34 @@ function Stat({ label, value, hint }: { label: string; value: React.ReactNode; h
   );
 }
 
-export default function WorkspaceDashboardPage({ params }: { params: { id: string } }) {
-  const workspaceId = params.id;
+export default function WorkspaceDashboardPage() {
+  const params = useParams<{ id?: string }>();
+  const workspaceId = typeof params?.id === "string" ? params.id : "";
 
-  const [loading, setLoading] = useState(true);
+  const validWorkspaceId = useMemo(() => (workspaceId && isUuid(workspaceId) ? workspaceId : null), [workspaceId]);
+
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardPayload | null>(null);
 
   useEffect(() => {
     let alive = true;
 
+    // ✅ Don't even attempt the request until we have a valid UUID
+    if (!validWorkspaceId) {
+      setData(null);
+      setLoading(false);
+      setError(workspaceId ? "Invalid workspace id." : null);
+      return () => {
+        alive = false;
+      };
+    }
+
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/app/workspaces/${workspaceId}/dashboard`, { cache: "no-store" });
+        const res = await fetch(`/api/app/workspaces/${validWorkspaceId}/dashboard`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load dashboard");
         if (!alive) return;
@@ -116,24 +137,28 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
     return () => {
       alive = false;
     };
-  }, [workspaceId]);
+  }, [validWorkspaceId, workspaceId]);
 
   const logoSrc = useMemo(() => {
     const w = data?.workspace;
     if (!w) return null;
-    return `/api/app/workspaces/${w.id}/branding/logo/view${w.brand_logo_updated_at ? `?v=${encodeURIComponent(w.brand_logo_updated_at)}` : ""}`;
+    return `/api/app/workspaces/${w.id}/branding/logo/view${
+      w.brand_logo_updated_at ? `?v=${encodeURIComponent(w.brand_logo_updated_at)}` : ""
+    }`;
   }, [data?.workspace]);
 
   const healthHint = useMemo(() => {
-    if (!data) return ",";
+    if (!data) return "—";
     const total = data.counts.documents_total || 0;
     const pending = data.counts.documents_pending || 0;
     if (total === 0) return "Create your first receipt to start tracking activity.";
-    const ratio = total > 0 ? (1 - pending / total) : 0;
+    const ratio = total > 0 ? 1 - pending / total : 0;
     if (ratio >= 0.8) return "Healthy: most documents have been acknowledged.";
     if (ratio >= 0.5) return "Mixed: a fair number are still pending.";
     return "Attention: many documents are pending acknowledgement.";
   }, [data]);
+
+  const idForLinks = validWorkspaceId ?? workspaceId;
 
   return (
     <div className="space-y-6">
@@ -155,7 +180,7 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
             </h1>
           </div>
           <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Awareness at a glance , pending items, activity, and signal.
+            Awareness at a glance — pending items, activity, and signal.
           </p>
         </div>
 
@@ -167,20 +192,23 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
           >
             Back to dashboard
           </Link>
+
           <Link
-            href={`/app/workspaces/${workspaceId}/members`}
+            href={`/app/workspaces/${idForLinks}/members`}
             className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
             style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
           >
             Members
           </Link>
+
           <Link
-            href={`/app/workspaces/${workspaceId}/branding`}
+            href={`/app/workspaces/${idForLinks}/branding`}
             className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
             style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
           >
             Branding
           </Link>
+
           <Link
             href="/app/new"
             className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
@@ -198,7 +226,10 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
       )}
 
       {error && (
-        <div className="border p-6" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}>
+        <div
+          className="border p-6"
+          style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
+        >
           <div className="text-sm font-semibold">Couldn’t load workspace dashboard</div>
           <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
             {error}
@@ -210,7 +241,11 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
         <>
           {/* KPI row */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <Stat label="DOCUMENTS" value={data.counts.documents_total} hint={`${data.counts.documents_pending} pending`} />
+            <Stat
+              label="DOCUMENTS"
+              value={data.counts.documents_total}
+              hint={`${data.counts.documents_pending} pending`}
+            />
             <Stat label="ACKNOWLEDGED" value={data.counts.documents_acknowledged} hint={healthHint} />
             <Stat label="TEAM" value={data.counts.members} hint={`${data.counts.invites_pending} invites pending`} />
             <Stat
@@ -224,19 +259,11 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Stat
               label="AVG SCROLL"
-              value={data.averages.max_scroll_percent == null ? "," : `${Math.round(data.averages.max_scroll_percent)}%`}
+              value={data.averages.max_scroll_percent == null ? "—" : `${Math.round(data.averages.max_scroll_percent)}%`}
               hint="Across recent completions"
             />
-            <Stat
-              label="AVG TIME ON PAGE"
-              value={fmtDur(data.averages.time_on_page_seconds)}
-              hint="Across recent completions"
-            />
-            <Stat
-              label="AVG ACTIVE TIME"
-              value={fmtDur(data.averages.active_seconds)}
-              hint="Across recent completions"
-            />
+            <Stat label="AVG TIME ON PAGE" value={fmtDur(data.averages.time_on_page_seconds)} hint="Across recent completions" />
+            <Stat label="AVG ACTIVE TIME" value={fmtDur(data.averages.active_seconds)} hint="Across recent completions" />
           </div>
 
           {/* Two-column: Pending + Activity */}
@@ -322,9 +349,7 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
                     return (
                       <div key={`${a.type}-${idx}`} className="px-5 py-4" style={{ borderTop: "1px solid var(--border2)" }}>
                         <div className="flex items-center justify-between gap-4">
-                          <div className="text-sm font-semibold">
-                            {a.acknowledged ? "Acknowledged" : "Submitted"}
-                          </div>
+                          <div className="text-sm font-semibold">{a.acknowledged ? "Acknowledged" : "Submitted"}</div>
                           <div className="text-xs" style={{ color: "var(--muted2)" }}>
                             {fmtUtc(a.at)}
                           </div>
@@ -335,8 +360,8 @@ export default function WorkspaceDashboardPage({ params }: { params: { id: strin
                         </div>
 
                         <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                          Scroll {a.metrics.max_scroll_percent == null ? "," : `${a.metrics.max_scroll_percent}%`} •{" "}
-                          Time {fmtDur(a.metrics.time_on_page_seconds)} • Active {fmtDur(a.metrics.active_seconds)}
+                          Scroll {a.metrics.max_scroll_percent == null ? "—" : `${a.metrics.max_scroll_percent}%`} • Time{" "}
+                          {fmtDur(a.metrics.time_on_page_seconds)} • Active {fmtDur(a.metrics.active_seconds)}
                         </div>
 
                         <div className="mt-3 flex gap-2 flex-wrap">

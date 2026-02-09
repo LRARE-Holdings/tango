@@ -23,6 +23,10 @@ type ActivityItem =
       };
     };
 
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
 function safeIso(s: any): string | null {
   if (!s) return null;
   const d = new Date(s);
@@ -40,10 +44,17 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const { id: workspaceId } = (await ctx.params) as { id: string };
-    if (!workspaceId) {
-      return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
+    const { id: workspaceIdRaw } = (await ctx.params) as { id: string };
+
+    // ✅ Critical: reject "undefined", "null", etc. before hitting Postgres
+    if (!workspaceIdRaw || !isUuid(workspaceIdRaw)) {
+      return NextResponse.json(
+        { error: "Invalid workspace id" },
+        { status: 400 }
+      );
     }
+
+    const workspaceId = workspaceIdRaw;
 
     const supabase = await supabaseServer();
 
@@ -51,12 +62,14 @@ export async function GET(
     if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const userId = userData.user.id;
+
     // Ensure membership (RLS should already enforce, but be explicit)
     const { data: mem, error: memErr } = await supabase
       .from("workspace_members")
       .select("role")
       .eq("workspace_id", workspaceId)
-      .eq("user_id", userData.user.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
     if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 });
@@ -80,16 +93,14 @@ export async function GET(
 
     if (mcErr) return NextResponse.json({ error: mcErr.message }, { status: 500 });
 
-    // Pending invites count (status column assumed; if not present, remove filter)
+    // Pending invites count (status column assumed; if not present, we fall back to 0)
     const { count: invitesPendingCount, error: icErr } = await supabase
       .from("workspace_invites")
       .select("*", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
       .in("status", ["pending", "sent"]);
 
-    // If your schema doesn't have status, fall back to count all invites
-    const safeInvitesPendingCount =
-      icErr ? 0 : (invitesPendingCount ?? 0);
+    const safeInvitesPendingCount = icErr ? 0 : (invitesPendingCount ?? 0);
 
     // Recent documents
     const { data: docs, error: dErr } = await supabase
@@ -129,8 +140,6 @@ export async function GET(
 
     // Aggregate per document
     const ackCountByDoc = new Map<string, number>();
-    const latestAckByDoc = new Map<string, string>();
-
     let acknowledgementsTotal = 0;
 
     for (const c of completions) {
@@ -138,25 +147,20 @@ export async function GET(
       if (c.acknowledged) {
         acknowledgementsTotal += 1;
         ackCountByDoc.set(docId, (ackCountByDoc.get(docId) ?? 0) + 1);
-        const at = safeIso(c.submitted_at) ?? null;
-        if (at) {
-          const prev = latestAckByDoc.get(docId);
-          if (!prev || new Date(at).getTime() > new Date(prev).getTime()) {
-            latestAckByDoc.set(docId, at);
-          }
-        }
       }
     }
 
     const docsAcknowledged = documents.filter((d) => (ackCountByDoc.get(d.id) ?? 0) > 0).length;
     const docsPending = docsTotal - docsAcknowledged;
-
     const completionsTotal = completions.length;
 
     // Averages
     const avgScroll = avg(completions.map((c) => c.max_scroll_percent));
     const avgTime = avg(completions.map((c) => c.time_on_page_seconds));
     const avgActive = avg(completions.map((c) => c.active_seconds));
+
+    // Speed-up for activity feed lookups
+    const docById = new Map(documents.map((d) => [d.id, d] as const));
 
     // Build activity feed (document_created + completion_submitted)
     const docCreatedEvents: ActivityItem[] = documents.slice(0, 30).map((d) => ({
@@ -166,7 +170,7 @@ export async function GET(
     }));
 
     const completionEvents: ActivityItem[] = completions.slice(0, 80).map((c) => {
-      const doc = documents.find((d) => d.id === c.document_id);
+      const doc = docById.get(c.document_id as string);
       return {
         type: "completion_submitted",
         at: safeIso(c.submitted_at) ?? new Date().toISOString(),
