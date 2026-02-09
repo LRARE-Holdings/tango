@@ -30,6 +30,23 @@ async function persistPrimaryWorkspace(
     );
 
   if (error) throw new Error(error.message);
+
+  const { data: prof, error: readErr } = await admin
+    .from("profiles")
+    .select("primary_workspace_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (readErr) throw new Error(readErr.message);
+
+  const persisted = (prof?.primary_workspace_id as string | null) ?? null;
+  if (persisted !== workspaceId) {
+    throw new Error(
+      `Workspace switch did not persist (expected ${workspaceId ?? "null"}, got ${persisted ?? "null"})`
+    );
+  }
+
+  return persisted;
 }
 
 export async function POST(req: Request) {
@@ -50,8 +67,8 @@ export async function POST(req: Request) {
 
     // Personal mode: clear active workspace
     if (workspaceId === null) {
-      await persistPrimaryWorkspace(admin, userData.user.id, null);
-      return NextResponse.json({ ok: true, workspace_id: null });
+      const persisted = await persistPrimaryWorkspace(admin, userData.user.id, null);
+      return NextResponse.json({ ok: true, workspace_id: null, persisted_workspace_id: persisted });
     }
 
     if (!isUuid(workspaceId)) {
@@ -92,9 +109,8 @@ export async function POST(req: Request) {
       if (insErr) throw new Error(insErr.message);
     }
 
-    await persistPrimaryWorkspace(admin, userData.user.id, workspaceId);
-
-    return NextResponse.json({ ok: true, workspace_id: workspaceId });
+    const persisted = await persistPrimaryWorkspace(admin, userData.user.id, workspaceId);
+    return NextResponse.json({ ok: true, workspace_id: workspaceId, persisted_workspace_id: persisted });
   } catch (e: unknown) {
     return NextResponse.json({ error: errMessage(e) }, { status: 500 });
   }

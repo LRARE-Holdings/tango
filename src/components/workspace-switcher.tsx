@@ -16,6 +16,13 @@ type MeResponse = {
   primary_workspace_id?: string | null;
 };
 
+type SwitchWorkspaceResponse = {
+  ok?: boolean;
+  workspace_id?: string | null;
+  persisted_workspace_id?: string | null;
+  error?: string;
+};
+
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
@@ -69,17 +76,10 @@ export function WorkspaceSwitcher() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ workspace_id: workspaceId }),
       });
-      const json = await res.json().catch(() => null);
+      const json = (await res.json().catch(() => null)) as SwitchWorkspaceResponse | null;
       if (!res.ok) throw new Error(json?.error ?? "Failed to switch workspace");
 
-      const meRes = await fetch("/api/app/me", { cache: "no-store" });
-      const meJson = meRes.ok ? ((await meRes.json()) as MeResponse) : null;
-      const persisted = meJson?.primary_workspace_id ?? null;
-      const expected = workspaceId ?? null;
-      if (persisted !== expected) {
-        throw new Error("Workspace switch did not persist. Please refresh and try again.");
-      }
-
+      const persisted = json?.persisted_workspace_id ?? workspaceId ?? null;
       setMe((m) => ({ ...(m ?? {}), primary_workspace_id: persisted }));
       setOpen(false);
 
