@@ -30,6 +30,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 type PdfjsModule = typeof import("pdfjs-dist");
 
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
+}
+
 export default function PublicDocPage({
   params,
 }: {
@@ -40,6 +44,7 @@ export default function PublicDocPage({
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState<string>("Document");
   const [signedUrl, setSignedUrl] = useState<string>("");
+  const [requireRecipientIdentity, setRequireRecipientIdentity] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const startedAtRef = useRef<number>(Date.now());
@@ -154,6 +159,7 @@ export default function PublicDocPage({
         if (!res.ok) throw new Error(json?.error ?? "Not found");
 
         setTitle(json.document?.title ?? "Document");
+        setRequireRecipientIdentity(Boolean(json.document?.require_recipient_identity));
         setSignedUrl(json.signedUrl ?? "");
       } catch (e: any) {
         setError(e?.message ?? "Something went wrong");
@@ -189,6 +195,12 @@ export default function PublicDocPage({
       if (raf) cancelAnimationFrame(raf);
     };
   }, [signedUrl]);
+
+  const identityValid = useMemo(() => {
+    if (!requireRecipientIdentity) return true;
+    if (!name.trim() || !email.trim()) return false;
+    return isEmail(email);
+  }, [requireRecipientIdentity, name, email]);
 
   // Sentinel-based bottom detection (more robust than math alone)
   useEffect(() => {
@@ -310,6 +322,11 @@ export default function PublicDocPage({
   }, [signedUrl]);
 
   async function submit() {
+    if (!identityValid) {
+      setError("Name and a valid email are required for this document.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -465,18 +482,23 @@ export default function PublicDocPage({
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Your name (optional)"
+                placeholder={requireRecipientIdentity ? "Your name (required)" : "Your name (optional)"}
                 className="focus-ring rounded-2xl border px-4 py-3 text-sm bg-transparent"
                 style={{ borderColor: "var(--border)" }}
               />
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Your email (optional)"
+                placeholder={requireRecipientIdentity ? "Your email (required)" : "Your email (optional)"}
                 className="focus-ring rounded-2xl border px-4 py-3 text-sm bg-transparent"
                 style={{ borderColor: "var(--border)" }}
               />
             </div>
+            {requireRecipientIdentity && !identityValid ? (
+              <div className="mt-3 text-xs" style={{ color: "#ff3b30" }}>
+                Name and a valid email are required for this acknowledgement.
+              </div>
+            ) : null}
 
             <div className="mt-4 flex items-start gap-3">
               <input
@@ -495,7 +517,7 @@ export default function PublicDocPage({
               <button
                 className="focus-ring rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
                 style={{ background: "var(--fg)", color: "var(--bg)" }}
-                disabled={!ack || submitting || rendering}
+                disabled={!ack || submitting || rendering || !identityValid}
                 onClick={submit}
               >
                 {submitting ? "Submitting…" : "Submit acknowledgement"}

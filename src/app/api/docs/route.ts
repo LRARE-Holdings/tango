@@ -18,6 +18,8 @@ export async function POST(req: Request) {
     const titleRaw = form.get("title");
     const passwordEnabledRaw = String(form.get("password_enabled") ?? "false").toLowerCase() === "true";
     const passwordRaw = typeof form.get("password") === "string" ? String(form.get("password")).trim() : "";
+    const requireRecipientIdentityRaw =
+      String(form.get("require_recipient_identity") ?? "false").toLowerCase() === "true";
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
@@ -60,8 +62,16 @@ export async function POST(req: Request) {
     }
 
     const plan = String(profile?.plan ?? "free").toLowerCase();
+    const isPaidPlan = plan !== "free";
     const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
     const isWorkspacePlan = plan === "team" || plan === "enterprise";
+
+    if (requireRecipientIdentityRaw && !isPaidPlan) {
+      return NextResponse.json(
+        { error: "Requiring name/email acknowledgement is available on paid plans." },
+        { status: 403 }
+      );
+    }
 
     if (activeWorkspaceId) {
       const { data: membership, error: membershipErr } = await supabase
@@ -114,6 +124,9 @@ export async function POST(req: Request) {
       insertPayload.password_enabled = true;
       insertPayload.password_hash = password_hash;
     }
+    if (requireRecipientIdentityRaw && isPaidPlan) {
+      insertPayload.require_recipient_identity = true;
+    }
 
     // 1) Create the doc row (file_path temp)
     const { data: doc, error: insertErr } = await supabase
@@ -126,6 +139,12 @@ export async function POST(req: Request) {
       if (passwordEnabledRaw && insertErr?.code === "42703") {
         return NextResponse.json(
           { error: "Password protection is not available because required database columns are missing." },
+          { status: 500 }
+        );
+      }
+      if (requireRecipientIdentityRaw && insertErr?.code === "42703") {
+        return NextResponse.json(
+          { error: "Recipient identity requirement is not available because required database columns are missing." },
           { status: 500 }
         );
       }

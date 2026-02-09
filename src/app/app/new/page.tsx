@@ -278,6 +278,7 @@ export default function NewReceipt() {
 
   const [sendEmails, setSendEmails] = useState(false);
   const [recipients, setRecipients] = useState<Recipient[]>([{ id: uid(), name: "", email: "", save: true }]);
+  const [requireRecipientIdentity, setRequireRecipientIdentity] = useState(false);
 
   const [passwordEnabled, setPasswordEnabled] = useState(false);
   const [password, setPassword] = useState("");
@@ -397,6 +398,7 @@ export default function NewReceipt() {
       form.append("file", file as File);
       form.append("send_emails", String(sendEmails && personalPlus));
       form.append("recipients", JSON.stringify(configuredRecipients));
+      form.append("require_recipient_identity", String(requireRecipientIdentity && plan !== "free"));
       form.append("password_enabled", String(passwordEnabled && personalPlus));
       form.append("password", passwordEnabled && personalPlus ? password : "");
       form.append("max_acknowledgers_enabled", String(maxAcknowledgersEnabled));
@@ -442,6 +444,7 @@ export default function NewReceipt() {
       { k: "PDF", v: hasFile ? "Attached" : "Missing" },
       { k: "Email", v: emailState },
       { k: "Recipients", v: String(recipientsCount) },
+      { k: "Require identity", v: requireRecipientIdentity && plan !== "free" ? "On" : "Off" },
       { k: "Acknowledgers", v: ackState },
       { k: "Password", v: passState },
       { k: "Template", v: templateState },
@@ -453,6 +456,7 @@ export default function NewReceipt() {
     sendEmails,
     personalPlus,
     recipientsCount,
+    requireRecipientIdentity,
     passwordEnabled,
     maxAcknowledgersEnabled,
     maxAcknowledgers,
@@ -649,6 +653,21 @@ export default function NewReceipt() {
                     </div>
                   </div>
                   <Toggle checked={sendEmails} setChecked={setSendEmails} disabled={!personalPlus} />
+                </div>
+
+                <div
+                  className="flex items-start justify-between gap-4 p-4"
+                  style={{ borderRadius: 14, border: "1px solid var(--border)", background: "transparent" }}
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">Require name and email on acknowledgement</div>
+                    <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                      {plan !== "free"
+                        ? "Recipients must provide both fields before submitting acknowledgement."
+                        : "Upgrade to a paid plan to require identity fields."}
+                    </div>
+                  </div>
+                  <Toggle checked={requireRecipientIdentity} setChecked={setRequireRecipientIdentity} disabled={plan === "free"} />
                 </div>
 
                 <div className="space-y-3">

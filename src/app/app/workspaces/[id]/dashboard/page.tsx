@@ -222,6 +222,14 @@ export default function WorkspaceDashboardPage() {
           </Link>
 
           <Link
+            href={`/app/workspaces/${idForLinks}/settings`}
+            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+          >
+            Settings
+          </Link>
+
+          <Link
             href="/app/new"
             className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
             style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}

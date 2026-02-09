@@ -29,6 +29,16 @@ function isMissingPasswordColumnError(error: { code?: string; message?: string }
   return String(error.message ?? "").toLowerCase().includes("password_");
 }
 
+function isMissingRecipientRequirementColumnError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  return String(error.message ?? "").toLowerCase().includes("require_recipient_identity");
+}
+
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
+}
+
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ publicId: string }> | { publicId: string } }
@@ -65,14 +75,19 @@ export async function POST(
   // Resolve document from public_id
   const withPasswordCols = await admin
     .from("documents")
-    .select("id,password_enabled,password_hash")
+    .select("id,password_enabled,password_hash,require_recipient_identity")
     .eq("public_id", publicId)
     .maybeSingle();
 
-  let doc = withPasswordCols.data as { id: string; password_enabled?: boolean | null; password_hash?: string | null } | null;
+  let doc = withPasswordCols.data as {
+    id: string;
+    password_enabled?: boolean | null;
+    password_hash?: string | null;
+    require_recipient_identity?: boolean | null;
+  } | null;
   let docErr = withPasswordCols.error;
 
-  if (docErr && isMissingPasswordColumnError(docErr)) {
+  if (docErr && (isMissingPasswordColumnError(docErr) || isMissingRecipientRequirementColumnError(docErr))) {
     const fallback = await admin
       .from("documents")
       .select("id")
@@ -100,6 +115,16 @@ export async function POST(
     const expected = accessTokenFor(publicId, String(doc?.password_hash));
     if (!cookieValue || cookieValue !== expected) {
       return NextResponse.json({ error: "Password required" }, { status: 403 });
+    }
+  }
+
+  const requireRecipientIdentity = Boolean(doc && "require_recipient_identity" in doc && doc.require_recipient_identity);
+  if (requireRecipientIdentity) {
+    if (!name || !email) {
+      return NextResponse.json({ error: "Name and email are required for this document." }, { status: 400 });
+    }
+    if (!isEmail(email)) {
+      return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
     }
   }
 

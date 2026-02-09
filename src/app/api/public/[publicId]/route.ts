@@ -10,12 +10,19 @@ type DocRow = {
   public_id: string;
   password_enabled?: boolean | null;
   password_hash?: string | null;
+  require_recipient_identity?: boolean | null;
 };
 
 function isMissingPasswordColumnError(error: { code?: string; message?: string } | null | undefined) {
   if (!error) return false;
   if (error.code === "42703") return true;
   return String(error.message ?? "").toLowerCase().includes("password_");
+}
+
+function isMissingRecipientRequirementColumnError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  return String(error.message ?? "").toLowerCase().includes("require_recipient_identity");
 }
 
 export async function GET(
@@ -28,14 +35,14 @@ export async function GET(
 
   const withPasswordCols = await admin
     .from("documents")
-    .select("id,title,file_path,created_at,public_id,password_enabled,password_hash")
+    .select("id,title,file_path,created_at,public_id,password_enabled,password_hash,require_recipient_identity")
     .eq("public_id", publicId)
     .maybeSingle();
 
   let doc = withPasswordCols.data as DocRow | null;
   let error = withPasswordCols.error;
 
-  if (error && isMissingPasswordColumnError(error)) {
+  if (error && (isMissingPasswordColumnError(error) || isMissingRecipientRequirementColumnError(error))) {
     const fallback = await admin
       .from("documents")
       .select("id,title,file_path,created_at,public_id")
@@ -92,6 +99,7 @@ export async function GET(
       id: doc.id,
       title: doc.title,
       created_at: doc.created_at,
+      require_recipient_identity: Boolean(doc.require_recipient_identity),
     },
     signedUrl: signed.signedUrl,
   });
