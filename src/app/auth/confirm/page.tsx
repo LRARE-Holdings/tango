@@ -9,6 +9,11 @@ function hardRedirect(path: string) {
   window.location.replace(path);
 }
 
+function afterConfirmPath(redirectTo: string, inviteFlow: boolean) {
+  if (!inviteFlow) return redirectTo;
+  return `/auth/invite-password?next=${encodeURIComponent(redirectTo)}`;
+}
+
 export default function AuthConfirmPage() {
   const supabase = supabaseBrowser();
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +29,7 @@ export default function AuthConfirmPage() {
         // 1) New-style links often use token_hash + type (magiclink / recovery / invite)
         const token_hash = url.searchParams.get("token_hash");
         const type = url.searchParams.get("type");
+        const inviteFromQuery = type === "invite";
 
         if (token_hash && type) {
           const { error } = await supabase.auth.verifyOtp({
@@ -33,7 +39,7 @@ export default function AuthConfirmPage() {
 
           if (error) throw error;
 
-          hardRedirect(redirectTo);
+          hardRedirect(afterConfirmPath(redirectTo, inviteFromQuery));
           return;
         }
 
@@ -51,6 +57,7 @@ export default function AuthConfirmPage() {
         const hashParams = new URLSearchParams(hash);
         const access_token = hashParams.get("access_token");
         const refresh_token = hashParams.get("refresh_token");
+        const inviteFromHash = hashParams.get("type") === "invite";
 
         if (access_token && refresh_token) {
           const { error } = await supabase.auth.setSession({
@@ -58,7 +65,7 @@ export default function AuthConfirmPage() {
             refresh_token,
           });
           if (error) throw error;
-          hardRedirect(redirectTo);
+          hardRedirect(afterConfirmPath(redirectTo, inviteFromHash));
           return;
         }
 
