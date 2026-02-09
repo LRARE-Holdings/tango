@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type Member = {
   user_id: string;
+  email: string | null;
   role: "owner" | "admin" | "member";
   joined_at: string;
 };
@@ -205,7 +206,7 @@ export default function WorkspaceMembersPage() {
                   style={{ borderTop: "1px solid var(--border2)" }}
                 >
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold truncate">{m.user_id}</div>
+                    <div className="text-sm font-semibold truncate">{m.email ?? "Unknown email"}</div>
                     <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
                       Role: {m.role}
                     </div>

@@ -37,6 +37,7 @@ export async function GET(
     }
 
     const supabase = await supabaseServer();
+    const admin = supabaseAdmin();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr) throw new Error(userErr.message);
@@ -86,7 +87,27 @@ export async function GET(
 
     if (memErr) throw new Error(memErr.message);
 
-    return NextResponse.json({ workspace, members: members ?? [] });
+    const memberList = (members ?? []) as Array<{ user_id: string; role: string; joined_at: string }>;
+    const userIds = Array.from(new Set(memberList.map((m) => m.user_id).filter(Boolean)));
+    const emailsByUserId = new Map<string, string | null>();
+
+    await Promise.all(
+      userIds.map(async (userId) => {
+        const { data, error } = await admin.auth.admin.getUserById(userId);
+        if (error) {
+          emailsByUserId.set(userId, null);
+          return;
+        }
+        emailsByUserId.set(userId, data.user?.email ?? null);
+      })
+    );
+
+    const membersWithEmails = memberList.map((m) => ({
+      ...m,
+      email: emailsByUserId.get(m.user_id) ?? null,
+    }));
+
+    return NextResponse.json({ workspace, members: membersWithEmails });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 500 });
   }
