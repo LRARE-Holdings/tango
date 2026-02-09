@@ -167,17 +167,29 @@ export default function WorkspaceDashboardPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             {logoSrc ? (
-              <img
-                src={logoSrc}
-                alt=""
-                className="h-8 w-8"
-                style={{ objectFit: "contain" }}
-                onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
-              />
+              <div
+                className="shrink-0 border p-2"
+                style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
+              >
+                <img
+                  src={logoSrc}
+                  alt={`${data?.workspace?.name ?? "Workspace"} logo`}
+                  className="h-12 w-12 md:h-16 md:w-16"
+                  style={{ objectFit: "contain" }}
+                  onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+                />
+              </div>
             ) : null}
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight truncate">
-              {loading ? "Loading…" : data?.workspace?.name ?? "Workspace"}
-            </h1>
+            <div className="min-w-0">
+              <h1 className={`font-semibold tracking-tight truncate ${logoSrc ? "text-lg md:text-xl" : "text-2xl md:text-3xl"}`}>
+                {loading ? "Loading…" : data?.workspace?.name ?? "Workspace"}
+              </h1>
+              {logoSrc ? (
+                <p className="mt-1 text-xs uppercase tracking-wide" style={{ color: "var(--muted2)" }}>
+                  Workspace
+                </p>
+              ) : null}
+            </div>
           </div>
           <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
             Awareness at a glance — pending items, activity, and signal.
