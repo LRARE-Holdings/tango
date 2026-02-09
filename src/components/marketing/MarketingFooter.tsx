@@ -36,6 +36,9 @@ export function MarketingFooter() {
                   <a href="/" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Home</a>
                 </li>
                 <li>
+                  <a href="https://lrare.co.uk" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">LRARE</a>
+                </li>
+                <li>
                   <a href="/enterprise" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Enterprise</a>
                 </li>
               </ul>
@@ -54,8 +57,11 @@ export function MarketingFooter() {
             </div>
 
             <div>
-              <div className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Account</div>
+              <div className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">More</div>
               <ul className="space-y-1">
+                <li>
+                  <a href="https://status.getreceipt.xyz" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Status</a>
+                </li>
                 <li>
                   <a href="/auth" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Login</a>
                 </li>
