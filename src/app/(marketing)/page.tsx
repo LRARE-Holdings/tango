@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { AuthFragmentRedirect } from "@/components/auth-fragment-redirect";
 
 function FeatureCard({
   title,
@@ -162,6 +163,7 @@ export default async function Home({
   }
   return (
     <main className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <AuthFragmentRedirect />
       {/* subtle background texture */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(0,0,0,0.06),transparent_55%)] dark:bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(255,255,255,0.08),transparent_55%)]" />

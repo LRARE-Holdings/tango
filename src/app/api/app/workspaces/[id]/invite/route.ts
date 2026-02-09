@@ -71,10 +71,11 @@ export async function POST(
     if (invErr) throw new Error(invErr.message);
 
     // Trigger Supabase invite email (their template)
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL
+      ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
+      : "https://www.getreceipt.xyz";
     const redirectTo =
-      process.env.NEXT_PUBLIC_APP_URL
-        ? `${process.env.NEXT_PUBLIC_APP_URL}/app`
-        : "https://www.getreceipt.xyz/app";
+      `${appBaseUrl}/auth/confirm?next=${encodeURIComponent("/app")}`;
 
     const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo,
