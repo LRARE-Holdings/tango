@@ -7,12 +7,20 @@ export const dynamic = "force-dynamic";
 
 const BUCKET = "workspace-branding";
 
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const { id: workspaceId } = (await ctx.params) as { id: string };
+    if (!workspaceId || !isUuid(workspaceId)) {
+      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    }
+
     const supabase = await supabaseServer();
     const admin = supabaseAdmin();
 

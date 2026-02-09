@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type Workspace = {
@@ -9,8 +10,14 @@ type Workspace = {
   brand_logo_updated_at?: string | null;
 };
 
-export default function WorkspaceBrandingPage({ params }: { params: { id: string } }) {
-  const workspaceId = params.id;
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
+export default function WorkspaceBrandingPage() {
+  const params = useParams<{ id?: string }>();
+  const workspaceId = typeof params?.id === "string" ? params.id : "";
+  const validWorkspaceId = useMemo(() => (workspaceId && isUuid(workspaceId) ? workspaceId : null), [workspaceId]);
 
   const [loading, setLoading] = useState(true);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -22,11 +29,21 @@ export default function WorkspaceBrandingPage({ params }: { params: { id: string
 
   useEffect(() => {
     let alive = true;
+
+    if (!validWorkspaceId) {
+      setWorkspace(null);
+      setLoading(false);
+      setError(workspaceId ? "Invalid workspace id." : null);
+      return () => {
+        alive = false;
+      };
+    }
+
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/app/workspaces/${workspaceId}`, { cache: "no-store" });
+        const res = await fetch(`/api/app/workspaces/${validWorkspaceId}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load");
         if (!alive) return;
@@ -41,7 +58,7 @@ export default function WorkspaceBrandingPage({ params }: { params: { id: string
     return () => {
       alive = false;
     };
-  }, [workspaceId]);
+  }, [validWorkspaceId, workspaceId]);
 
   const logoSrc = useMemo(() => {
     if (!workspace?.id) return null;
@@ -51,7 +68,7 @@ export default function WorkspaceBrandingPage({ params }: { params: { id: string
   }, [workspace?.id, workspace?.brand_logo_updated_at]);
 
   async function upload() {
-    if (!file) return;
+    if (!file || !validWorkspaceId) return;
 
     setUploading(true);
     setMsg(null);
@@ -59,7 +76,7 @@ export default function WorkspaceBrandingPage({ params }: { params: { id: string
       const form = new FormData();
       form.append("file", file);
 
-      const res = await fetch(`/api/app/workspaces/${workspaceId}/branding/logo`, {
+      const res = await fetch(`/api/app/workspaces/${validWorkspaceId}/branding/logo`, {
         method: "POST",
         body: form,
       });
@@ -71,7 +88,7 @@ export default function WorkspaceBrandingPage({ params }: { params: { id: string
       setFile(null);
 
       // Reload workspace to refresh cache-busting timestamp
-      const wsRes = await fetch(`/api/app/workspaces/${workspaceId}`, { cache: "no-store" });
+      const wsRes = await fetch(`/api/app/workspaces/${validWorkspaceId}`, { cache: "no-store" });
       const wsJson = await wsRes.json().catch(() => null);
       if (wsRes.ok) setWorkspace(wsJson?.workspace ?? null);
     } catch (e: any) {
@@ -80,6 +97,8 @@ export default function WorkspaceBrandingPage({ params }: { params: { id: string
       setUploading(false);
     }
   }
+
+  const idForLinks = validWorkspaceId ?? workspaceId;
 
   return (
     <div className="space-y-6">
@@ -95,14 +114,14 @@ export default function WorkspaceBrandingPage({ params }: { params: { id: string
 
         <div className="flex gap-2 flex-wrap">
           <Link
-            href={`/app/workspaces/${workspaceId}`}
+            href={`/app/workspaces/${idForLinks}`}
             className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
             style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
           >
             Back
           </Link>
           <Link
-            href={`/app/workspaces/${workspaceId}/members`}
+            href={`/app/workspaces/${idForLinks}/members`}
             className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
             style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
           >

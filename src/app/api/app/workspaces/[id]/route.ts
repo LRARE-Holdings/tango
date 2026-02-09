@@ -4,12 +4,20 @@ import { supabaseServer } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const { id } = (await ctx.params) as { id: string };
+    if (!id || !isUuid(id)) {
+      return NextResponse.json({ error: "Invalid workspace id" }, { status: 400 });
+    }
+
     const supabase = await supabaseServer();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();

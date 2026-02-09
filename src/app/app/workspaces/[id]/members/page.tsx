@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type Member = {
@@ -14,8 +15,14 @@ type Workspace = {
   name: string;
 };
 
-export default function WorkspaceMembersPage({ params }: { params: { id: string } }) {
-  const workspaceId = params.id;
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
+export default function WorkspaceMembersPage() {
+  const params = useParams<{ id?: string }>();
+  const workspaceId = typeof params?.id === "string" ? params.id : "";
+  const validWorkspaceId = useMemo(() => (workspaceId && isUuid(workspaceId) ? workspaceId : null), [workspaceId]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,11 +37,22 @@ export default function WorkspaceMembersPage({ params }: { params: { id: string 
 
   useEffect(() => {
     let alive = true;
+
+    if (!validWorkspaceId) {
+      setWorkspace(null);
+      setMembers([]);
+      setLoading(false);
+      setError(workspaceId ? "Invalid workspace id." : null);
+      return () => {
+        alive = false;
+      };
+    }
+
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/app/workspaces/${workspaceId}`, { cache: "no-store" });
+        const res = await fetch(`/api/app/workspaces/${validWorkspaceId}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load");
         if (!alive) return;
@@ -50,15 +68,17 @@ export default function WorkspaceMembersPage({ params }: { params: { id: string 
     return () => {
       alive = false;
     };
-  }, [workspaceId]);
+  }, [validWorkspaceId, workspaceId]);
 
   const owners = useMemo(() => members.filter((m) => m.role === "owner").length, [members]);
 
   async function invite() {
+    if (!validWorkspaceId) return;
+
     setInviteMsg(null);
     setInviting(true);
     try {
-      const res = await fetch(`/api/app/workspaces/${workspaceId}/invite`, {
+      const res = await fetch(`/api/app/workspaces/${validWorkspaceId}/invite`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, role }),
@@ -76,6 +96,8 @@ export default function WorkspaceMembersPage({ params }: { params: { id: string 
     }
   }
 
+  const idForLinks = validWorkspaceId ?? workspaceId;
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
@@ -90,14 +112,14 @@ export default function WorkspaceMembersPage({ params }: { params: { id: string 
 
         <div className="flex gap-2 flex-wrap">
           <Link
-            href={`/app/workspaces/${workspaceId}`}
+            href={`/app/workspaces/${idForLinks}`}
             className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
             style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
           >
             Back
           </Link>
           <Link
-            href={`/app/workspaces/${workspaceId}/branding`}
+            href={`/app/workspaces/${idForLinks}/branding`}
             className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
             style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
           >
