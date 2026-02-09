@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { accessCookieName, accessTokenFor, readCookie } from "@/lib/public-access";
 
 /**
  * Best-effort client IP extraction.
@@ -22,6 +23,12 @@ function getClientIp(req: Request): string | null {
   return null;
 }
 
+function isMissingPasswordColumnError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  return String(error.message ?? "").toLowerCase().includes("password_");
+}
+
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ publicId: string }> | { publicId: string } }
@@ -29,36 +36,51 @@ export async function POST(
   const { publicId } = (await ctx.params) as { publicId: string };
   const admin = supabaseAdmin();
 
-  let body: any;
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const name = typeof body?.name === "string" ? body.name.trim() : null;
-  const email = typeof body?.email === "string" ? body.email.trim() : null;
+  const payload = (body ?? {}) as Record<string, unknown>;
 
-  const acknowledged = Boolean(body?.acknowledged);
+  const name = typeof payload.name === "string" ? payload.name.trim() : null;
+  const email = typeof payload.email === "string" ? payload.email.trim() : null;
+
+  const acknowledged = Boolean(payload.acknowledged);
 
   const max_scroll_percent = Math.max(
     0,
-    Math.min(100, Number(body?.max_scroll_percent ?? 0))
+    Math.min(100, Number(payload.max_scroll_percent ?? 0))
   );
 
   const time_on_page_seconds = Math.max(
     0,
-    Number(body?.time_on_page_seconds ?? 0)
+    Number(payload.time_on_page_seconds ?? 0)
   );
 
-  const active_seconds = Math.max(0, Number(body?.active_seconds ?? 0));
+  const active_seconds = Math.max(0, Number(payload.active_seconds ?? 0));
 
   // Resolve document from public_id
-  const { data: doc, error: docErr } = await admin
+  const withPasswordCols = await admin
     .from("documents")
-    .select("id")
+    .select("id,password_enabled,password_hash")
     .eq("public_id", publicId)
     .maybeSingle();
+
+  let doc = withPasswordCols.data as { id: string; password_enabled?: boolean | null; password_hash?: string | null } | null;
+  let docErr = withPasswordCols.error;
+
+  if (docErr && isMissingPasswordColumnError(docErr)) {
+    const fallback = await admin
+      .from("documents")
+      .select("id")
+      .eq("public_id", publicId)
+      .maybeSingle();
+    doc = fallback.data as { id: string } | null;
+    docErr = fallback.error;
+  }
 
   if (docErr) {
     return NextResponse.json({ error: docErr.message }, { status: 500 });
@@ -69,6 +91,16 @@ export async function POST(
       { error: "Not found", publicId },
       { status: 404 }
     );
+  }
+
+  const passwordEnabled = Boolean(doc && "password_enabled" in doc && doc.password_enabled && doc.password_hash);
+  if (passwordEnabled) {
+    const cookieName = accessCookieName(publicId);
+    const cookieValue = readCookie(req.headers.get("cookie"), cookieName);
+    const expected = accessTokenFor(publicId, String(doc?.password_hash));
+    if (!cookieValue || cookieValue !== expected) {
+      return NextResponse.json({ error: "Password required" }, { status: 403 });
+    }
   }
 
   // Evidence metadata

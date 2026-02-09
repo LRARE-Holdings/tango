@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import crypto from "crypto";
+import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
 
 const MAX_MB = 20;
 
@@ -15,6 +16,8 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const file = form.get("file");
     const titleRaw = form.get("title");
+    const passwordEnabledRaw = String(form.get("password_enabled") ?? "false").toLowerCase() === "true";
+    const passwordRaw = typeof form.get("password") === "string" ? String(form.get("password")).trim() : "";
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
@@ -24,6 +27,9 @@ export async function POST(req: Request) {
     }
     if (file.size > MAX_MB * 1024 * 1024) {
       return NextResponse.json({ error: `Max file size is ${MAX_MB}MB` }, { status: 400 });
+    }
+    if (passwordEnabledRaw && !isPasswordStrongEnough(passwordRaw)) {
+      return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
     }
 
     const title = typeof titleRaw === "string" && titleRaw.trim().length
@@ -94,21 +100,35 @@ export async function POST(req: Request) {
     }
 
     const public_id = nanoid(10);
+    const password_hash = passwordEnabledRaw ? hashPassword(passwordRaw) : null;
+
+    const insertPayload: Record<string, unknown> = {
+      owner_id,
+      workspace_id,
+      public_id,
+      title,
+      file_path: "pending",
+    };
+
+    if (passwordEnabledRaw) {
+      insertPayload.password_enabled = true;
+      insertPayload.password_hash = password_hash;
+    }
 
     // 1) Create the doc row (file_path temp)
     const { data: doc, error: insertErr } = await supabase
       .from("documents")
-      .insert({
-        owner_id,
-        workspace_id,
-        public_id,
-        title,
-        file_path: "pending",
-      })
+      .insert(insertPayload)
       .select("id, public_id")
       .single();
 
     if (insertErr || !doc) {
+      if (passwordEnabledRaw && insertErr?.code === "42703") {
+        return NextResponse.json(
+          { error: "Password protection is not available because required database columns are missing." },
+          { status: 500 }
+        );
+      }
       return NextResponse.json({ error: insertErr?.message ?? "Insert failed" }, { status: 500 });
     }
 
@@ -148,7 +168,7 @@ export async function POST(req: Request) {
       ok: true,
       id: doc.id,
       public_id: doc.public_id,
-      share_url: `/d/${doc.public_id}`,
+      share_url: passwordEnabledRaw ? `/d/${doc.public_id}/access` : `/d/${doc.public_id}`,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: errMessage(e) }, { status: 500 });

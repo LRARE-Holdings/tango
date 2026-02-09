@@ -146,6 +146,11 @@ export default function PublicDocPage({
         const res = await fetch(`/api/public/${publicId}`, { cache: "no-store" });
         const json = await res.json();
 
+        if (res.status === 403 && json?.requires_password) {
+          window.location.replace(`/d/${publicId}/access`);
+          return;
+        }
+
         if (!res.ok) throw new Error(json?.error ?? "Not found");
 
         setTitle(json.document?.title ?? "Document");
