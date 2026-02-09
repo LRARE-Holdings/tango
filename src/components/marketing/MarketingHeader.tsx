@@ -48,7 +48,7 @@ export function MarketingHeader() {
         {/* Auth actions */}
         <div className="flex items-center gap-2">
           <a
-            href="/login"
+            href="/auth"
             className="hidden rounded-full px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:inline-flex"
           >
             Login
