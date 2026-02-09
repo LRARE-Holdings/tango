@@ -72,7 +72,15 @@ export function WorkspaceSwitcher() {
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to switch workspace");
 
-      setMe((m) => ({ ...(m ?? {}), primary_workspace_id: workspaceId }));
+      const meRes = await fetch("/api/app/me", { cache: "no-store" });
+      const meJson = meRes.ok ? ((await meRes.json()) as MeResponse) : null;
+      const persisted = meJson?.primary_workspace_id ?? null;
+      const expected = workspaceId ?? null;
+      if (persisted !== expected) {
+        throw new Error("Workspace switch did not persist. Please refresh and try again.");
+      }
+
+      setMe((m) => ({ ...(m ?? {}), primary_workspace_id: persisted }));
       setOpen(false);
 
       // Hard refresh gives immediate consistency everywhere without plumbing context yet
@@ -84,7 +92,13 @@ export function WorkspaceSwitcher() {
     }
   }
 
-  const label = loading ? "Loading context…" : active?.name ? active.name : "Personal account";
+  const label = loading
+    ? "Loading context…"
+    : active?.name
+      ? active.name
+      : me?.primary_workspace_id
+        ? "Workspace selected"
+        : "Personal account";
 
   // Optional logo preview: secure route (member-only)
   const logoSrc = active?.id
