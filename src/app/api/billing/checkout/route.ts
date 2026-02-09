@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
 type Billing = "monthly" | "annual";
 type Plan = "personal" | "pro" | "team";
-
-/* -------------------------------------------------------------------------- */
-/* Utilities                                                                   */
-/* -------------------------------------------------------------------------- */
 
 function requireEnv(name: string) {
   const v = process.env[name];
@@ -30,26 +27,17 @@ function assertPlan(x: unknown): asserts x is Plan {
     throw new Error("Invalid plan");
   }
 }
-
 function assertBilling(x: unknown): asserts x is Billing {
   if (x !== "monthly" && x !== "annual") {
     throw new Error("Invalid billing");
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Route                                                                       */
-/* -------------------------------------------------------------------------- */
-
 export async function POST(req: Request) {
   try {
-    /* ---------------------------------------------------------------------- */
-    /* Auth                                                                    */
-    /* ---------------------------------------------------------------------- */
-
+    // Auth (user must be logged in)
     const supabase = await supabaseServer();
     const { data: auth, error: authError } = await supabase.auth.getUser();
-
     if (authError || !auth?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -57,12 +45,8 @@ export async function POST(req: Request) {
     const userId = auth.user.id;
     const email = auth.user.email ?? undefined;
 
-    /* ---------------------------------------------------------------------- */
-    /* Input                                                                   */
-    /* ---------------------------------------------------------------------- */
-
+    // Input
     const body = await req.json();
-
     const plan = body.plan;
     const billing = body.billing;
     const seatsRaw = body.seats;
@@ -77,42 +61,45 @@ export async function POST(req: Request) {
 
     const priceId = getPriceId(plan, billing);
 
-    /* ---------------------------------------------------------------------- */
-    /* Profile lookup (CORRECT: user_id, not id)                               */
-    /* ---------------------------------------------------------------------- */
+    // Admin client for reliable DB writes (bypasses RLS)
+    const admin = supabaseAdmin();
 
-    const { data: profile } = await supabase
+    // Load profile (admin)
+    const { data: profile, error: profileErr } = await admin
       .from("profiles")
       .select("user_id, stripe_customer_id, has_had_trial")
       .eq("user_id", userId)
       .maybeSingle();
 
-    /* ---------------------------------------------------------------------- */
-    /* Stripe customer                                                         */
-    /* ---------------------------------------------------------------------- */
+    if (profileErr) throw new Error(profileErr.message);
 
+    // Ensure Stripe customer exists
     let customerId = profile?.stripe_customer_id ?? null;
 
     if (!customerId) {
       const customer = await stripe.customers.create({
         email,
-        metadata: {
-          supabase_user_id: userId,
-        },
+        metadata: { supabase_user_id: userId },
       });
 
       customerId = customer.id;
 
-      await supabase
+      // IMPORTANT: upsert so it works even if the profile row doesn't exist yet
+      const { error: upsertErr } = await admin
         .from("profiles")
-        .update({ stripe_customer_id: customerId })
-        .eq("user_id", userId);
+        .upsert(
+          {
+            user_id: userId,
+            stripe_customer_id: customerId,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (upsertErr) throw new Error(upsertErr.message);
     }
 
-    /* ---------------------------------------------------------------------- */
-    /* Trial policy (abuse-safe)                                                */
-    /* ---------------------------------------------------------------------- */
-
+    // Trial policy
     const desiredTrialDays = billing === "annual" ? 14 : 7;
 
     const existingSubs = await stripe.subscriptions.list({
@@ -127,37 +114,18 @@ export async function POST(req: Request) {
     const trialPeriodDays =
       hasEverSubscribed || hasHadTrial ? undefined : desiredTrialDays;
 
-    /* ---------------------------------------------------------------------- */
-    /* URLs                                                                    */
-    /* ---------------------------------------------------------------------- */
-
+    // URLs
     const siteUrl = requireEnv("NEXT_PUBLIC_APP_URL");
-
-    const successUrl =
-      `${siteUrl}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`;
-
+    const successUrl = `${siteUrl}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${siteUrl}/pricing`;
 
-    /* ---------------------------------------------------------------------- */
-    /* Checkout session                                                        */
-    /* ---------------------------------------------------------------------- */
-
+    // Create Checkout Session
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-
       customer: customerId,
-
       client_reference_id: userId,
-
-      line_items: [
-        {
-          price: priceId,
-          quantity: seats,
-        },
-      ],
-
+      line_items: [{ price: priceId, quantity: seats }],
       allow_promotion_codes: true,
-
       success_url: successUrl,
       cancel_url: cancelUrl,
 
@@ -169,7 +137,6 @@ export async function POST(req: Request) {
           billing,
         },
       },
-
       metadata: {
         supabase_user_id: userId,
         plan,

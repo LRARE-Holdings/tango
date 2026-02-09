@@ -112,7 +112,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <NavItem href="/app/workspaces">Workspace</NavItem>
                   <NavItem href="/app/account">Account</NavItem>
                 </nav>
-                
+
                 <WorkspaceSwitcher />
 
                 <div className="hidden md:block text-xs" style={{ color: "var(--muted)" }}>
@@ -152,7 +152,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             className="pt-6 text-xs flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
             style={{ borderTop: "1px solid var(--border)", color: "var(--muted)" }}
           >
-            <span>Receipt is a product by LRARE Holdings Ltd.</span>
             <span>
               © {new Date().getFullYear()} LRARE Holdings Ltd. Registered Company no. 16807366.
             </span>
