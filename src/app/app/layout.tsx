@@ -9,6 +9,12 @@ import { EmailVerificationGate } from "@/components/email-verification-gate";
 import { OnboardingGate } from "@/components/onboarding-gate";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
+type MeSummary = {
+  email?: string | null;
+  plan?: string | null;
+  primary_workspace_id?: string | null;
+};
+
 function NavItem({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
@@ -37,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const supabase = useMemo(() => supabaseBrowser(), []);
 
-  const [meEmail, setMeEmail] = useState<string | null>(null);
+  const [me, setMe] = useState<MeSummary | null>(null);
   const [meLoading, setMeLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -49,14 +55,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         if (!res.ok) {
           // Fallback to client auth state to avoid false "Not signed in" during transient API errors.
           const { data } = await supabase.auth.getUser();
-          setMeEmail(data.user?.email ?? null);
+          setMe((prev) => ({ ...(prev ?? {}), email: data.user?.email ?? null }));
           return;
         }
-        const json = await res.json();
-        setMeEmail(json.email ?? null);
+        const json = (await res.json()) as MeSummary;
+        setMe(json);
       } catch {
         const { data } = await supabase.auth.getUser();
-        setMeEmail(data.user?.email ?? null);
+        setMe((prev) => ({ ...(prev ?? {}), email: data.user?.email ?? null }));
       } finally {
         setMeLoading(false);
       }
@@ -78,6 +84,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setSigningOut(false);
     }
   }
+
+  const isTeamPlan = String(me?.plan ?? "").toLowerCase() === "team";
+  const dashboardHref = me?.primary_workspace_id
+    ? `/app/workspaces/${me.primary_workspace_id}/dashboard`
+    : "/app";
 
   return (
     <ToastProvider>
@@ -106,21 +117,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="mx-auto max-w-6xl px-6">
             <div className="flex items-center justify-between gap-6 py-4">
               <div className="flex items-center gap-6">
-                <Link href="/app" className="flex items-center">
+                <Link href={dashboardHref} className="flex items-center">
                   <img src="/receipt-logo.svg" alt="Receipt" className="receipt-logo" draggable={false} />
                 </Link>
               </div>
 
               <div className="flex items-center gap-3">
                 <nav className="hidden sm:flex items-center gap-4">
-                  <NavItem href="/app">Dashboard</NavItem>
+                  <NavItem href={dashboardHref}>Dashboard</NavItem>
                   <NavItem href="/app/account">Account</NavItem>
                 </nav>
 
-                <WorkspaceSwitcher />
+                {isTeamPlan ? <WorkspaceSwitcher /> : null}
 
                 <div className="hidden md:block text-xs" style={{ color: "var(--muted)" }}>
-                  {meLoading ? "Loading…" : meEmail ? `Signed in as ${meEmail}` : "Session unavailable"}
+                  {meLoading ? "Loading…" : me?.email ? `Signed in as ${me.email}` : "Session unavailable"}
                 </div>
 
                 <button

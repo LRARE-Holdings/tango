@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
 
@@ -56,6 +57,7 @@ function StatusBadge({ status }: { status: DocItem["status"] }) {
 }
 
 export default function AppHome() {
+  const router = useRouter();
   const toast = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -75,17 +77,25 @@ export default function AppHome() {
       setLoading(true);
       setError(null);
       try {
-        const [docsRes, meRes] = await Promise.all([
-          fetch("/api/app/documents", { cache: "no-store" }),
-          fetch("/api/app/me", { cache: "no-store" }),
-        ]);
+        const meRes = await fetch("/api/app/me", { cache: "no-store" });
+        const meJson = meRes.ok ? ((await meRes.json()) as MeResponse) : null;
+        const primaryWorkspaceId =
+          typeof meJson?.primary_workspace_id === "string" && meJson.primary_workspace_id.length > 0
+            ? meJson.primary_workspace_id
+            : null;
 
+        if (primaryWorkspaceId) {
+          setMode("WORKSPACE MODE");
+          router.replace(`/app/workspaces/${primaryWorkspaceId}/dashboard`);
+          return;
+        }
+
+        setMode("PERSONAL MODE");
+
+        const docsRes = await fetch("/api/app/documents", { cache: "no-store" });
         const docsJson = await docsRes.json();
         if (!docsRes.ok) throw new Error(docsJson?.error ?? "Failed to load documents");
         setDocuments(docsJson.documents ?? []);
-
-        const meJson = meRes.ok ? ((await meRes.json()) as MeResponse) : null;
-        setMode(meJson?.primary_workspace_id ? "WORKSPACE MODE" : "PERSONAL MODE");
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -93,7 +103,7 @@ export default function AppHome() {
       }
     }
     load();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     return () => {
