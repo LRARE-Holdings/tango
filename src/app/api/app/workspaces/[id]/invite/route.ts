@@ -74,8 +74,9 @@ export async function POST(
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL
       ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
       : "https://www.getreceipt.xyz";
+    const nextPath = `/app/workspaces/${workspaceId}/dashboard`;
     const redirectTo =
-      `${appBaseUrl}/auth/confirm?next=${encodeURIComponent("/app")}`;
+      `${appBaseUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`;
 
     const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo,

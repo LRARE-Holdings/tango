@@ -27,6 +27,7 @@ export async function POST() {
 
     const list = invites ?? [];
     if (list.length === 0) return NextResponse.json({ ok: true, accepted: 0 });
+    const acceptedWorkspaceIds: string[] = [];
 
     // Insert memberships (idempotent)
     for (const inv of list) {
@@ -41,10 +42,32 @@ export async function POST() {
         .from("workspace_invites")
         .update({ status: "accepted", accepted_at: new Date().toISOString() })
         .eq("id", inv.id);
+
+      acceptedWorkspaceIds.push(String(inv.workspace_id));
     }
 
-    return NextResponse.json({ ok: true, accepted: list.length });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status: 500 });
+    const firstWorkspaceId = acceptedWorkspaceIds[0] ?? null;
+    if (firstWorkspaceId) {
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("primary_workspace_id,onboarding_completed")
+        .eq("id", userData.user.id)
+        .maybeSingle();
+
+      const updates: Record<string, unknown> = {};
+      if (!profile?.primary_workspace_id) updates.primary_workspace_id = firstWorkspaceId;
+      if (!profile?.onboarding_completed) {
+        updates.onboarding_completed = true;
+        updates.onboarding_completed_at = new Date().toISOString();
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await admin.from("profiles").update(updates).eq("id", userData.user.id);
+      }
+    }
+
+    return NextResponse.json({ ok: true, accepted: list.length, primary_workspace_id: firstWorkspaceId });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 500 });
   }
 }
