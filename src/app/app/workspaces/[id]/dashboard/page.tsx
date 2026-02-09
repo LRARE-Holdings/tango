@@ -192,6 +192,13 @@ export default function WorkspaceDashboardPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
+          <Link
+            href={`/app/workspaces/${idForLinks}/documents`}
+            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+          >
+            Documents
+          </Link>
 
           <Link
             href={`/app/workspaces/${idForLinks}/settings`}

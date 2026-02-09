@@ -11,6 +11,7 @@ export default async function WorkspaceSettingsLayout({
 
   const items = [
     { href: `/app/workspaces/${id}/settings/general`, label: "General" },
+    { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
     { href: `/app/workspaces/${id}/settings/branding`, label: "Branding" },
     { href: `/app/workspaces/${id}/settings/members`, label: "Members" },
     { href: `/app/workspaces/${id}/settings/domains`, label: "Domains" },
@@ -53,4 +54,3 @@ export default async function WorkspaceSettingsLayout({
     </div>
   );
 }
-
