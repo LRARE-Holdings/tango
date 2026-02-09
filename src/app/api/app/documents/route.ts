@@ -31,12 +31,30 @@ export async function GET() {
   // Later (once you add RLS to completions), switch this to the session client as well.
   const admin = supabaseAdmin();
 
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("primary_workspace_id")
+    .eq("id", userData.user.id)
+    .maybeSingle();
+
+  if (profileErr) {
+    return NextResponse.json({ error: profileErr.message }, { status: 500 });
+  }
+
+  const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
+
   // 1) Fetch documents
-  const { data: docs, error: docsErr } = await supabase
+  let docsQuery = supabase
     .from("documents")
     .select("id,title,public_id,created_at")
     .order("created_at", { ascending: false })
     .limit(50);
+
+  docsQuery = activeWorkspaceId
+    ? docsQuery.eq("workspace_id", activeWorkspaceId)
+    : docsQuery.is("workspace_id", null);
+
+  const { data: docs, error: docsErr } = await docsQuery;
 
   if (docsErr) {
     return NextResponse.json({ error: docsErr.message }, { status: 500 });

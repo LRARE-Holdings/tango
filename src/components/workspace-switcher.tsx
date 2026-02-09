@@ -59,8 +59,8 @@ export function WorkspaceSwitcher() {
     return workspaces.find((w) => w.id === id) ?? null;
   }, [me?.primary_workspace_id, workspaces]);
 
-  async function setPrimary(workspaceId: string) {
-    setSwitching(workspaceId);
+  async function setPrimary(workspaceId: string | null) {
+    setSwitching(workspaceId ?? "__personal__");
     try {
       const res = await fetch("/api/app/workspaces/primary", {
         method: "POST",
@@ -80,13 +80,7 @@ export function WorkspaceSwitcher() {
     }
   }
 
-  const label = loading
-    ? "Loading workspace…"
-    : active?.name
-      ? active.name
-      : workspaces.length > 0
-        ? "Select workspace"
-        : "No workspace";
+  const label = loading ? "Loading context…" : active?.name ? active.name : "Personal account";
 
   // Optional logo preview: secure route (member-only)
   const logoSrc = active?.id
@@ -139,15 +133,42 @@ export function WorkspaceSwitcher() {
           role="menu"
         >
           <div className="px-3 py-2 text-xs" style={{ color: "var(--muted2)" }}>
-            WORKSPACES
+            ACTIVE CONTEXT
           </div>
 
           <div className="max-h-90 overflow-auto">
-            {workspaces.length === 0 ? (
-              <div className="px-3 pb-3 text-sm" style={{ color: "var(--muted)" }}>
-                You don’t have a workspace yet.
+            <button
+              type="button"
+              onClick={() => void setPrimary(null)}
+              disabled={switching !== null}
+              className={cx(
+                "w-full px-3 py-2 text-left text-sm transition-opacity hover:opacity-80 disabled:opacity-50"
+              )}
+              style={{
+                background: me?.primary_workspace_id ? "transparent" : "var(--card2)",
+                borderTop: "1px solid var(--border2)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-semibold">Personal account</div>
+                  <div className="text-xs truncate" style={{ color: "var(--muted2)" }}>
+                    Individual receipts
+                  </div>
+                </div>
+                {!me?.primary_workspace_id ? (
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>
+                    Active
+                  </span>
+                ) : switching === "__personal__" ? (
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>
+                    Switching…
+                  </span>
+                ) : null}
               </div>
-            ) : (
+            </button>
+
+            {workspaces.length > 0 ? (
               workspaces.map((w) => {
                 const isActive = me?.primary_workspace_id === w.id;
                 return (
@@ -168,7 +189,7 @@ export function WorkspaceSwitcher() {
                       <div className="min-w-0">
                         <div className="truncate font-semibold">{w.name}</div>
                         <div className="text-xs truncate" style={{ color: "var(--muted2)" }}>
-                          {w.id}
+                          Workspace
                         </div>
                       </div>
 
@@ -185,6 +206,10 @@ export function WorkspaceSwitcher() {
                   </button>
                 );
               })
+            ) : (
+              <div className="px-3 py-2 text-xs" style={{ color: "var(--muted2)", borderTop: "1px solid var(--border2)" }}>
+                No workspaces yet.
+              </div>
             )}
           </div>
 
@@ -192,22 +217,29 @@ export function WorkspaceSwitcher() {
             className="px-3 py-3 flex items-center justify-between"
             style={{ borderTop: "1px solid var(--border)" }}
           >
-            <Link
-              href="/app/workspaces"
-              className="focus-ring text-sm font-semibold hover:opacity-80"
-              style={{ color: "var(--fg)" }}
-              onClick={() => setOpen(false)}
-            >
-              Manage workspaces
-            </Link>
-            <Link
-              href="/app/workspaces/new"
-              className="focus-ring text-sm hover:opacity-80"
-              style={{ color: "var(--muted)" }}
-              onClick={() => setOpen(false)}
-            >
-              Create new →
-            </Link>
+            <div className="w-full">
+              <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                WORKSPACE MENU
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <Link
+                  href="/app/workspaces"
+                  className="focus-ring text-sm font-semibold hover:opacity-80"
+                  style={{ color: "var(--fg)" }}
+                  onClick={() => setOpen(false)}
+                >
+                  Manage workspaces
+                </Link>
+                <Link
+                  href="/app/workspaces/new"
+                  className="focus-ring text-sm hover:opacity-80"
+                  style={{ color: "var(--muted)" }}
+                  onClick={() => setOpen(false)}
+                >
+                  Create new →
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       )}

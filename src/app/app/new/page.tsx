@@ -303,6 +303,8 @@ export default function NewReceipt() {
 
   const [plan, setPlan] = useState<Plan>("free");
   const [meEmail, setMeEmail] = useState<string | null>(null);
+  const [primaryWorkspaceId, setPrimaryWorkspaceId] = useState<string | null>(null);
+  const [workspaceCount, setWorkspaceCount] = useState(0);
 
   const personalPlus = can(plan, "personal");
   const proPlus = can(plan, "pro");
@@ -347,11 +349,17 @@ export default function NewReceipt() {
   useEffect(() => {
     async function loadMe() {
       try {
-        const res = await fetch("/api/app/me", { cache: "no-store" });
-        if (!res.ok) return;
-        const json = await res.json();
+        const [meRes, wsRes] = await Promise.all([
+          fetch("/api/app/me", { cache: "no-store" }),
+          fetch("/api/app/workspaces", { cache: "no-store" }),
+        ]);
+        if (!meRes.ok) return;
+        const json = await meRes.json();
+        const wsJson = wsRes.ok ? await wsRes.json() : { workspaces: [] };
 
         setMeEmail(json.email ?? null);
+        setPrimaryWorkspaceId(json.primary_workspace_id ?? null);
+        setWorkspaceCount(Array.isArray(wsJson?.workspaces) ? wsJson.workspaces.length : 0);
 
         const p = String(json.plan ?? json.tier ?? json.subscription_plan ?? "").toLowerCase();
         if (p === "free" || p === "personal" || p === "pro" || p === "team" || p === "enterprise") {
@@ -363,6 +371,11 @@ export default function NewReceipt() {
     }
     loadMe();
   }, []);
+
+  const needsWorkspaceSelection = useMemo(() => {
+    const isWorkspacePlan = plan === "team" || plan === "enterprise";
+    return isWorkspacePlan && workspaceCount > 0 && !primaryWorkspaceId;
+  }, [plan, workspaceCount, primaryWorkspaceId]);
 
   const fileLabel = useMemo(() => {
     if (!file) return "Choose a PDF";
@@ -408,6 +421,9 @@ export default function NewReceipt() {
   }
 
   function validate(): string | null {
+    if (needsWorkspaceSelection) {
+      return "Choose an active workspace from the top selector before creating a receipt.";
+    }
     if (!file) return "Please choose a PDF.";
     if (sendEmails && !personalPlus) return "Email sending is available on Personal plans and above.";
     if (!recipientsValid) return "Please add valid recipient emails (or turn off email sending).";
@@ -457,8 +473,8 @@ export default function NewReceipt() {
 
       setShareUrl(json.share_url);
       toast.success("Created", "Your link is ready.");
-    } catch (e: any) {
-      const msg = e?.message ?? "Something went wrong";
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Something went wrong";
       setError(msg);
       toast.error("Failed", msg);
     } finally {
@@ -517,6 +533,7 @@ export default function NewReceipt() {
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">New share link</h1>
             <Pill>{plan.toUpperCase()}</Pill>
+            <Pill>{primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE"}</Pill>
           </div>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
             Upload a PDF, configure the rules, then generate a link.
@@ -536,13 +553,23 @@ export default function NewReceipt() {
           >
             Back
           </Link>
-          <PrimaryButton onClick={create} disabled={loading}>
+          <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection}>
             {loading ? "Creating…" : "Create link"}
           </PrimaryButton>
         </div>
       </div>
 
       {/* Layout */}
+      {needsWorkspaceSelection ? (
+        <div
+          className="border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
+        >
+          Team/Enterprise accounts must create receipts inside an active workspace.
+          Switch context using the top selector, then continue.
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left submenu */}
         <aside
@@ -1030,7 +1057,7 @@ export default function NewReceipt() {
               <SecondaryButton onClick={() => (window.location.href = "/app")} disabled={loading}>
                 Cancel
               </SecondaryButton>
-              <PrimaryButton onClick={create} disabled={loading}>
+              <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection}>
                 {loading ? "Creating…" : "Create"}
               </PrimaryButton>
             </div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
 import { EmailVerificationGate } from "@/components/email-verification-gate";
@@ -35,7 +35,7 @@ function PrimaryCta({ href, children }: { href: string; children: React.ReactNod
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const supabase = supabaseBrowser();
+  const supabase = useMemo(() => supabaseBrowser(), []);
 
   const [meEmail, setMeEmail] = useState<string | null>(null);
   const [meLoading, setMeLoading] = useState(true);
@@ -47,17 +47,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       try {
         const res = await fetch("/api/app/me", { cache: "no-store" });
         if (!res.ok) {
-          setMeEmail(null);
+          // Fallback to client auth state to avoid false "Not signed in" during transient API errors.
+          const { data } = await supabase.auth.getUser();
+          setMeEmail(data.user?.email ?? null);
           return;
         }
         const json = await res.json();
         setMeEmail(json.email ?? null);
+      } catch {
+        const { data } = await supabase.auth.getUser();
+        setMeEmail(data.user?.email ?? null);
       } finally {
         setMeLoading(false);
       }
     }
     loadMe();
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     // Reconcile any pending workspace invites after login
@@ -109,14 +114,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-3">
                 <nav className="hidden sm:flex items-center gap-4">
                   <NavItem href="/app">Dashboard</NavItem>
-                  <NavItem href="/app/workspaces">Workspace</NavItem>
                   <NavItem href="/app/account">Account</NavItem>
                 </nav>
 
                 <WorkspaceSwitcher />
 
                 <div className="hidden md:block text-xs" style={{ color: "var(--muted)" }}>
-                  {meLoading ? "Loading…" : meEmail ? `Signed in as ${meEmail}` : "Not signed in"}
+                  {meLoading ? "Loading…" : meEmail ? `Signed in as ${meEmail}` : "Session unavailable"}
                 </div>
 
                 <button

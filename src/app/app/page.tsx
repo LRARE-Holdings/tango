@@ -14,6 +14,10 @@ type DocItem = {
   status: "Acknowledged" | "Pending";
 };
 
+type MeResponse = {
+  primary_workspace_id?: string | null;
+};
+
 type StatusFilter = "All" | "Pending" | "Acknowledged";
 type SortKey =
   | "Newest"
@@ -36,7 +40,7 @@ function normalizeQuery(q: string) {
 }
 
 function StatusBadge({ status }: { status: DocItem["status"] }) {
-  const style =
+  const style: React.CSSProperties =
     status === "Acknowledged"
       ? { background: "var(--fg)", color: "var(--bg)" }
       : { background: "transparent", color: "var(--muted)", border: `1px solid var(--border)` };
@@ -44,7 +48,7 @@ function StatusBadge({ status }: { status: DocItem["status"] }) {
   return (
     <span
       className="inline-flex items-center px-2.5 py-1 text-xs font-semibold"
-      style={{ borderRadius: 10, ...(style as any) }}
+      style={{ borderRadius: 10, ...style }}
     >
       {status}
     </span>
@@ -57,6 +61,7 @@ export default function AppHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocItem[]>([]);
+  const [mode, setMode] = useState<"PERSONAL MODE" | "WORKSPACE MODE">("PERSONAL MODE");
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
@@ -70,12 +75,19 @@ export default function AppHome() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/app/documents", { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error ?? "Failed to load documents");
-        setDocuments(json.documents ?? []);
-      } catch (e: any) {
-        setError(e?.message ?? "Something went wrong");
+        const [docsRes, meRes] = await Promise.all([
+          fetch("/api/app/documents", { cache: "no-store" }),
+          fetch("/api/app/me", { cache: "no-store" }),
+        ]);
+
+        const docsJson = await docsRes.json();
+        if (!docsRes.ok) throw new Error(docsJson?.error ?? "Failed to load documents");
+        setDocuments(docsJson.documents ?? []);
+
+        const meJson = meRes.ok ? ((await meRes.json()) as MeResponse) : null;
+        setMode(meJson?.primary_workspace_id ? "WORKSPACE MODE" : "PERSONAL MODE");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
         setLoading(false);
       }
@@ -142,9 +154,15 @@ export default function AppHome() {
           <div className="text-xs font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
             DASHBOARD
           </div>
-          <h1 className="mt-2 text-2xl md:text-3xl font-semibold tracking-tight">
-            Documents
-          </h1>
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Documents</h1>
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              {mode}
+            </span>
+          </div>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
             Share a link. Keep the record. No drama.
           </p>
