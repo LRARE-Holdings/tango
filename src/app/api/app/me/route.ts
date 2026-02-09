@@ -32,9 +32,25 @@ type OptionalPrefs = {
   default_password_enabled: boolean;
 };
 
-function isMissingColumnError(message: string, column: string) {
-  const m = message.toLowerCase();
-  return m.includes("does not exist") && m.includes(`profiles.${column}`.toLowerCase());
+type DbErrorLike = {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+};
+
+function isMissingColumnError(error: DbErrorLike | null | undefined, column: string) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+
+  const allText = [error.message, error.details, error.hint].filter(Boolean).join(" ").toLowerCase();
+  if (!allText) return false;
+
+  const col = column.toLowerCase();
+  return (
+    allText.includes("does not exist") &&
+    (allText.includes(`profiles.${col}`) || allText.includes(`"${col}"`) || allText.includes(` ${col} `))
+  );
 }
 
 async function readOptionalPrefs(
@@ -58,7 +74,7 @@ async function readOptionalPrefs(
   for (const col of columns) {
     const { data, error } = await supabase.from("profiles").select(col).eq("id", userId).maybeSingle();
     if (error) {
-      if (isMissingColumnError(error.message, col)) continue;
+      if (isMissingColumnError(error as DbErrorLike, col)) continue;
       return { prefs, error: error.message };
     }
 
