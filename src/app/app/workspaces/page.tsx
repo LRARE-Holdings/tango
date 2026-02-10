@@ -9,6 +9,7 @@ type Workspace = {
   slug?: string | null;
   created_at: string;
   brand_logo_updated_at?: string | null;
+  my_role?: "owner" | "admin" | "member";
 };
 
 export default function WorkspacesPage() {
@@ -110,17 +111,19 @@ export default function WorkspacesPage() {
               Branding
             </Link>
 
-            <Link
-              href={`/app/workspaces/${identifier}/settings`}
-              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-              style={{
-                border: "1px solid var(--border)",
-                color: "var(--muted)",
-                borderRadius: 10,
-              }}
-            >
-              Settings
-            </Link>
+            {(w.my_role === "owner" || w.my_role === "admin") ? (
+              <Link
+                href={`/app/workspaces/${identifier}/settings`}
+                className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+                style={{
+                  border: "1px solid var(--border)",
+                  color: "var(--muted)",
+                  borderRadius: 10,
+                }}
+              >
+                Settings
+              </Link>
+            ) : null}
           </div>
         </div>
       );

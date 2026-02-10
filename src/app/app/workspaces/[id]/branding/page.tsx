@@ -11,6 +11,11 @@ type Workspace = {
   brand_logo_updated_at?: string | null;
 };
 
+type Viewer = {
+  user_id: string;
+  role: "owner" | "admin" | "member";
+};
+
 export default function WorkspaceBrandingPage() {
   const params = useParams<{ id?: string }>();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
@@ -18,6 +23,7 @@ export default function WorkspaceBrandingPage() {
 
   const [loading, setLoading] = useState(true);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [viewer, setViewer] = useState<Viewer | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -45,6 +51,7 @@ export default function WorkspaceBrandingPage() {
         if (!res.ok) throw new Error(json?.error ?? "Failed to load");
         if (!alive) return;
         setWorkspace(json?.workspace ?? null);
+        setViewer((json?.viewer ?? null) as Viewer | null);
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -96,6 +103,7 @@ export default function WorkspaceBrandingPage() {
   }
 
   const idForLinks = workspace?.slug ?? workspaceIdentifier;
+  const canManageSettings = viewer?.role === "owner" || viewer?.role === "admin";
 
   return (
     <div className="space-y-6">
@@ -110,13 +118,15 @@ export default function WorkspaceBrandingPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <Link
-            href={`/app/workspaces/${idForLinks}/settings`}
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-          >
-            Settings
-          </Link>
+          {canManageSettings ? (
+            <Link
+              href={`/app/workspaces/${idForLinks}/settings`}
+              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+            >
+              Settings
+            </Link>
+          ) : null}
           <Link
             href={`/app/workspaces/${idForLinks}/members`}
             className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"

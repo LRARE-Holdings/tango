@@ -12,6 +12,10 @@ type DashboardPayload = {
     created_at: string;
     brand_logo_updated_at: string | null;
   };
+  viewer: {
+    user_id: string;
+    role: "owner" | "admin" | "member";
+  };
   counts: {
     members: number;
     invites_pending: number;
@@ -154,6 +158,7 @@ export default function WorkspaceDashboardPage() {
   }, [data]);
 
   const idForLinks = data?.workspace?.slug ?? workspaceIdentifier;
+  const canManageSettings = data?.viewer?.role === "owner" || data?.viewer?.role === "admin";
 
   return (
     <div className="space-y-6">
@@ -200,13 +205,15 @@ export default function WorkspaceDashboardPage() {
             Documents
           </Link>
 
-          <Link
-            href={`/app/workspaces/${idForLinks}/settings`}
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-          >
-            Settings
-          </Link>
+          {canManageSettings ? (
+            <Link
+              href={`/app/workspaces/${idForLinks}/settings`}
+              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+            >
+              Settings
+            </Link>
+          ) : null}
 
           <Link
             href="/app/new"

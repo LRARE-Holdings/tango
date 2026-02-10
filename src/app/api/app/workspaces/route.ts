@@ -70,6 +70,9 @@ export async function GET() {
       .select("workspace_id,role")
       .eq("user_id", user.id);
     if (memErr) throw new Error(memErr.message);
+    const membershipRoleByWorkspaceId = new Map(
+      (memberships ?? []).map((m) => [String(m.workspace_id), String(m.role)])
+    );
 
     const memberWorkspaceIds = Array.from(
       new Set((memberships ?? []).map((m) => m.workspace_id).filter(Boolean))
@@ -118,7 +121,10 @@ export async function GET() {
       memberWorkspaces = viaMembership ?? [];
     }
 
-    const all = [...(ownedWorkspaces ?? []), ...memberWorkspaces];
+    const all = [...(ownedWorkspaces ?? []), ...memberWorkspaces].map((w) => ({
+      ...w,
+      my_role: (w.created_by === user.id ? "owner" : (membershipRoleByWorkspaceId.get(String(w.id)) ?? "member")),
+    }));
     all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     return NextResponse.json({ workspaces: all });

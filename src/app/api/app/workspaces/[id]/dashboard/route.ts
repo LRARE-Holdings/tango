@@ -208,6 +208,10 @@ export async function GET(
         created_at: workspace.created_at,
         brand_logo_updated_at: workspace.brand_logo_updated_at ?? null,
       },
+      viewer: {
+        user_id: userId,
+        role: mem.role,
+      },
       counts: {
         members: membersCount ?? 0,
         invites_pending: safeInvitesPendingCount,

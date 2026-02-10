@@ -17,6 +17,11 @@ type Workspace = {
   slug?: string | null;
 };
 
+type Viewer = {
+  user_id: string;
+  role: "owner" | "admin" | "member";
+};
+
 export default function WorkspaceMembersPage() {
   const params = useParams<{ id?: string }>();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
@@ -27,6 +32,7 @@ export default function WorkspaceMembersPage() {
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [viewer, setViewer] = useState<Viewer | null>(null);
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"member" | "admin">("member");
@@ -56,6 +62,7 @@ export default function WorkspaceMembersPage() {
         if (!alive) return;
         setWorkspace(json?.workspace ?? null);
         setMembers(json?.members ?? []);
+        setViewer((json?.viewer ?? null) as Viewer | null);
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -69,6 +76,17 @@ export default function WorkspaceMembersPage() {
   }, [workspaceIdentifier, workspaceId]);
 
   const owners = useMemo(() => members.filter((m) => m.role === "owner").length, [members]);
+  const canManageMembers = viewer?.role === "owner" || viewer?.role === "admin";
+
+  async function refresh() {
+    if (!workspaceIdentifier) return;
+    const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}`, { cache: "no-store" });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(json?.error ?? "Failed to load");
+    setWorkspace(json?.workspace ?? null);
+    setMembers(json?.members ?? []);
+    setViewer((json?.viewer ?? null) as Viewer | null);
+  }
 
   async function invite() {
     if (!workspaceIdentifier) return;
@@ -87,6 +105,7 @@ export default function WorkspaceMembersPage() {
 
       setInviteMsg("Invite sent.");
       setEmail("");
+      await refresh();
     } catch (e: unknown) {
       setInviteMsg(e instanceof Error ? e.message : "Invite failed");
     } finally {
@@ -94,7 +113,46 @@ export default function WorkspaceMembersPage() {
     }
   }
 
+  async function updateMemberRole(userId: string, nextRole: "admin" | "member") {
+    if (!workspaceIdentifier) return;
+    setInviteMsg(null);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/members/${encodeURIComponent(userId)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ role: nextRole }),
+        }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Could not update role.");
+      await refresh();
+      setInviteMsg("Member role updated.");
+    } catch (e: unknown) {
+      setInviteMsg(e instanceof Error ? e.message : "Could not update role.");
+    }
+  }
+
+  async function removeMember(userId: string) {
+    if (!workspaceIdentifier) return;
+    setInviteMsg(null);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/members/${encodeURIComponent(userId)}`,
+        { method: "DELETE" }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Could not remove member.");
+      await refresh();
+      setInviteMsg("Member removed.");
+    } catch (e: unknown) {
+      setInviteMsg(e instanceof Error ? e.message : "Could not remove member.");
+    }
+  }
+
   const idForLinks = workspace?.slug ?? workspaceIdentifier;
+  const canManageSettings = viewer?.role === "owner" || viewer?.role === "admin";
 
   return (
     <div className="space-y-6">
@@ -109,13 +167,15 @@ export default function WorkspaceMembersPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <Link
-            href={`/app/workspaces/${idForLinks}/settings`}
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-          >
-            Settings
-          </Link>
+          {canManageSettings ? (
+            <Link
+              href={`/app/workspaces/${idForLinks}/settings`}
+              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+            >
+              Settings
+            </Link>
+          ) : null}
           <Link
             href={`/app/workspaces/${idForLinks}/branding`}
             className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
@@ -138,6 +198,7 @@ export default function WorkspaceMembersPage() {
       {!loading && !error && (
         <>
           {/* Invite */}
+          {canManageMembers ? (
           <div className="border p-5" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}>
             <div className="text-sm font-semibold">Invite someone</div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -191,6 +252,7 @@ export default function WorkspaceMembersPage() {
               ) : null}
             </div>
           </div>
+          ) : null}
 
           {/* Member list */}
           <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
@@ -199,7 +261,19 @@ export default function WorkspaceMembersPage() {
             </div>
 
             <div>
-              {members.map((m) => (
+              {members.map((m) => {
+                const isSelf = viewer?.user_id === m.user_id;
+                const canChangeRole =
+                  canManageMembers &&
+                  !isSelf &&
+                  m.role !== "owner" &&
+                  !(viewer?.role === "admin" && m.role !== "member");
+                const canRemove =
+                  canManageMembers &&
+                  !isSelf &&
+                  m.role !== "owner" &&
+                  !(viewer?.role === "admin" && m.role !== "member");
+                return (
                 <div
                   key={m.user_id}
                   className="px-5 py-4 flex items-center justify-between"
@@ -212,11 +286,36 @@ export default function WorkspaceMembersPage() {
                     </div>
                   </div>
 
-                  <div className="text-xs" style={{ color: "var(--muted)" }}>
-                    Joined
+                  <div className="flex items-center gap-2">
+                    {canChangeRole ? (
+                      <select
+                        value={m.role}
+                        onChange={(e) => void updateMemberRole(m.user_id, e.target.value as "admin" | "member")}
+                        className="focus-ring border px-3 py-2 text-xs bg-transparent"
+                        style={{ borderColor: "var(--border)", borderRadius: 8 }}
+                      >
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    ) : null}
+                    {canRemove ? (
+                      <button
+                        type="button"
+                        onClick={() => void removeMember(m.user_id)}
+                        className="focus-ring px-3 py-2 text-xs font-medium hover:opacity-80"
+                        style={{ border: "1px solid var(--border)", borderRadius: 8, color: "#ff3b30" }}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                    {!canChangeRole && !canRemove ? (
+                      <div className="text-xs" style={{ color: "var(--muted)" }}>
+                        {isSelf ? "You" : m.role === "owner" ? "Owner" : "Member"}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         </>

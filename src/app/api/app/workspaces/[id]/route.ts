@@ -107,7 +107,14 @@ export async function GET(
       email: emailsByUserId.get(m.user_id) ?? null,
     }));
 
-    return NextResponse.json({ workspace, members: membersWithEmails });
+    return NextResponse.json({
+      workspace,
+      members: membersWithEmails,
+      viewer: {
+        user_id: userData.user.id,
+        role: member.role,
+      },
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 500 });
   }

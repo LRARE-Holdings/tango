@@ -99,6 +99,10 @@ export async function GET(
           name: workspace.name,
           slug: (workspace as { slug?: string | null }).slug ?? null,
         },
+        viewer: {
+          user_id: userId,
+          role: member.role,
+        },
         documents: [],
       });
     }
@@ -141,10 +145,13 @@ export async function GET(
         name: workspace.name,
         slug: (workspace as { slug?: string | null }).slug ?? null,
       },
+      viewer: {
+        user_id: userId,
+        role: member.role,
+      },
       documents: out,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 500 });
   }
 }
-
