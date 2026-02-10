@@ -191,9 +191,6 @@ export default function WorkspaceDashboardPage() {
               ) : null}
             </div>
           </div>
-          <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Awareness at a glance — pending items, activity, and signal.
-          </p>
         </div>
 
         <div className="flex gap-2 flex-wrap">
