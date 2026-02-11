@@ -50,6 +50,9 @@ const SAMPLE_RECORDS: PreviewRecord[] = [
   },
 ];
 
+const ROTATE_MS = 4500;
+const TRANSITION_MS = 320;
+
 function StatPill({
   label,
   value,
@@ -71,13 +74,25 @@ function StatPill({
 
 export function ReceiptPreview() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % SAMPLE_RECORDS.length);
-    }, 4500);
+    let swapTimeoutId: number | undefined;
 
-    return () => window.clearInterval(intervalId);
+    const intervalId = window.setInterval(() => {
+      setIsTransitioning(true);
+      swapTimeoutId = window.setTimeout(() => {
+        setActiveIndex((prev) => (prev + 1) % SAMPLE_RECORDS.length);
+        setIsTransitioning(false);
+      }, TRANSITION_MS);
+    }, ROTATE_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+      if (swapTimeoutId !== undefined) {
+        window.clearTimeout(swapTimeoutId);
+      }
+    };
   }, []);
 
   const activeRecord = SAMPLE_RECORDS[activeIndex];
@@ -87,64 +102,72 @@ export function ReceiptPreview() {
       {/* soft glow */}
       <div className="pointer-events-none absolute -inset-6 rounded-[28px] bg-linear-to-br from-zinc-200/60 via-transparent to-zinc-200/60 blur-2xl dark:from-zinc-800/40 dark:to-zinc-800/40" />
       <div className="relative overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-          <div className="flex items-baseline gap-3">
-            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Receipt Record
-            </div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-500">
-              {activeRecord.useCase}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-5 p-6">
-          <div className="space-y-1">
-            <div className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
-              Document
-            </div>
-            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              {activeRecord.document}
-            </div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-500">
-              Version hash: {activeRecord.versionHash}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <div className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
-                Recipient
-              </div>
+        <div
+          className={`transition-[opacity,transform,filter] duration-300 ease-out motion-reduce:transition-none ${
+            isTransitioning
+              ? "translate-y-1 opacity-0 blur-[1px]"
+              : "translate-y-0 opacity-100 blur-0"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+            <div className="flex items-baseline gap-3">
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                {activeRecord.recipientName}
+                Receipt Record
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                {activeRecord.recipientEmail}
+                {activeRecord.useCase}
               </div>
             </div>
+          </div>
 
+          <div className="space-y-5 p-6">
             <div className="space-y-1">
               <div className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
-                Acknowledged
+                Document
               </div>
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                Yes
+                {activeRecord.document}
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                {activeRecord.acknowledgedAt}
+                Version hash: {activeRecord.versionHash}
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <StatPill label="First opened" value={activeRecord.firstOpened} />
-            <StatPill label="Scroll depth" value={activeRecord.scrollDepth} />
-            <StatPill label="Time on page" value={activeRecord.timeOnPage} />
-          </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
+                  Recipient
+                </div>
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {activeRecord.recipientName}
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-500">
+                  {activeRecord.recipientEmail}
+                </div>
+              </div>
 
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
-            Receipt records observable events (delivery, access, review activity, acknowledgement).
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
+                  Acknowledged
+                </div>
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  Yes
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-500">
+                  {activeRecord.acknowledgedAt}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <StatPill label="First opened" value={activeRecord.firstOpened} />
+              <StatPill label="Scroll depth" value={activeRecord.scrollDepth} />
+              <StatPill label="Time on page" value={activeRecord.timeOnPage} />
+            </div>
+
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+              Receipt records observable events (delivery, access, review activity, acknowledgement).
+            </div>
           </div>
         </div>
       </div>
