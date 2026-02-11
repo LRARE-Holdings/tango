@@ -33,6 +33,10 @@ type CompletionRow = {
   recipients: RecipientRow | null;
 };
 
+type CompletionQueryRow = Omit<CompletionRow, "recipients"> & {
+  recipients: RecipientRow | RecipientRow[] | null;
+};
+
 type DocumentRow = {
   id: string;
   title: string | null;
@@ -145,7 +149,10 @@ export async function GET(
 
   if (compErr) return NextResponse.json({ error: compErr.message }, { status: 500 });
 
-  const completions = (comps ?? []) as CompletionRow[];
+  const completions = ((comps ?? []) as CompletionQueryRow[]).map((c) => ({
+    ...c,
+    recipients: Array.isArray(c.recipients) ? (c.recipients[0] ?? null) : (c.recipients ?? null),
+  }));
   const acknowledgements = completions.filter((c) => c.acknowledged).length;
   const latestAck = completions.find((c) => c.acknowledged && c.submitted_at)?.submitted_at ?? null;
 
