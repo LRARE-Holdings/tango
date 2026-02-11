@@ -143,16 +143,6 @@ export default async function Home({
                   </span>
                 ))}
               </div>
-              <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-                Trust signal: service status at{" "}
-                <a
-                  href="https://status.getreceipt.xyz"
-                  className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-900 dark:text-zinc-100 dark:decoration-zinc-600 dark:hover:decoration-zinc-100"
-                >
-                  status.getreceipt.xyz
-                </a>
-                .
-              </div>
             </div>
           </div>
 
