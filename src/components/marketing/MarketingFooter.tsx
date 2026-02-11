@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-zinc-200 bg-white py-10 dark:border-zinc-800 dark:bg-zinc-950">
+    <footer className="marketing-chrome border-t border-zinc-200 bg-white py-10 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="mx-auto max-w-6xl px-6">
         <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
           {/* Legal */}

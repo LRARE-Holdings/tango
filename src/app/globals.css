@@ -66,3 +66,97 @@ body {
   outline: 2px solid var(--fg);
   outline-offset: 2px;
 }
+
+/* Marketing motion: subtle, scoped, and accessibility-aware */
+.marketing-shell section {
+  animation: marketing-fade-up 650ms ease-out both;
+}
+
+.marketing-shell section:nth-of-type(2) {
+  animation-delay: 90ms;
+}
+
+.marketing-shell section:nth-of-type(3) {
+  animation-delay: 160ms;
+}
+
+.marketing-shell section:nth-of-type(4) {
+  animation-delay: 230ms;
+}
+
+.marketing-shell :is(a, button) {
+  transition: transform 220ms ease, box-shadow 220ms ease, opacity 180ms ease,
+    background-color 220ms ease, border-color 220ms ease, color 220ms ease;
+}
+
+.marketing-shell :is(a, button):hover {
+  transform: translateY(-1px);
+}
+
+.marketing-shell :is(
+    .rounded-2xl.border,
+    .rounded-3xl.border,
+    .rounded-\[28px\].border
+  ) {
+  transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
+}
+
+.marketing-shell :is(
+    .rounded-2xl.border,
+    .rounded-3xl.border,
+    .rounded-\[28px\].border
+  ):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.09);
+}
+
+.marketing-chrome {
+  transition: background-color 240ms ease, border-color 240ms ease,
+    backdrop-filter 240ms ease;
+  backdrop-filter: saturate(130%) blur(6px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .marketing-shell :is(
+      .rounded-2xl.border,
+      .rounded-3xl.border,
+      .rounded-\[28px\].border
+    ):hover {
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-shell section {
+    animation: none !important;
+  }
+
+  .marketing-shell :is(a, button),
+  .marketing-shell :is(
+      .rounded-2xl.border,
+      .rounded-3xl.border,
+      .rounded-\[28px\].border
+    ) {
+    transition: none !important;
+  }
+
+  .marketing-shell :is(a, button):hover,
+  .marketing-shell :is(
+      .rounded-2xl.border,
+      .rounded-3xl.border,
+      .rounded-\[28px\].border
+    ):hover {
+    transform: none !important;
+  }
+}
+
+@keyframes marketing-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
