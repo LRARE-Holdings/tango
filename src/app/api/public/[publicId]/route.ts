@@ -11,6 +11,9 @@ type DocRow = {
   password_enabled?: boolean | null;
   password_hash?: string | null;
   require_recipient_identity?: boolean | null;
+  max_acknowledgers_enabled?: boolean | null;
+  max_acknowledgers?: number | null;
+  closed_at?: string | null;
 };
 
 function isMissingPasswordColumnError(error: { code?: string; message?: string } | null | undefined) {
@@ -25,6 +28,13 @@ function isMissingRecipientRequirementColumnError(error: { code?: string; messag
   return String(error.message ?? "").toLowerCase().includes("require_recipient_identity");
 }
 
+function isMissingAcknowledgerLimitColumnError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  const msg = String(error.message ?? "").toLowerCase();
+  return msg.includes("max_acknowledgers") || msg.includes("closed_at");
+}
+
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ publicId: string }> | { publicId: string } }
@@ -35,17 +45,24 @@ export async function GET(
 
   const withPasswordCols = await admin
     .from("documents")
-    .select("id,title,file_path,created_at,public_id,password_enabled,password_hash,require_recipient_identity")
+    .select(
+      "id,title,file_path,created_at,public_id,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at"
+    )
     .eq("public_id", publicId)
     .maybeSingle();
 
   let doc = withPasswordCols.data as DocRow | null;
   let error = withPasswordCols.error;
 
-  if (error && (isMissingPasswordColumnError(error) || isMissingRecipientRequirementColumnError(error))) {
+  if (
+    error &&
+    (isMissingPasswordColumnError(error) ||
+      isMissingRecipientRequirementColumnError(error) ||
+      isMissingAcknowledgerLimitColumnError(error))
+  ) {
     const fallback = await admin
       .from("documents")
-      .select("id,title,file_path,created_at,public_id")
+      .select("id,title,file_path,created_at,public_id,password_enabled,password_hash,require_recipient_identity")
       .eq("public_id", publicId)
       .maybeSingle();
     doc = fallback.data as DocRow | null;
@@ -70,6 +87,31 @@ export async function GET(
     return NextResponse.json(
       { error: "Document has no uploaded file yet", doc },
       { status: 500 }
+    );
+  }
+
+  const maxAcknowledgersEnabled = Boolean(doc.max_acknowledgers_enabled && (doc.max_acknowledgers ?? 0) > 0);
+  const maxAcknowledgers = maxAcknowledgersEnabled ? Number(doc.max_acknowledgers) : null;
+  const isExplicitlyClosed = Boolean(doc.closed_at);
+  let isAckLimitClosed = false;
+
+  if (maxAcknowledgersEnabled && maxAcknowledgers) {
+    const { count, error: countErr } = await admin
+      .from("completions")
+      .select("id", { head: true, count: "exact" })
+      .eq("document_id", doc.id)
+      .eq("acknowledged", true);
+
+    if (countErr) {
+      return NextResponse.json({ error: countErr.message }, { status: 500 });
+    }
+    isAckLimitClosed = (count ?? 0) >= maxAcknowledgers;
+  }
+
+  if (isExplicitlyClosed || isAckLimitClosed) {
+    return NextResponse.json(
+      { error: "This link is closed. It is no longer accepting acknowledgements.", closed: true },
+      { status: 410 }
     );
   }
 
@@ -100,6 +142,8 @@ export async function GET(
       title: doc.title,
       created_at: doc.created_at,
       require_recipient_identity: Boolean(doc.require_recipient_identity),
+      max_acknowledgers_enabled: maxAcknowledgersEnabled,
+      max_acknowledgers: maxAcknowledgers,
     },
     signedUrl: signed.signedUrl,
   });

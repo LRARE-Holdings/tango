@@ -12,6 +12,10 @@ function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Server error";
 }
 
+function clampInt(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
 type ParsedRecipient = {
   name: string;
   email: string;
@@ -126,6 +130,12 @@ export async function POST(req: Request) {
     const passwordRaw = typeof form.get("password") === "string" ? String(form.get("password")).trim() : "";
     const requireRecipientIdentityRaw =
       String(form.get("require_recipient_identity") ?? "false").toLowerCase() === "true";
+    const maxAcknowledgersEnabledRaw =
+      String(form.get("max_acknowledgers_enabled") ?? "false").toLowerCase() === "true";
+    const maxAcknowledgersRaw = Number(form.get("max_acknowledgers") ?? 0);
+    const maxAcknowledgers = maxAcknowledgersEnabledRaw
+      ? clampInt(Number.isFinite(maxAcknowledgersRaw) ? maxAcknowledgersRaw : 1, 1, 1000)
+      : null;
     const sendEmailsRaw = String(form.get("send_emails") ?? "false").toLowerCase() === "true";
     const recipients = parseRecipients(form.get("recipients"));
 
@@ -248,6 +258,10 @@ export async function POST(req: Request) {
     if (requireRecipientIdentityRaw && isPaidPlan) {
       insertPayload.require_recipient_identity = true;
     }
+    if (maxAcknowledgersEnabledRaw && maxAcknowledgers) {
+      insertPayload.max_acknowledgers_enabled = true;
+      insertPayload.max_acknowledgers = maxAcknowledgers;
+    }
 
     // 1) Create the doc row (file_path temp)
     const { data: doc, error: insertErr } = await supabase
@@ -266,6 +280,12 @@ export async function POST(req: Request) {
       if (requireRecipientIdentityRaw && insertErr?.code === "42703") {
         return NextResponse.json(
           { error: "Recipient identity requirement is not available because required database columns are missing." },
+          { status: 500 }
+        );
+      }
+      if (maxAcknowledgersEnabledRaw && insertErr?.code === "42703") {
+        return NextResponse.json(
+          { error: "Acknowledgement closure is not available because required database columns are missing." },
           { status: 500 }
         );
       }

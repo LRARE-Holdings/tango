@@ -8,6 +8,9 @@ type DocRow = {
   title: string;
   password_enabled?: boolean | null;
   password_hash?: string | null;
+  max_acknowledgers_enabled?: boolean | null;
+  max_acknowledgers?: number | null;
+  closed_at?: string | null;
 };
 
 type AttemptState = {
@@ -65,15 +68,31 @@ function isMissingPasswordColumnError(error: { code?: string; message?: string }
   return String(error.message ?? "").toLowerCase().includes("password_");
 }
 
+function isMissingAcknowledgerLimitColumnError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  const msg = String(error.message ?? "").toLowerCase();
+  return msg.includes("max_acknowledgers") || msg.includes("closed_at");
+}
+
 async function loadDoc(publicId: string) {
   const admin = supabaseAdmin();
-  const withPasswordCols = await admin
+  const withAllCols = await admin
     .from("documents")
-    .select("id,title,password_enabled,password_hash")
+    .select("id,title,password_enabled,password_hash,max_acknowledgers_enabled,max_acknowledgers,closed_at")
     .eq("public_id", publicId)
     .maybeSingle();
 
-  if (withPasswordCols.error && isMissingPasswordColumnError(withPasswordCols.error)) {
+  if (withAllCols.error && isMissingAcknowledgerLimitColumnError(withAllCols.error)) {
+    const withoutAckLimit = await admin
+      .from("documents")
+      .select("id,title,password_enabled,password_hash")
+      .eq("public_id", publicId)
+      .maybeSingle();
+    return { data: withoutAckLimit.data as DocRow | null, error: withoutAckLimit.error };
+  }
+
+  if (withAllCols.error && isMissingPasswordColumnError(withAllCols.error)) {
     const fallback = await admin
       .from("documents")
       .select("id,title")
@@ -82,7 +101,27 @@ async function loadDoc(publicId: string) {
     return { data: fallback.data as DocRow | null, error: fallback.error };
   }
 
-  return { data: withPasswordCols.data as DocRow | null, error: withPasswordCols.error };
+  return { data: withAllCols.data as DocRow | null, error: withAllCols.error };
+}
+
+async function isClosedForAcknowledgement(doc: DocRow) {
+  if (doc.closed_at) return { closed: true };
+
+  const limitEnabled = Boolean(doc.max_acknowledgers_enabled && (doc.max_acknowledgers ?? 0) > 0);
+  if (!limitEnabled) return { closed: false };
+
+  const admin = supabaseAdmin();
+  const maxAcknowledgers = Number(doc.max_acknowledgers ?? 0);
+  const { count, error } = await admin
+    .from("completions")
+    .select("id", { head: true, count: "exact" })
+    .eq("document_id", doc.id)
+    .eq("acknowledged", true);
+
+  if (error) {
+    return { closed: false, error: error.message };
+  }
+  return { closed: (count ?? 0) >= maxAcknowledgers };
 }
 
 export async function GET(
@@ -94,6 +133,15 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const closure = await isClosedForAcknowledgement(doc);
+  if (closure.error) return NextResponse.json({ error: closure.error }, { status: 500 });
+  if (closure.closed) {
+    return NextResponse.json(
+      { error: "This link is closed. It is no longer accepting acknowledgements." },
+      { status: 410 }
+    );
+  }
 
   const requiresPassword = Boolean(doc.password_enabled && doc.password_hash);
   if (!requiresPassword) {
@@ -124,6 +172,15 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const closure = await isClosedForAcknowledgement(doc);
+  if (closure.error) return NextResponse.json({ error: closure.error }, { status: 500 });
+  if (closure.closed) {
+    return NextResponse.json(
+      { error: "This link is closed. It is no longer accepting acknowledgements." },
+      { status: 410 }
+    );
+  }
 
   const requiresPassword = Boolean(doc.password_enabled && doc.password_hash);
   if (!requiresPassword) {

@@ -805,9 +805,9 @@ export default function NewReceipt() {
                     className="p-4"
                     style={{ borderRadius: 14, border: "1px solid var(--border)", background: "var(--card)" }}
                   >
-                    <div className="text-sm font-semibold">Server-side next</div>
+                    <div className="text-sm font-semibold">Server-side enforcement</div>
                     <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      This UI is ready. Once your API enforces closure, the link can hard-stop further acknowledgements.
+                      When the acknowledgement limit is reached, the link is closed and additional acknowledgements are rejected.
                     </div>
                   </div>
                 </div>

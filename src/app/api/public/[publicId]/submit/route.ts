@@ -35,6 +35,13 @@ function isMissingRecipientRequirementColumnError(error: { code?: string; messag
   return String(error.message ?? "").toLowerCase().includes("require_recipient_identity");
 }
 
+function isMissingAcknowledgerLimitColumnError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  const msg = String(error.message ?? "").toLowerCase();
+  return msg.includes("max_acknowledgers") || msg.includes("closed_at");
+}
+
 function isEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
 }
@@ -75,7 +82,9 @@ export async function POST(
   // Resolve document from public_id
   const withPasswordCols = await admin
     .from("documents")
-    .select("id,password_enabled,password_hash,require_recipient_identity")
+    .select(
+      "id,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at"
+    )
     .eq("public_id", publicId)
     .maybeSingle();
 
@@ -84,16 +93,29 @@ export async function POST(
     password_enabled?: boolean | null;
     password_hash?: string | null;
     require_recipient_identity?: boolean | null;
+    max_acknowledgers_enabled?: boolean | null;
+    max_acknowledgers?: number | null;
+    closed_at?: string | null;
   } | null;
   let docErr = withPasswordCols.error;
 
-  if (docErr && (isMissingPasswordColumnError(docErr) || isMissingRecipientRequirementColumnError(docErr))) {
+  if (
+    docErr &&
+    (isMissingPasswordColumnError(docErr) ||
+      isMissingRecipientRequirementColumnError(docErr) ||
+      isMissingAcknowledgerLimitColumnError(docErr))
+  ) {
     const fallback = await admin
       .from("documents")
-      .select("id")
+      .select("id,password_enabled,password_hash,require_recipient_identity")
       .eq("public_id", publicId)
       .maybeSingle();
-    doc = fallback.data as { id: string } | null;
+    doc = fallback.data as {
+      id: string;
+      password_enabled?: boolean | null;
+      password_hash?: string | null;
+      require_recipient_identity?: boolean | null;
+    } | null;
     docErr = fallback.error;
   }
 
@@ -106,6 +128,42 @@ export async function POST(
       { error: "Not found", publicId },
       { status: 404 }
     );
+  }
+
+  const maxAcknowledgersEnabled = Boolean(
+    doc && "max_acknowledgers_enabled" in doc && doc.max_acknowledgers_enabled && (doc.max_acknowledgers ?? 0) > 0
+  );
+  const maxAcknowledgers = maxAcknowledgersEnabled ? Number(doc.max_acknowledgers ?? 0) : 0;
+  const isExplicitlyClosed = Boolean(doc && "closed_at" in doc && doc.closed_at);
+  if (isExplicitlyClosed) {
+    return NextResponse.json(
+      { error: "This link is closed. It is no longer accepting acknowledgements." },
+      { status: 410 }
+    );
+  }
+
+  if (acknowledged && maxAcknowledgersEnabled && maxAcknowledgers > 0) {
+    const { count, error: countErr } = await admin
+      .from("completions")
+      .select("id", { head: true, count: "exact" })
+      .eq("document_id", doc.id)
+      .eq("acknowledged", true);
+    if (countErr) {
+      return NextResponse.json({ error: countErr.message }, { status: 500 });
+    }
+    if ((count ?? 0) >= maxAcknowledgers) {
+      if ("closed_at" in doc) {
+        await admin
+          .from("documents")
+          .update({ closed_at: new Date().toISOString() })
+          .eq("id", doc.id)
+          .is("closed_at", null);
+      }
+      return NextResponse.json(
+        { error: "This link is closed. It is no longer accepting acknowledgements." },
+        { status: 409 }
+      );
+    }
   }
 
   const passwordEnabled = Boolean(doc && "password_enabled" in doc && doc.password_enabled && doc.password_hash);
@@ -172,6 +230,34 @@ export async function POST(
       { error: compErr?.message ?? "Completion insert failed" },
       { status: 500 }
     );
+  }
+
+  if (acknowledged && maxAcknowledgersEnabled && maxAcknowledgers > 0) {
+    const { count, error: countErr } = await admin
+      .from("completions")
+      .select("id", { head: true, count: "exact" })
+      .eq("document_id", doc.id)
+      .eq("acknowledged", true);
+    if (countErr) {
+      return NextResponse.json({ error: countErr.message }, { status: 500 });
+    }
+
+    if ((count ?? 0) > maxAcknowledgers) {
+      await admin.from("completions").delete().eq("id", completion.id);
+      await admin.from("recipients").delete().eq("id", recipient.id);
+      return NextResponse.json(
+        { error: "This link is closed. It is no longer accepting acknowledgements." },
+        { status: 409 }
+      );
+    }
+
+    if ("closed_at" in doc && (count ?? 0) >= maxAcknowledgers) {
+      await admin
+        .from("documents")
+        .update({ closed_at: new Date().toISOString() })
+        .eq("id", doc.id)
+        .is("closed_at", null);
+    }
   }
 
   return NextResponse.json({
