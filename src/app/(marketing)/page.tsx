@@ -106,7 +106,7 @@ export default async function Home({
                 href="/app"
                 className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
               >
-                Open Receipt
+                Get started
               </a>
               <a
                 href="#how"
@@ -121,9 +121,38 @@ export default async function Home({
                 Login
               </a>
             </div>
+            <div className="mt-3 text-xs text-zinc-500 dark:text-zinc-500">
+              No recipient account required.
+            </div>
 
             <div className="mt-8 max-w-xl rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
               Receipt is not an e‑signature tool. It doesn’t give legal advice or assess understanding, it simply records what happened.
+            </div>
+
+            <div className="mt-5 max-w-xl rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="text-[11px] font-semibold tracking-wide text-zinc-500 dark:text-zinc-500">
+                Used for
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {["Legal", "HR", "Compliance", "Operations"].map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
+                Trust signal: service status at{" "}
+                <a
+                  href="https://status.getreceipt.xyz"
+                  className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-900 dark:text-zinc-100 dark:decoration-zinc-600 dark:hover:decoration-zinc-100"
+                >
+                  status.getreceipt.xyz
+                </a>
+                .
+              </div>
             </div>
           </div>
 

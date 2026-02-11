@@ -6,12 +6,14 @@ type PreviewRecord = {
   useCase: string;
   document: string;
   versionHash: string;
+  status: string;
   recipientName: string;
   recipientEmail: string;
   acknowledgedAt: string;
   firstOpened: string;
   scrollDepth: string;
   timeOnPage: string;
+  timeline: { at: string; label: string }[];
 };
 
 const SAMPLE_RECORDS: PreviewRecord[] = [
@@ -19,34 +21,52 @@ const SAMPLE_RECORDS: PreviewRecord[] = [
     useCase: "Residential Conveyancing",
     document: "Client Care Letter - Residential Conveyancing",
     versionHash: "9f2c...a81d",
+    status: "Acknowledged",
     recipientName: "Alex Smith",
     recipientEmail: "alex@client.com",
     acknowledgedAt: "12 Feb 2026, 09:22",
     firstOpened: "09:17",
     scrollDepth: "100%",
     timeOnPage: "4m 32s",
+    timeline: [
+      { at: "09:17", label: "Opened" },
+      { at: "09:19", label: "Reached 50% scroll" },
+      { at: "09:22", label: "Acknowledged" },
+    ],
   },
   {
     useCase: "HR Policy Updates",
     document: "Employee Handbook Update - Remote Work Policy",
     versionHash: "4bc1...77f9",
+    status: "Acknowledged",
     recipientName: "Taylor Johnson",
     recipientEmail: "taylor@company.com",
     acknowledgedAt: "08 Feb 2026, 14:08",
     firstOpened: "13:56",
     scrollDepth: "98%",
     timeOnPage: "6m 11s",
+    timeline: [
+      { at: "13:56", label: "Opened" },
+      { at: "14:01", label: "Reached 75% scroll" },
+      { at: "14:08", label: "Acknowledged" },
+    ],
   },
   {
     useCase: "Vendor Onboarding",
     document: "Supplier Security Requirements - 2026",
     versionHash: "2ad8...c312",
+    status: "Acknowledged",
     recipientName: "Jordan Lee",
     recipientEmail: "jordan@vendor.io",
     acknowledgedAt: "04 Feb 2026, 11:39",
     firstOpened: "11:27",
     scrollDepth: "100%",
     timeOnPage: "5m 03s",
+    timeline: [
+      { at: "11:27", label: "Opened" },
+      { at: "11:31", label: "Reached 100% scroll" },
+      { at: "11:39", label: "Acknowledged" },
+    ],
   },
 ];
 
@@ -118,6 +138,9 @@ export function ReceiptPreview() {
                 {activeRecord.useCase}
               </div>
             </div>
+            <div className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+              {activeRecord.status}
+            </div>
           </div>
 
           <div className="space-y-5 p-6">
@@ -165,8 +188,31 @@ export function ReceiptPreview() {
               <StatPill label="Time on page" value={activeRecord.timeOnPage} />
             </div>
 
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+              <div className="text-[11px] font-semibold tracking-wide text-zinc-500 dark:text-zinc-500">
+                Timeline
+              </div>
+              <div className="mt-3 space-y-2">
+                {activeRecord.timeline.map((event) => (
+                  <div key={`${event.at}-${event.label}`} className="flex items-center gap-3">
+                    <div className="w-11 shrink-0 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
+                      {event.at}
+                    </div>
+                    <div className="h-1.5 w-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500" />
+                    <div className="text-xs text-zinc-700 dark:text-zinc-300">{event.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
               Receipt records observable events (delivery, access, review activity, acknowledgement).
+            </div>
+
+            <div className="flex justify-end">
+              <span className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+                Export PDF record
+              </span>
             </div>
           </div>
         </div>
