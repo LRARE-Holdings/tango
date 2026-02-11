@@ -94,7 +94,11 @@ function Tick() {
 }
 
 function Dash() {
-  return <span className="text-zinc-400 dark:text-zinc-600">,</span>;
+  return (
+    <span className="text-xs font-medium text-zinc-400 dark:text-zinc-600">
+      Not included
+    </span>
+  );
 }
 
 function PlanCard({
@@ -276,8 +280,8 @@ export default function PricingPage() {
             Clear tiers. Real limits.
           </h1>
           <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Receipt records delivery, access, review activity and acknowledgement , and stays
-            intentionally neutral. Pick the tier based on volume and workflow.
+            Receipt records delivery, access, review activity, and acknowledgement, while staying
+            intentionally neutral. Choose the tier that matches your volume and workflow.
           </p>
         </div>
 
@@ -306,7 +310,7 @@ export default function PricingPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
           <PlanCard
             name="Free"
-            description="Low volume, basic sharing. Good for trying it properly."
+            description="For low-volume use and basic sharing."
             priceLine={
               <>
                 £0{" "}
@@ -318,7 +322,7 @@ export default function PricingPage() {
             ctaLabel="Start free"
             ctaHref="/app"
             bullets={[
-              `${DOC_LIMITS.freeTotalPerUser} documents total / user`,
+              `${DOC_LIMITS.freeTotalPerUser} documents total per user`,
               "Link sharing",
               "Delivery + access record",
               "Review activity (time + scroll)",
@@ -326,12 +330,12 @@ export default function PricingPage() {
               "Basic exports",
               "No passwords, no email sending",
             ]}
-            finePrint="After 10 documents, you’ll need a paid plan to create more."
+            finePrint="After 10 documents, upgrade to a paid plan to create more."
           />
 
           <PlanCard
             name="Personal"
-            description="For personal usage and self-managed workflows."
+            description="For solo professionals with self-managed workflows."
             priceLine={
               <>
                 {formatGBP(personal.amount)}{" "}
@@ -343,7 +347,7 @@ export default function PricingPage() {
             ctaLabel={checkoutLoading === "personal" ? "Redirecting…" : "Choose Personal"}
             ctaOnClick={() => goCheckout("personal")}
             bullets={[
-              `${DOC_LIMITS.personalPerMonth} documents / month`,
+              `${DOC_LIMITS.personalPerMonth} documents per month`,
               "Password protection",
               "Send via email",
               "Configurable share options",
@@ -358,7 +362,7 @@ export default function PricingPage() {
 
           <PlanCard
             name="Pro"
-            description="For professionals sending documents regularly."
+            description="For frequent document workflows and higher volume."
             priceLine={
               <>
                 {formatGBP(pro.amount)}{" "}
@@ -371,10 +375,10 @@ export default function PricingPage() {
             ctaOnClick={() => goCheckout("pro")}
             highlight
             bullets={[
-              `${DOC_LIMITS.proPerMonth} documents / month`,
+              `${DOC_LIMITS.proPerMonth} documents per month`,
               "Everything in Personal",
-              "Saved recipients",
-              "Templates / defaults",
+              "Saved recipients list",
+              "Templates and defaults",
               "Audit-friendly exports",
               "Priority support",
             ]}
@@ -391,7 +395,7 @@ export default function PricingPage() {
               Team
             </div>
             <div className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Seats, governance, shared defaults, and scalable volume.
+              Seat-based pricing with governance, shared defaults, and scalable volume.
             </div>
 
             <div className="mt-5">
@@ -427,15 +431,15 @@ export default function PricingPage() {
                 className="mt-3 w-full"
               />
               <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                Documents included: {teamDocs}/month (workspace)
+                Documents included: {teamDocs} per month (workspace)
               </div>
             </div>
 
             <div className="mt-6 space-y-2">
               {[
                 "Everything in Pro",
-                "Workspace + admin roles",
-                "Shared defaults (sharing + branding)",
+                "Workspace and admin roles",
+                "Shared defaults (sharing and branding)",
                 "Team-level export controls",
                 "Governance for multi-user workflows",
               ].map((b) => (
@@ -463,7 +467,8 @@ export default function PricingPage() {
         </div>
 
         <div className="mt-4 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
-          Free trial applies to paid plans only. Your trial starts today and you’ll be charged when it ends unless you cancel in Stripe.
+          Free trial applies to paid plans only. Your trial starts today, and you will be charged
+          when it ends unless you cancel in Stripe.
         </div>
 
         {/* Enterprise */}
@@ -472,8 +477,8 @@ export default function PricingPage() {
             <div className="max-w-2xl">
               <div className="text-lg font-semibold tracking-tight">Enterprise</div>
               <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                Procurement, bespoke terms, security review, and custom governance. We’ll scope
-                and price this properly.
+                Procurement support, bespoke terms, security review, and custom governance. We will
+                scope and price this with you.
               </div>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -504,8 +509,8 @@ export default function PricingPage() {
             Compare plans
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Clear limits, clear capabilities. Receipt records observable events and acknowledgement
-            , not intent or understanding.
+            Clear limits and clear capabilities. Receipt records observable events and
+            acknowledgement, not intent or understanding.
           </p>
         </div>
 
@@ -553,7 +558,7 @@ export default function PricingPage() {
                     {DOC_LIMITS.proPerMonth}/mo
                   </td>
                   <td className="px-4 py-4 text-zinc-700 dark:text-zinc-300">
-                    {DOC_LIMITS.teamBasePerMonth} + {DOC_LIMITS.teamExtraPerSeatPerMonth}/seat /mo
+                    {DOC_LIMITS.teamBasePerMonth} + {DOC_LIMITS.teamExtraPerSeatPerMonth}/seat/mo
                   </td>
                 </tr>
 
@@ -639,7 +644,7 @@ export default function PricingPage() {
 
                 <tr className="border-t border-zinc-200 dark:border-zinc-800">
                   <th scope="row" className="px-4 py-4 font-medium text-zinc-900 dark:text-zinc-100">
-                    Templates / defaults
+                    Templates and defaults
                   </th>
                   <td className="px-4 py-4"><Dash /></td>
                   <td className="px-4 py-4"><Dash /></td>
@@ -649,7 +654,7 @@ export default function PricingPage() {
 
                 <tr className="border-t border-zinc-200 dark:border-zinc-800">
                   <th scope="row" className="px-4 py-4 font-medium text-zinc-900 dark:text-zinc-100">
-                    Team workspace + governance
+                    Team workspace and governance
                   </th>
                   <td className="px-4 py-4"><Dash /></td>
                   <td className="px-4 py-4"><Dash /></td>
@@ -671,7 +676,7 @@ export default function PricingPage() {
                     Default
                   </td>
                   <td className="px-4 py-4 text-zinc-700 dark:text-zinc-300">
-                    Default + customer
+                    Custom branding
                   </td>
                 </tr>
 
@@ -689,7 +694,7 @@ export default function PricingPage() {
                     Advanced
                   </td>
                   <td className="px-4 py-4 text-zinc-700 dark:text-zinc-300">
-                    Advanced + admin
+                    Advanced with admin controls
                   </td>
                 </tr>
               </tbody>
