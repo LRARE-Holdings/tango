@@ -277,7 +277,7 @@ export default function PricingPage() {
             PRICING
           </div>
           <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
-            Clear tiers. Real limits.
+            Simple pricing. Serious proof.
           </h1>
           <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
             Receipt records delivery, access, review activity, and acknowledgement, while staying
