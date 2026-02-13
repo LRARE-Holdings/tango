@@ -10,11 +10,6 @@ type WorkspaceInfo = {
   slug: string | null;
 };
 
-type Viewer = {
-  user_id: string;
-  role: "owner" | "admin" | "member";
-};
-
 type DocItem = {
   id: string;
   title: string;
@@ -55,7 +50,6 @@ export default function WorkspaceDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
-  const [viewer, setViewer] = useState<Viewer | null>(null);
   const [documents, setDocuments] = useState<DocItem[]>([]);
   const [search, setSearch] = useState("");
 
@@ -82,7 +76,6 @@ export default function WorkspaceDocumentsPage() {
         if (!res.ok) throw new Error(json?.error ?? "Failed to load workspace documents");
         if (!alive) return;
         setWorkspace((json?.workspace ?? null) as WorkspaceInfo | null);
-        setViewer((json?.viewer ?? null) as Viewer | null);
         setDocuments((json?.documents ?? []) as DocItem[]);
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
@@ -97,9 +90,6 @@ export default function WorkspaceDocumentsPage() {
       window.clearTimeout(t);
     };
   }, [workspaceIdentifier, search]);
-
-  const idForLinks = workspace?.slug ?? workspaceIdentifier;
-  const canManageSettings = viewer?.role === "owner" || viewer?.role === "admin";
 
   const counts = useMemo(() => {
     const acknowledged = documents.filter((d) => d.status === "Acknowledged").length;
@@ -117,23 +107,8 @@ export default function WorkspaceDocumentsPage() {
             Team document catalogue with search across titles and public IDs.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link
-            href={`/app/workspaces/${idForLinks}/dashboard`}
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-          >
-            Dashboard
-          </Link>
-          {canManageSettings ? (
-            <Link
-              href={`/app/workspaces/${idForLinks}/settings`}
-              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-            >
-              Settings
-            </Link>
-          ) : null}
+        <div className="text-xs uppercase tracking-wide" style={{ color: "var(--muted2)" }}>
+          Workspace Documents
         </div>
       </div>
 

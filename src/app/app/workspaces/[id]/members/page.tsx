@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -151,9 +150,6 @@ export default function WorkspaceMembersPage() {
     }
   }
 
-  const idForLinks = workspace?.slug ?? workspaceIdentifier;
-  const canManageSettings = viewer?.role === "owner" || viewer?.role === "admin";
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
@@ -161,28 +157,10 @@ export default function WorkspaceMembersPage() {
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight truncate">
             {loading ? "Loading…" : workspace?.name ?? "Members"}
           </h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Invite teammates. They’ll receive an email invite via your Supabase template.
-          </p>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          {canManageSettings ? (
-            <Link
-              href={`/app/workspaces/${idForLinks}/settings`}
-              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-            >
-              Settings
-            </Link>
-          ) : null}
-          <Link
-            href={`/app/workspaces/${idForLinks}/branding`}
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-          >
-            Branding
-          </Link>
+        <div className="text-xs uppercase tracking-wide" style={{ color: "var(--muted2)" }}>
+          Team Management
         </div>
       </div>
 

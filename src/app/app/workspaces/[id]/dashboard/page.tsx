@@ -158,8 +158,6 @@ export default function WorkspaceDashboardPage() {
     return "Attention: many documents are pending acknowledgement.";
   }, [data]);
 
-  const idForLinks = data?.workspace?.slug ?? workspaceIdentifier;
-  const canManageSettings = data?.viewer?.role === "owner" || data?.viewer?.role === "admin";
 
   if (loading && !data && !error) {
     return <WorkspaceDashboardLoading />;
@@ -199,24 +197,6 @@ export default function WorkspaceDashboardPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <Link
-            href={`/app/workspaces/${idForLinks}/documents`}
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-          >
-            Documents
-          </Link>
-
-          {canManageSettings ? (
-            <Link
-              href={`/app/workspaces/${idForLinks}/settings`}
-              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-            >
-              Settings
-            </Link>
-          ) : null}
-
           <Link
             href="/app/new"
             className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"

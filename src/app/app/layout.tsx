@@ -8,6 +8,7 @@ import { ToastProvider } from "@/components/toast";
 import { EmailVerificationGate } from "@/components/email-verification-gate";
 import { OnboardingGate } from "@/components/onboarding-gate";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { WorkspaceHeaderMenu } from "@/components/workspace-header-menu";
 
 type MeSummary = {
   email?: string | null;
@@ -115,7 +116,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           }}
         >
           <div className="mx-auto max-w-6xl px-6">
-            <div className="flex items-center justify-between gap-6 py-4">
+            <div className="py-4">
+              <div className="flex items-center justify-between gap-6">
               <div className="flex items-center gap-6">
                 <Link href={dashboardHref} className="flex items-center">
                   <img src="/receipt-logo.svg" alt="Receipt" className="receipt-logo" draggable={false} />
@@ -149,9 +151,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {signingOut ? "Signing out…" : "Sign out"}
                 </button>
 
-                                <PrimaryCta href="/app/new">+</PrimaryCta>
-                                
+                <PrimaryCta href="/app/new">+</PrimaryCta>
               </div>
+            </div>
+              <WorkspaceHeaderMenu />
             </div>
           </div>
         </header>

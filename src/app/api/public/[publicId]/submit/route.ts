@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { accessCookieName, accessTokenFor, readCookie } from "@/lib/public-access";
+import { sendWithResend } from "@/lib/email/resend";
 
 /**
  * Best-effort client IP extraction.
@@ -46,6 +47,72 @@ function isEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
 }
 
+function escapeHtml(v: string) {
+  return v
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatUtc(iso: string) {
+  const d = new Date(iso);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mi = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss} UTC`;
+}
+
+function buildAcknowledgementReceiptEmail(input: {
+  recipientName: string | null;
+  documentTitle: string;
+  timestampUtc: string;
+  publicId: string;
+}) {
+  const intro = input.recipientName ? `Hi ${escapeHtml(input.recipientName)},` : "Hello,";
+  const safeTitle = escapeHtml(input.documentTitle);
+  const safeTimestamp = escapeHtml(input.timestampUtc);
+  const safePublicId = escapeHtml(input.publicId);
+
+  const html = `
+  <div style="margin:0;padding:24px;background:#f7f7f8;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;">
+    <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:24px;">
+      <div style="font-size:11px;letter-spacing:0.08em;color:#666;font-weight:700;">RECEIPT</div>
+      <h1 style="margin:10px 0 0;font-size:20px;line-height:1.3;">Acknowledgement receipt</h1>
+      <p style="margin:14px 0 0;color:#333;font-size:14px;line-height:1.6;">${intro}</p>
+      <p style="margin:10px 0 0;color:#333;font-size:14px;line-height:1.6;">Your acknowledgement has been recorded with the following details:</p>
+      <div style="margin-top:14px;border:1px solid #e5e5e5;border-radius:12px;padding:12px 14px;">
+        <p style="margin:0 0 8px;font-size:13px;color:#555;">Document</p>
+        <p style="margin:0;font-size:15px;font-weight:600;color:#111;">${safeTitle}</p>
+        <p style="margin:12px 0 8px;font-size:13px;color:#555;">Timestamp</p>
+        <p style="margin:0;font-size:14px;color:#111;">${safeTimestamp}</p>
+        <p style="margin:12px 0 8px;font-size:13px;color:#555;">Reference</p>
+        <p style="margin:0;font-size:14px;color:#111;">${safePublicId}</p>
+      </div>
+      <p style="margin:14px 0 0;color:#5f6368;font-size:12px;line-height:1.5;">
+        This email is a confirmation of submission. Keep it for your records.
+      </p>
+    </div>
+  </div>`;
+
+  const text = `${input.recipientName ? `Hi ${input.recipientName},` : "Hello,"}
+
+Your acknowledgement has been recorded.
+
+Document: ${input.documentTitle}
+Timestamp: ${input.timestampUtc}
+Reference: ${input.publicId}
+
+Keep this email for your records.
+`;
+
+  return { html, text };
+}
+
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ publicId: string }> | { publicId: string } }
@@ -83,13 +150,14 @@ export async function POST(
   const withPasswordCols = await admin
     .from("documents")
     .select(
-      "id,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at"
+      "id,title,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at"
     )
     .eq("public_id", publicId)
     .maybeSingle();
 
   let doc = withPasswordCols.data as {
     id: string;
+    title?: string | null;
     password_enabled?: boolean | null;
     password_hash?: string | null;
     require_recipient_identity?: boolean | null;
@@ -107,11 +175,12 @@ export async function POST(
   ) {
     const fallback = await admin
       .from("documents")
-      .select("id,password_enabled,password_hash,require_recipient_identity")
+      .select("id,title,password_enabled,password_hash,require_recipient_identity")
       .eq("public_id", publicId)
       .maybeSingle();
     doc = fallback.data as {
       id: string;
+      title?: string | null;
       password_enabled?: boolean | null;
       password_hash?: string | null;
       require_recipient_identity?: boolean | null;
@@ -209,6 +278,7 @@ export async function POST(
   }
 
   // Create completion record
+  const submittedAt = new Date().toISOString();
   const { data: completion, error: compErr } = await admin
     .from("completions")
     .insert({
@@ -220,7 +290,7 @@ export async function POST(
       active_seconds,
       user_agent,
       ip, // full IP stored intentionally
-      submitted_at: new Date().toISOString(),
+      submitted_at: submittedAt,
     })
     .select("id")
     .single();
@@ -260,8 +330,27 @@ export async function POST(
     }
   }
 
+  let receiptEmailSent = false;
+  if (acknowledged && email && isEmail(email) && process.env.RESEND_API_KEY) {
+    const content = buildAcknowledgementReceiptEmail({
+      recipientName: name,
+      documentTitle: String(doc.title ?? "Document"),
+      timestampUtc: formatUtc(submittedAt),
+      publicId,
+    });
+
+    const result = await sendWithResend({
+      to: email.toLowerCase(),
+      subject: `Acknowledgement receipt: ${String(doc.title ?? "Document")}`,
+      html: content.html,
+      text: content.text,
+    });
+    receiptEmailSent = result.ok;
+  }
+
   return NextResponse.json({
     ok: true,
     completion_id: completion.id,
+    acknowledgement_receipt_email_sent: receiptEmailSent,
   });
 }
