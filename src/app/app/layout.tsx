@@ -7,7 +7,6 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
 import { EmailVerificationGate } from "@/components/email-verification-gate";
 import { OnboardingGate } from "@/components/onboarding-gate";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { WorkspaceHeaderMenu } from "@/components/workspace-header-menu";
 
 type MeSummary = {
@@ -15,18 +14,6 @@ type MeSummary = {
   plan?: string | null;
   primary_workspace_id?: string | null;
 };
-
-function NavItem({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="focus-ring text-sm font-medium transition-opacity hover:opacity-70"
-      style={{ color: "var(--muted)" }}
-    >
-      {children}
-    </Link>
-  );
-}
 
 function PrimaryCta({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -86,7 +73,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const isTeamPlan = String(me?.plan ?? "").toLowerCase() === "team";
   const dashboardHref = me?.primary_workspace_id
     ? `/app/workspaces/${me.primary_workspace_id}/dashboard`
     : "/app";
@@ -125,13 +111,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
 
               <div className="flex items-center gap-3">
-                <nav className="hidden sm:flex items-center gap-4">
-                  <NavItem href={dashboardHref}>Dashboard</NavItem>
-                  <NavItem href="/app/account">Account</NavItem>
-                </nav>
-
-                {isTeamPlan ? <WorkspaceSwitcher /> : null}
-
                 <div className="hidden md:block text-xs" style={{ color: "var(--muted)" }}>
                   {meLoading ? "Loading…" : me?.email ? `Signed in as ${me.email}` : "Session unavailable"}
                 </div>
