@@ -108,9 +108,6 @@ export default function WorkspaceBrandingPage() {
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight truncate">
             {loading ? "Loading…" : workspace?.name ?? "Branding"}
           </h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Team branding v1: logo only. Colours and typography stay fixed.
-          </p>
         </div>
 
         <div className="text-xs uppercase tracking-wide" style={{ color: "var(--muted2)" }}>
