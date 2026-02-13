@@ -69,40 +69,38 @@ export async function GET(
     if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 });
     if (!mem) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    // Workspace basics
-    const { data: workspace, error: wsErr } = await supabase
-      .from("workspaces")
-      .select("id,name,slug,created_at,brand_logo_updated_at")
-      .eq("id", workspaceId)
-      .maybeSingle();
+    // Run independent dashboard queries in parallel to reduce first-byte time.
+    const [workspaceResult, membersResult, invitesResult, docsResult] = await Promise.all([
+      supabase
+        .from("workspaces")
+        .select("id,name,slug,created_at,brand_logo_updated_at")
+        .eq("id", workspaceId)
+        .maybeSingle(),
+      supabase.from("workspace_members").select("*", { count: "exact", head: true }).eq("workspace_id", workspaceId),
+      supabase
+        .from("workspace_invites")
+        .select("*", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .in("status", ["pending", "sent"]),
+      supabase
+        .from("documents")
+        .select("id,title,public_id,created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(40),
+    ]);
 
+    const { data: workspace, error: wsErr } = workspaceResult;
     if (wsErr) return NextResponse.json({ error: wsErr.message }, { status: 500 });
     if (!workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Members count
-    const { count: membersCount, error: mcErr } = await supabase
-      .from("workspace_members")
-      .select("*", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId);
-
+    const { count: membersCount, error: mcErr } = membersResult;
     if (mcErr) return NextResponse.json({ error: mcErr.message }, { status: 500 });
 
-    // Pending invites count (status column assumed; if not present, we fall back to 0)
-    const { count: invitesPendingCount, error: icErr } = await supabase
-      .from("workspace_invites")
-      .select("*", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId)
-      .in("status", ["pending", "sent"]);
-
+    const { count: invitesPendingCount, error: icErr } = invitesResult;
     const safeInvitesPendingCount = icErr ? 0 : (invitesPendingCount ?? 0);
 
-    // Recent documents
-    const { data: docs, error: dErr } = await supabase
-      .from("documents")
-      .select("id,title,public_id,created_at")
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false })
-      .limit(60);
+    const { data: docs, error: dErr } = docsResult;
 
     if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
@@ -126,7 +124,7 @@ export async function GET(
         )
         .in("document_id", docIds)
         .order("submitted_at", { ascending: false })
-        .limit(120);
+        .limit(80);
 
       if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
       completions = comps ?? [];

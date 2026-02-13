@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { WorkspaceDashboardLoading } from "@/components/workspace-dashboard-loading";
 
 type DashboardPayload = {
   workspace: {
@@ -100,7 +101,7 @@ export default function WorkspaceDashboardPage() {
   const workspaceId = typeof params?.id === "string" ? params.id : "";
   const workspaceIdentifier = useMemo(() => workspaceId.trim(), [workspaceId]);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardPayload | null>(null);
 
@@ -159,6 +160,10 @@ export default function WorkspaceDashboardPage() {
 
   const idForLinks = data?.workspace?.slug ?? workspaceIdentifier;
   const canManageSettings = data?.viewer?.role === "owner" || data?.viewer?.role === "admin";
+
+  if (loading && !data && !error) {
+    return <WorkspaceDashboardLoading />;
+  }
 
   return (
     <div className="space-y-6">
@@ -222,9 +227,9 @@ export default function WorkspaceDashboardPage() {
         </div>
       </div>
 
-      {loading && (
+      {loading && data && (
         <div className="text-sm" style={{ color: "var(--muted)" }}>
-          Loading…
+          Refreshing dashboard data…
         </div>
       )}
 
