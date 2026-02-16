@@ -21,6 +21,14 @@ type DocItem = {
   status: "Acknowledged" | "Pending";
 };
 
+type ViewerRole = "owner" | "admin" | "member";
+
+type ResponsibilityMember = {
+  user_id: string;
+  email: string | null;
+  role: ViewerRole;
+};
+
 function formatDate(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -52,6 +60,7 @@ export default function WorkspaceDocumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [documents, setDocuments] = useState<DocItem[]>([]);
+  const [viewerRole, setViewerRole] = useState<ViewerRole>("member");
   const [search, setSearch] = useState("");
   const [sourceType, setSourceType] = useState<DocumentSourceType>("upload");
   const [title, setTitle] = useState("");
@@ -59,7 +68,16 @@ export default function WorkspaceDocumentsPage() {
   const [cloudFileUrl, setCloudFileUrl] = useState("");
   const [cloudFileId, setCloudFileId] = useState("");
   const [cloudRevisionId, setCloudRevisionId] = useState("");
+  const [cloudAccessToken, setCloudAccessToken] = useState("");
   const [creating, setCreating] = useState(false);
+  const [ownershipDoc, setOwnershipDoc] = useState<DocItem | null>(null);
+  const [ownershipLoading, setOwnershipLoading] = useState(false);
+  const [ownershipSaving, setOwnershipSaving] = useState(false);
+  const [ownershipError, setOwnershipError] = useState<string | null>(null);
+  const [ownershipMembers, setOwnershipMembers] = useState<ResponsibilityMember[]>([]);
+  const [ownershipSelectedUserIds, setOwnershipSelectedUserIds] = useState<string[]>([]);
+  const [ownershipOwnerUserId, setOwnershipOwnerUserId] = useState<string | null>(null);
+  const [ownershipCanManage, setOwnershipCanManage] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -85,6 +103,7 @@ export default function WorkspaceDocumentsPage() {
         if (!alive) return;
         setWorkspace((json?.workspace ?? null) as WorkspaceInfo | null);
         setDocuments((json?.documents ?? []) as DocItem[]);
+        setViewerRole((json?.viewer?.role ?? "member") as ViewerRole);
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -129,6 +148,7 @@ export default function WorkspaceDocumentsPage() {
         form.append("cloud_file_url", cloudFileUrl.trim());
         form.append("cloud_file_id", cloudFileId.trim());
         form.append("cloud_revision_id", cloudRevisionId.trim());
+        form.append("cloud_access_token", cloudAccessToken.trim());
       }
 
       const res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
@@ -140,6 +160,7 @@ export default function WorkspaceDocumentsPage() {
       setCloudFileUrl("");
       setCloudFileId("");
       setCloudRevisionId("");
+      setCloudAccessToken("");
       const q = search.trim();
       const qs = q ? `?q=${encodeURIComponent(q)}` : "";
       const docsRes = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/documents${qs}`, {
@@ -158,6 +179,70 @@ export default function WorkspaceDocumentsPage() {
     const acknowledged = documents.filter((d) => d.status === "Acknowledged").length;
     return { total: documents.length, acknowledged, pending: documents.length - acknowledged };
   }, [documents]);
+
+  async function openOwnership(doc: DocItem) {
+    setOwnershipDoc(doc);
+    setOwnershipLoading(true);
+    setOwnershipSaving(false);
+    setOwnershipError(null);
+    setOwnershipMembers([]);
+    setOwnershipSelectedUserIds([]);
+    setOwnershipOwnerUserId(null);
+    setOwnershipCanManage(false);
+    try {
+      const res = await fetch(`/api/app/documents/${doc.id}/responsibilities`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to load ownership settings.");
+
+      const members = (json?.members ?? []) as ResponsibilityMember[];
+      const selected = ((json?.responsibilities ?? []) as Array<{ user_id: string }>).map((r) => String(r.user_id));
+      setOwnershipMembers(members);
+      setOwnershipSelectedUserIds(selected);
+      setOwnershipOwnerUserId(typeof json?.owner_user_id === "string" ? json.owner_user_id : null);
+      setOwnershipCanManage(Boolean(json?.can_manage));
+    } catch (e: unknown) {
+      setOwnershipError(e instanceof Error ? e.message : "Failed to load ownership settings.");
+    } finally {
+      setOwnershipLoading(false);
+    }
+  }
+
+  function closeOwnership() {
+    setOwnershipDoc(null);
+    setOwnershipLoading(false);
+    setOwnershipSaving(false);
+    setOwnershipError(null);
+    setOwnershipMembers([]);
+    setOwnershipSelectedUserIds([]);
+    setOwnershipOwnerUserId(null);
+    setOwnershipCanManage(false);
+  }
+
+  function toggleOwnershipUser(userId: string) {
+    setOwnershipSelectedUserIds((list) =>
+      list.includes(userId) ? list.filter((x) => x !== userId) : [...list, userId]
+    );
+  }
+
+  async function saveOwnership() {
+    if (!ownershipDoc) return;
+    setOwnershipSaving(true);
+    setOwnershipError(null);
+    try {
+      const res = await fetch(`/api/app/documents/${ownershipDoc.id}/responsibilities`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user_ids: ownershipSelectedUserIds }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save ownership settings.");
+      closeOwnership();
+    } catch (e: unknown) {
+      setOwnershipError(e instanceof Error ? e.message : "Failed to save ownership settings.");
+    } finally {
+      setOwnershipSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -217,11 +302,12 @@ export default function WorkspaceDocumentsPage() {
         <DocumentSourceChooser
           sourceType={sourceType}
           onSourceTypeChange={setSourceType}
-          cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId }}
+          cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId, accessToken: cloudAccessToken }}
           onCloudChange={(patch) => {
             if (typeof patch.fileUrl === "string") setCloudFileUrl(patch.fileUrl);
             if (typeof patch.fileId === "string") setCloudFileId(patch.fileId);
             if (typeof patch.revisionId === "string") setCloudRevisionId(patch.revisionId);
+            if (typeof patch.accessToken === "string") setCloudAccessToken(patch.accessToken);
           }}
           disabled={creating}
         />
@@ -292,6 +378,16 @@ export default function WorkspaceDocumentsPage() {
                   </div>
 
                   <div className="flex gap-2">
+                    {(viewerRole === "owner" || viewerRole === "admin") ? (
+                      <button
+                        type="button"
+                        onClick={() => void openOwnership(d)}
+                        className="focus-ring px-3 py-2 text-sm hover:opacity-80"
+                        style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
+                      >
+                        Ownership
+                      </button>
+                    ) : null}
                     <Link
                       href={`/app/docs/${d.id}`}
                       className="focus-ring px-3 py-2 text-sm hover:opacity-80"
@@ -313,6 +409,79 @@ export default function WorkspaceDocumentsPage() {
           </div>
         </div>
       )}
+
+      {ownershipDoc ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
+          <div
+            className="w-full max-w-xl border p-5 md:p-6"
+            style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
+          >
+            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+              CROSS-OWNERSHIP
+            </div>
+            <h3 className="mt-1 text-lg font-semibold">{ownershipDoc.title}</h3>
+            <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+              Assign shared responsibility across team members to maintain department coverage.
+            </div>
+
+            {ownershipLoading ? (
+              <div className="mt-4 text-sm" style={{ color: "var(--muted)" }}>
+                Loading ownership settings…
+              </div>
+            ) : (
+              <div className="mt-4 max-h-64 overflow-auto space-y-2">
+                {ownershipMembers.map((m) => {
+                  const isDocumentOwner = ownershipOwnerUserId === m.user_id;
+                  const checked = isDocumentOwner || ownershipSelectedUserIds.includes(m.user_id);
+                  return (
+                    <label key={m.user_id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleOwnershipUser(m.user_id)}
+                        disabled={!ownershipCanManage || isDocumentOwner || ownershipSaving}
+                      />
+                      <span>{m.email ?? m.user_id}</span>
+                      <span className="text-xs" style={{ color: "var(--muted2)" }}>
+                        ({m.role}{isDocumentOwner ? ", owner" : ""})
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {ownershipError ? (
+              <div className="mt-3 text-sm" style={{ color: "#ff3b30" }}>
+                {ownershipError}
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeOwnership}
+                disabled={ownershipSaving}
+                className="focus-ring px-4 py-2 text-sm hover:opacity-90 disabled:opacity-50"
+                style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
+              >
+                Close
+              </button>
+              {ownershipCanManage ? (
+                <button
+                  type="button"
+                  onClick={() => void saveOwnership()}
+                  disabled={ownershipSaving || ownershipLoading}
+                  className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                  style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+                >
+                  {ownershipSaving ? "Saving…" : "Save ownership"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

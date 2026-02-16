@@ -85,20 +85,39 @@ async function loadVersionBuffer(form: FormData, sourceType: SourceType) {
   const sourceUrl = String(form.get("cloud_file_url") ?? "").trim();
   const sourceFileId = String(form.get("cloud_file_id") ?? "").trim();
   const sourceRevisionId = String(form.get("cloud_revision_id") ?? "").trim();
-  if (!sourceUrl) throw new Error("Cloud source URL is required.");
+  const sourceAccessToken = String(form.get("cloud_access_token") ?? "").trim();
+  let res: Response | null = null;
 
-  let parsed: URL;
-  try {
-    parsed = new URL(sourceUrl);
-  } catch {
-    throw new Error("Cloud source URL is invalid.");
+  if (sourceAccessToken && sourceFileId) {
+    const providerUrl =
+      sourceType === "google_drive"
+        ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(sourceFileId)}?alt=media`
+        : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(sourceFileId)}/content`;
+    res = await fetch(providerUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${sourceAccessToken}` },
+    });
   }
-  if (parsed.protocol !== "https:") throw new Error("Cloud source URL must use HTTPS.");
 
-  const res = await fetch(sourceUrl, { method: "GET", cache: "no-store" });
+  if (!res) {
+    if (!sourceUrl) throw new Error("Cloud source URL is required.");
+
+    let parsed: URL;
+    try {
+      parsed = new URL(sourceUrl);
+    } catch {
+      throw new Error("Cloud source URL is invalid.");
+    }
+    if (parsed.protocol !== "https:") throw new Error("Cloud source URL must use HTTPS.");
+    res = await fetch(sourceUrl, { method: "GET", cache: "no-store" });
+  }
+
   if (!res.ok) throw new Error(`Could not download cloud file (${res.status}).`);
   const contentType = String(res.headers.get("content-type") ?? "").toLowerCase();
-  if (!contentType.includes("application/pdf")) throw new Error("Cloud source must resolve to a PDF file.");
+  if (contentType && !contentType.includes("application/pdf") && !contentType.includes("octet-stream")) {
+    throw new Error("Cloud source must resolve to a PDF file.");
+  }
   const buffer = Buffer.from(await res.arrayBuffer());
   if (buffer.byteLength > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
 

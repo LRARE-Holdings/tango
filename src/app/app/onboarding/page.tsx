@@ -18,6 +18,7 @@ export default function OnboardingDocumentsPage() {
   const [cloudFileUrl, setCloudFileUrl] = useState("");
   const [cloudFileId, setCloudFileId] = useState("");
   const [cloudRevisionId, setCloudRevisionId] = useState("");
+  const [cloudAccessToken, setCloudAccessToken] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +65,7 @@ export default function OnboardingDocumentsPage() {
         form.append("cloud_file_url", cloudFileUrl.trim());
         form.append("cloud_file_id", cloudFileId.trim());
         form.append("cloud_revision_id", cloudRevisionId.trim());
+        form.append("cloud_access_token", cloudAccessToken.trim());
       }
 
       const res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
@@ -77,6 +79,7 @@ export default function OnboardingDocumentsPage() {
       setCloudFileUrl("");
       setCloudFileId("");
       setCloudRevisionId("");
+      setCloudAccessToken("");
       await loadDocs();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -116,11 +119,12 @@ export default function OnboardingDocumentsPage() {
           <DocumentSourceChooser
             sourceType={sourceType}
             onSourceTypeChange={setSourceType}
-            cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId }}
+            cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId, accessToken: cloudAccessToken }}
             onCloudChange={(patch) => {
               if (typeof patch.fileUrl === "string") setCloudFileUrl(patch.fileUrl);
               if (typeof patch.fileId === "string") setCloudFileId(patch.fileId);
               if (typeof patch.revisionId === "string") setCloudRevisionId(patch.revisionId);
+              if (typeof patch.accessToken === "string") setCloudAccessToken(patch.accessToken);
             }}
             disabled={loading}
           />
@@ -196,4 +200,3 @@ export default function OnboardingDocumentsPage() {
     </div>
   );
 }
-

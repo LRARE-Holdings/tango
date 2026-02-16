@@ -136,6 +136,7 @@ export default function DocDetailPage({
   const [versionCloudFileUrl, setVersionCloudFileUrl] = useState("");
   const [versionCloudFileId, setVersionCloudFileId] = useState("");
   const [versionCloudRevisionId, setVersionCloudRevisionId] = useState("");
+  const [versionCloudAccessToken, setVersionCloudAccessToken] = useState("");
   const [versionUploading, setVersionUploading] = useState(false);
   const [versionError, setVersionError] = useState<string | null>(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -374,6 +375,7 @@ export default function DocDetailPage({
         form.append("cloud_file_url", versionCloudFileUrl.trim());
         form.append("cloud_file_id", versionCloudFileId.trim());
         form.append("cloud_revision_id", versionCloudRevisionId.trim());
+        form.append("cloud_access_token", versionCloudAccessToken.trim());
       }
 
       const res = await fetch(`/api/app/documents/${id}/versions`, {
@@ -391,6 +393,7 @@ export default function DocDetailPage({
       setVersionCloudFileUrl("");
       setVersionCloudFileId("");
       setVersionCloudRevisionId("");
+      setVersionCloudAccessToken("");
 
       const [docRes, versionsRes] = await Promise.all([
         fetch(`/api/app/documents/${id}`, { cache: "no-store" }),
@@ -1257,11 +1260,13 @@ export default function DocDetailPage({
                   fileUrl: versionCloudFileUrl,
                   fileId: versionCloudFileId,
                   revisionId: versionCloudRevisionId,
+                  accessToken: versionCloudAccessToken,
                 }}
                 onCloudChange={(patch) => {
                   if (typeof patch.fileUrl === "string") setVersionCloudFileUrl(patch.fileUrl);
                   if (typeof patch.fileId === "string") setVersionCloudFileId(patch.fileId);
                   if (typeof patch.revisionId === "string") setVersionCloudRevisionId(patch.revisionId);
+                  if (typeof patch.accessToken === "string") setVersionCloudAccessToken(patch.accessToken);
                 }}
                 disabled={versionUploading}
               />

@@ -277,6 +277,7 @@ export default function NewReceipt() {
   const [cloudFileUrl, setCloudFileUrl] = useState("");
   const [cloudFileId, setCloudFileId] = useState("");
   const [cloudRevisionId, setCloudRevisionId] = useState("");
+  const [cloudAccessToken, setCloudAccessToken] = useState("");
 
   const [maxAcknowledgersEnabled, setMaxAcknowledgersEnabled] = useState(true);
   const [maxAcknowledgers, setMaxAcknowledgers] = useState<number>(1);
@@ -409,6 +410,7 @@ export default function NewReceipt() {
         form.append("cloud_file_url", cloudFileUrl.trim());
         form.append("cloud_file_id", cloudFileId.trim());
         form.append("cloud_revision_id", cloudRevisionId.trim());
+        form.append("cloud_access_token", cloudAccessToken.trim());
       }
       form.append("send_emails", String(sendEmails && personalPlus));
       form.append("recipients", JSON.stringify(configuredRecipients));
@@ -438,6 +440,7 @@ export default function NewReceipt() {
       } else {
         toast.success("Created", "Your link is ready.");
       }
+      setCloudAccessToken("");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       setError(msg);
@@ -505,22 +508,9 @@ export default function NewReceipt() {
       >
         <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
-              PREMIUM CREATION FLOW
-            </div>
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Create New Receipt Link</h1>
-              <Pill>{plan.toUpperCase()}</Pill>
-              <Pill>{primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE"}</Pill>
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Create New Receipt</h1>
             </div>
-            <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-              Start with the document source. Once attached, every advanced control appears below.
-            </p>
-            {meEmail ? (
-              <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                Signed in as {meEmail}
-              </div>
-            ) : null}
           </div>
 
           <div className="flex gap-2">
@@ -556,11 +546,12 @@ export default function NewReceipt() {
               <DocumentSourceChooser
                 sourceType={sourceType}
                 onSourceTypeChange={setSourceType}
-                cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId }}
+                cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId, accessToken: cloudAccessToken }}
                 onCloudChange={(patch) => {
                   if (typeof patch.fileUrl === "string") setCloudFileUrl(patch.fileUrl);
                   if (typeof patch.fileId === "string") setCloudFileId(patch.fileId);
                   if (typeof patch.revisionId === "string") setCloudRevisionId(patch.revisionId);
+                  if (typeof patch.accessToken === "string") setCloudAccessToken(patch.accessToken);
                 }}
                 disabled={loading}
               />

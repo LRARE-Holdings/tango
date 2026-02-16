@@ -140,24 +140,41 @@ async function loadFileForSource(form: FormData, sourceType: SourceType) {
   const sourceUrl = String(form.get("cloud_file_url") ?? "").trim();
   const sourceFileId = String(form.get("cloud_file_id") ?? "").trim();
   const sourceRevisionId = String(form.get("cloud_revision_id") ?? "").trim();
+  const sourceAccessToken = String(form.get("cloud_access_token") ?? "").trim();
+  let res: Response | null = null;
 
-  if (!sourceUrl) {
-    throw new Error("Cloud source URL is required.");
+  if (sourceAccessToken && sourceFileId) {
+    const providerUrl =
+      sourceType === "google_drive"
+        ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(sourceFileId)}?alt=media`
+        : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(sourceFileId)}/content`;
+    res = await fetch(providerUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${sourceAccessToken}` },
+    });
   }
 
-  let url: URL;
-  try {
-    url = new URL(sourceUrl);
-  } catch {
-    throw new Error("Cloud source URL is invalid.");
-  }
-  if (url.protocol !== "https:") throw new Error("Cloud source URL must use HTTPS.");
+  if (!res) {
+    if (!sourceUrl) {
+      throw new Error("Cloud source URL is required.");
+    }
 
-  const res = await fetch(sourceUrl, { method: "GET", cache: "no-store" });
+    let url: URL;
+    try {
+      url = new URL(sourceUrl);
+    } catch {
+      throw new Error("Cloud source URL is invalid.");
+    }
+    if (url.protocol !== "https:") throw new Error("Cloud source URL must use HTTPS.");
+
+    res = await fetch(sourceUrl, { method: "GET", cache: "no-store" });
+  }
+
   if (!res.ok) throw new Error(`Could not download cloud file (${res.status}).`);
 
   const contentType = String(res.headers.get("content-type") ?? "").toLowerCase();
-  if (!contentType.includes("application/pdf")) {
+  if (contentType && !contentType.includes("application/pdf") && !contentType.includes("octet-stream")) {
     throw new Error("Cloud source must resolve to a PDF file.");
   }
 
