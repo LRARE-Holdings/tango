@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { UiButton, UiInput, UiModal, UiPanel, UiSectionCaption } from "@/components/ui/system";
 
 type WorkspaceInfo = {
   id: string;
@@ -254,51 +255,44 @@ export default function WorkspaceDocumentsPage() {
         </div>
       </div>
 
-      <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+      <UiPanel className="p-4">
         <div className="flex items-center justify-between gap-3 flex-col sm:flex-row">
-          <input
+          <UiInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Search title or public ID…"
-            className="focus-ring w-full sm:w-[440px] border px-4 py-3 text-sm bg-transparent"
-            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+            className="sm:w-[440px] px-4 py-3"
           />
           <div className="text-xs" style={{ color: "var(--muted2)" }}>
             {counts.total} total • {counts.pending} pending • {counts.acknowledged} acknowledged
           </div>
         </div>
-      </div>
+      </UiPanel>
 
-      <div className="border p-4 space-y-3" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-        <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-          ADD DOCUMENT
-        </div>
-        <input
+      <UiPanel className="space-y-3 p-4">
+        <UiSectionCaption>ADD DOCUMENT</UiSectionCaption>
+        <UiInput
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={setTitle}
           placeholder="e.g. Employee onboarding pack"
-          className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-          style={{ borderColor: "var(--border)", borderRadius: 10 }}
         />
         <input
           type="file"
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-          style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          className="focus-ring w-full rounded-xl border bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--fg)] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[var(--bg)]"
+          style={{ borderColor: "var(--border)" }}
         />
         <div>
-          <button
-            type="button"
+          <UiButton
             onClick={() => void createDocument()}
             disabled={creating}
-            className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+            variant="primary"
           >
             {creating ? "Creating…" : "Create document"}
-          </button>
+          </UiButton>
         </div>
-      </div>
+      </UiPanel>
 
       {loading && <div className="text-sm" style={{ color: "var(--muted)" }}>Loading…</div>}
 
@@ -378,11 +372,7 @@ export default function WorkspaceDocumentsPage() {
       )}
 
       {ownershipDoc ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
-          <div
-            className="w-full max-w-xl border p-5 md:p-6"
-            style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
-          >
+        <UiModal className="max-w-xl rounded-xl">
             <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
               CROSS-OWNERSHIP
             </div>
@@ -425,29 +415,23 @@ export default function WorkspaceDocumentsPage() {
             ) : null}
 
             <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
+              <UiButton
                 onClick={closeOwnership}
                 disabled={ownershipSaving}
-                className="focus-ring px-4 py-2 text-sm hover:opacity-90 disabled:opacity-50"
-                style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
               >
                 Close
-              </button>
+              </UiButton>
               {ownershipCanManage ? (
-                <button
-                  type="button"
+                <UiButton
                   onClick={() => void saveOwnership()}
                   disabled={ownershipSaving || ownershipLoading}
-                  className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-                  style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+                  variant="primary"
                 >
                   {ownershipSaving ? "Saving…" : "Save ownership"}
-                </button>
+                </UiButton>
               ) : null}
             </div>
-          </div>
-        </div>
+        </UiModal>
       ) : null}
     </div>
   );

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { UiButton, UiInput, UiPanel, UiSectionCaption } from "@/components/ui/system";
 
 type DocItem = {
   id: string;
@@ -87,34 +88,32 @@ export default function OnboardingDocumentsPage() {
         </Link>
       </div>
 
-      <div className="border p-5" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+      <UiPanel className="p-5">
         <div className="grid grid-cols-1 gap-3">
-          <input
+          <UiInput
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={setTitle}
             placeholder="e.g. Employee Handbook v1"
-            className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-            style={{ borderColor: "var(--border)", borderRadius: 10 }}
           />
+
+          <UiSectionCaption>UPLOAD DOCUMENT</UiSectionCaption>
 
           <input
             type="file"
             accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+            className="focus-ring w-full rounded-xl border bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--fg)] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[var(--bg)]"
+            style={{ borderColor: "var(--border)" }}
           />
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
+            <UiButton
               onClick={() => void createDocument()}
               disabled={loading}
-              className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-              style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+              variant="primary"
             >
               {loading ? "Creating…" : "Create onboarding document"}
-            </button>
+            </UiButton>
           </div>
 
           {error ? (
@@ -131,7 +130,7 @@ export default function OnboardingDocumentsPage() {
             </div>
           ) : null}
         </div>
-      </div>
+      </UiPanel>
 
       <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
         <div className="px-4 py-3 text-xs tracking-wide" style={{ color: "var(--muted2)", background: "var(--card2)" }}>

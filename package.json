@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "qa:static": "npm run lint && npm run build",
+    "qa:smoke": "node scripts/qa/smoke.mjs",
+    "qa:full": "npm run qa:static && npm run qa:smoke",
+    "release:verify-env": "node scripts/release/verify-env.mjs"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",

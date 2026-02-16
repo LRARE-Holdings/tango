@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
+import { UiModal, UiPanel, UiSectionCaption } from "@/components/ui/system";
 
 type Recipient = {
   id: string;
@@ -102,17 +103,6 @@ function StatusPill({ status }: { status: Doc["status"] }) {
     >
       {status.toUpperCase()}
     </span>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="rounded-3xl border p-6 md:p-8"
-      style={{ borderColor: "var(--border)", background: "var(--card)" }}
-    >
-      {children}
-    </div>
   );
 }
 
@@ -634,12 +624,12 @@ export default function DocDetailPage({
       )}
 
       {error && (
-        <Card>
+        <UiPanel className="rounded-3xl p-6 md:p-8">
           <div className="text-sm font-semibold">Couldn’t load document</div>
           <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
             {error}
           </div>
-        </Card>
+        </UiPanel>
       )}
 
       {!loading && !error && doc && (
@@ -676,9 +666,9 @@ export default function DocDetailPage({
           </div>
 
           {activeTab === "summary" && (
-            <div className="pt-1">
-              <div className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-                Document summary...
+            <div className="space-y-3 pt-1">
+              <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                SUMMARY
               </div>
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="border p-4" style={{ borderColor: "var(--border)" }}>
@@ -976,12 +966,12 @@ export default function DocDetailPage({
               </div>
 
               {completions.length === 0 ? (
-                <Card>
+                <UiPanel className="rounded-3xl p-6 md:p-8">
                   <div className="text-sm font-semibold">No acknowledgements yet</div>
                   <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
                     Share the link to collect a Receipt Record.
                   </div>
-                </Card>
+                </UiPanel>
               ) : (
                 <div className="space-y-3">
                   {completions.map((c) => {
@@ -1095,17 +1085,8 @@ export default function DocDetailPage({
       )}
 
       {showNotifyModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "var(--bg)" }}
-        >
-          <div
-            className="w-full max-w-xl rounded-2xl border p-5 md:p-6"
-            style={{ borderColor: "var(--border)", background: "var(--card)" }}
-          >
-            <div className="text-xs tracking-widest" style={{ color: "var(--muted2)" }}>
-              NEW VERSION
-            </div>
+        <UiModal className="max-w-xl">
+            <UiSectionCaption>NEW VERSION</UiSectionCaption>
             <h3 className="mt-2 text-lg font-semibold">Who should receive the version notification?</h3>
             <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
               {notifyVersionNumber ? `Version v${notifyVersionNumber} has been created.` : "A new version has been created."}
@@ -1198,22 +1179,12 @@ export default function DocDetailPage({
                 {notifySending ? "Sending…" : "Send notifications"}
               </button>
             </div>
-          </div>
-        </div>
+        </UiModal>
       )}
 
       {showVersionModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "var(--bg)" }}
-        >
-          <div
-            className="w-full max-w-2xl rounded-2xl border p-5 md:p-6"
-            style={{ borderColor: "var(--border)", background: "var(--card)" }}
-          >
-            <div className="text-xs tracking-widest" style={{ color: "var(--muted2)" }}>
-              NEW VERSION
-            </div>
+        <UiModal className="max-w-2xl">
+            <UiSectionCaption>NEW VERSION</UiSectionCaption>
             <h3 className="mt-2 text-lg font-semibold">Create a new version</h3>
 
             <div className="mt-4 space-y-3">
@@ -1269,8 +1240,7 @@ export default function DocDetailPage({
                 {versionUploading ? "Uploading…" : "Create version"}
               </button>
             </div>
-          </div>
-        </div>
+        </UiModal>
       )}
     </div>
   );
