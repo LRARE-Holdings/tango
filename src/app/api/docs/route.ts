@@ -7,6 +7,24 @@ import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
 import { sendWithResend } from "@/lib/email/resend";
 
 const MAX_MB = 20;
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function resolveUploadMeta(file: File) {
+  const name = (file.name || "").trim() || "upload";
+  const lowerName = name.toLowerCase();
+  const type = String(file.type ?? "").toLowerCase();
+
+  const isPdf = type === "application/pdf" || lowerName.endsWith(".pdf");
+  const isDocx = type === DOCX_MIME || lowerName.endsWith(".docx");
+  if (!isPdf && !isDocx) {
+    throw new Error("Only PDF or DOCX files are supported.");
+  }
+
+  return {
+    ext: isDocx ? "docx" : "pdf",
+    contentType: isDocx ? DOCX_MIME : "application/pdf",
+  };
+}
 
 function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Server error";
@@ -142,12 +160,10 @@ export async function POST(req: Request) {
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
     }
-    if (file.type !== "application/pdf") {
-      return NextResponse.json({ error: "PDFs only" }, { status: 400 });
-    }
     if (file.size > MAX_MB * 1024 * 1024) {
       return NextResponse.json({ error: `Max file size is ${MAX_MB}MB` }, { status: 400 });
     }
+    const uploadMeta = resolveUploadMeta(file);
     if (passwordEnabledRaw && !isPasswordStrongEnough(passwordRaw)) {
       return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
     }
@@ -292,7 +308,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertErr?.message ?? "Insert failed" }, { status: 500 });
     }
 
-    // 2) Upload PDF to Storage
+    // 2) Upload file to Storage
     const arrayBuffer = await file.arrayBuffer();
     const buf = Buffer.from(arrayBuffer);
 
@@ -300,13 +316,13 @@ export async function POST(req: Request) {
     const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
 
     // Path convention: keep it simple for now.
-    // Later: consider docs/{userId}/{docId}.pdf and enforce Storage RLS.
-    const file_path = `public/${doc.id}.pdf`;
+    // Later: consider docs/{userId}/{docId} and enforce Storage RLS.
+    const file_path = `public/${doc.id}.${uploadMeta.ext}`;
 
     const { error: uploadErr } = await admin.storage
       .from("docs")
       .upload(file_path, buf, {
-        contentType: "application/pdf",
+        contentType: uploadMeta.contentType,
         upsert: false,
       });
 
@@ -378,6 +394,8 @@ export async function POST(req: Request) {
       },
     });
   } catch (e: unknown) {
-    return NextResponse.json({ error: errMessage(e) }, { status: 500 });
+    const msg = errMessage(e);
+    const status = /missing file|pdf|docx|max file size/i.test(msg) ? 400 : 500;
+    return NextResponse.json({ error: msg }, { status });
   }
 }

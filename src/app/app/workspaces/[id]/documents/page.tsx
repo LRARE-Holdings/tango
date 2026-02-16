@@ -65,10 +65,6 @@ export default function WorkspaceDocumentsPage() {
   const [sourceType, setSourceType] = useState<DocumentSourceType>("upload");
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [cloudFileUrl, setCloudFileUrl] = useState("");
-  const [cloudFileId, setCloudFileId] = useState("");
-  const [cloudRevisionId, setCloudRevisionId] = useState("");
-  const [cloudAccessToken, setCloudAccessToken] = useState("");
   const [creating, setCreating] = useState(false);
   const [ownershipDoc, setOwnershipDoc] = useState<DocItem | null>(null);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
@@ -122,12 +118,8 @@ export default function WorkspaceDocumentsPage() {
     if (creating) return;
     setError(null);
 
-    if (sourceType === "upload" && !file) {
-      setError("Choose a PDF file.");
-      return;
-    }
-    if (sourceType !== "upload" && !cloudFileUrl.trim()) {
-      setError("Cloud URL is required.");
+    if (!file) {
+      setError("Choose a PDF or DOCX file.");
       return;
     }
 
@@ -142,13 +134,8 @@ export default function WorkspaceDocumentsPage() {
       form.append("password_enabled", "false");
       form.append("max_acknowledgers_enabled", "false");
       form.append("max_acknowledgers", "0");
-      if (sourceType === "upload" && file) {
+      if (file) {
         form.append("file", file);
-      } else {
-        form.append("cloud_file_url", cloudFileUrl.trim());
-        form.append("cloud_file_id", cloudFileId.trim());
-        form.append("cloud_revision_id", cloudRevisionId.trim());
-        form.append("cloud_access_token", cloudAccessToken.trim());
       }
 
       const res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
@@ -157,10 +144,6 @@ export default function WorkspaceDocumentsPage() {
 
       setTitle("");
       setFile(null);
-      setCloudFileUrl("");
-      setCloudFileId("");
-      setCloudRevisionId("");
-      setCloudAccessToken("");
       const q = search.trim();
       const qs = q ? `?q=${encodeURIComponent(q)}` : "";
       const docsRes = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/documents${qs}`, {
@@ -302,24 +285,15 @@ export default function WorkspaceDocumentsPage() {
         <DocumentSourceChooser
           sourceType={sourceType}
           onSourceTypeChange={setSourceType}
-          cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId, accessToken: cloudAccessToken }}
-          onCloudChange={(patch) => {
-            if (typeof patch.fileUrl === "string") setCloudFileUrl(patch.fileUrl);
-            if (typeof patch.fileId === "string") setCloudFileId(patch.fileId);
-            if (typeof patch.revisionId === "string") setCloudRevisionId(patch.revisionId);
-            if (typeof patch.accessToken === "string") setCloudAccessToken(patch.accessToken);
-          }}
           disabled={creating}
         />
-        {sourceType === "upload" ? (
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-            style={{ borderColor: "var(--border)", borderRadius: 10 }}
-          />
-        ) : null}
+        <input
+          type="file"
+          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+          style={{ borderColor: "var(--border)", borderRadius: 10 }}
+        />
         <div>
           <button
             type="button"

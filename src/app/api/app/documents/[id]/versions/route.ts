@@ -3,8 +3,9 @@ import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 
-type SourceType = "upload" | "google_drive" | "microsoft_graph";
+type SourceType = "upload";
 const MAX_MB = 20;
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 type DocumentAccessRow = {
   id: string;
@@ -68,60 +69,29 @@ async function resolveDocumentForUser(documentId: string, userId: string) {
   return { allowed: true as const, doc };
 }
 
-async function loadVersionBuffer(form: FormData, sourceType: SourceType) {
-  if (sourceType === "upload") {
-    const file = form.get("file");
-    if (!(file instanceof File)) throw new Error("Missing file");
-    if (file.type !== "application/pdf") throw new Error("PDFs only");
-    if (file.size > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
-    return {
-      buffer: Buffer.from(await file.arrayBuffer()),
-      sourceFileId: "",
-      sourceRevisionId: "",
-      sourceUrl: "",
-    };
+function resolveUploadMeta(file: File) {
+  const name = (file.name || "").trim() || "upload";
+  const lowerName = name.toLowerCase();
+  const type = String(file.type ?? "").toLowerCase();
+
+  const isPdf = type === "application/pdf" || lowerName.endsWith(".pdf");
+  const isDocx = type === DOCX_MIME || lowerName.endsWith(".docx");
+  if (!isPdf && !isDocx) {
+    throw new Error("Only PDF or DOCX files are supported.");
   }
 
-  const sourceUrl = String(form.get("cloud_file_url") ?? "").trim();
-  const sourceFileId = String(form.get("cloud_file_id") ?? "").trim();
-  const sourceRevisionId = String(form.get("cloud_revision_id") ?? "").trim();
-  const sourceAccessToken = String(form.get("cloud_access_token") ?? "").trim();
-  let res: Response | null = null;
+  const ext = isDocx ? "docx" : "pdf";
+  const contentType = isDocx ? DOCX_MIME : "application/pdf";
+  return { ext, contentType };
+}
 
-  if (sourceAccessToken && sourceFileId) {
-    const providerUrl =
-      sourceType === "google_drive"
-        ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(sourceFileId)}?alt=media`
-        : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(sourceFileId)}/content`;
-    res = await fetch(providerUrl, {
-      method: "GET",
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${sourceAccessToken}` },
-    });
-  }
-
-  if (!res) {
-    if (!sourceUrl) throw new Error("Cloud source URL is required.");
-
-    let parsed: URL;
-    try {
-      parsed = new URL(sourceUrl);
-    } catch {
-      throw new Error("Cloud source URL is invalid.");
-    }
-    if (parsed.protocol !== "https:") throw new Error("Cloud source URL must use HTTPS.");
-    res = await fetch(sourceUrl, { method: "GET", cache: "no-store" });
-  }
-
-  if (!res.ok) throw new Error(`Could not download cloud file (${res.status}).`);
-  const contentType = String(res.headers.get("content-type") ?? "").toLowerCase();
-  if (contentType && !contentType.includes("application/pdf") && !contentType.includes("octet-stream")) {
-    throw new Error("Cloud source must resolve to a PDF file.");
-  }
-  const buffer = Buffer.from(await res.arrayBuffer());
-  if (buffer.byteLength > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
-
-  return { buffer, sourceFileId, sourceRevisionId, sourceUrl };
+async function loadVersionBuffer(form: FormData) {
+  const file = form.get("file");
+  if (!(file instanceof File)) throw new Error("Missing file");
+  if (file.size > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
+  const meta = resolveUploadMeta(file);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return { ...meta, buffer, sourceFileId: "", sourceRevisionId: "", sourceUrl: "" };
 }
 
 export async function GET(
@@ -203,11 +173,7 @@ export async function POST(
     }
 
     const form = await req.formData();
-    const sourceTypeRaw = String(form.get("source_type") ?? "upload").trim().toLowerCase();
-    const sourceType =
-      sourceTypeRaw === "upload" || sourceTypeRaw === "google_drive" || sourceTypeRaw === "microsoft_graph"
-        ? (sourceTypeRaw as SourceType)
-        : "upload";
+    const sourceType: SourceType = "upload";
     const requestedVersionLabelRaw = String(form.get("version_number") ?? "").trim();
     const requestedVersionLabel = requestedVersionLabelRaw.length > 0 ? requestedVersionLabelRaw : null;
     if (requestedVersionLabel && !isValidVersionLabel(requestedVersionLabel)) {
@@ -216,7 +182,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    const source = await loadVersionBuffer(form, sourceType);
+    const source = await loadVersionBuffer(form);
     const sha256 = crypto.createHash("sha256").update(source.buffer).digest("hex");
 
     const admin = supabaseAdmin();
@@ -258,10 +224,10 @@ export async function POST(
       }
     }
 
-    const filePath = `public/${id}_v${nextVersion}.pdf`;
+    const filePath = `public/${id}_v${nextVersion}.${source.ext}`;
 
     const uploadRes = await admin.storage.from("docs").upload(filePath, source.buffer, {
-      contentType: "application/pdf",
+      contentType: source.contentType,
       upsert: false,
     });
     if (uploadRes.error) {
@@ -317,7 +283,7 @@ export async function POST(
         current_version_id: (insertVersion.data as { id: string }).id,
         version_count: nextVersion,
         source_type: sourceType,
-        sync_mode: sourceType === "upload" ? "manual" : "auto_sync",
+        sync_mode: "manual",
         source_file_id: source.sourceFileId || null,
         source_revision_id: source.sourceRevisionId || null,
         source_url: source.sourceUrl || null,
@@ -345,7 +311,7 @@ export async function POST(
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed";
-    const status = /missing file|pdf|max file size|cloud source|version number/i.test(msg) ? 400 : 500;
+    const status = /missing file|pdf|docx|max file size|version number/i.test(msg) ? 400 : 500;
     return NextResponse.json({ error: msg }, { status });
   }
 }

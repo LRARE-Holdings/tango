@@ -15,10 +15,6 @@ export default function OnboardingDocumentsPage() {
   const [title, setTitle] = useState("");
   const [sourceType, setSourceType] = useState<DocumentSourceType>("upload");
   const [file, setFile] = useState<File | null>(null);
-  const [cloudFileUrl, setCloudFileUrl] = useState("");
-  const [cloudFileId, setCloudFileId] = useState("");
-  const [cloudRevisionId, setCloudRevisionId] = useState("");
-  const [cloudAccessToken, setCloudAccessToken] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,12 +35,8 @@ export default function OnboardingDocumentsPage() {
   async function createDocument() {
     setError(null);
     setCreatedLink(null);
-    if (sourceType === "upload" && !file) {
-      setError("Choose a PDF to continue.");
-      return;
-    }
-    if (sourceType !== "upload" && !cloudFileUrl.trim()) {
-      setError("Add a cloud PDF URL to continue.");
+    if (!file) {
+      setError("Choose a PDF or DOCX file to continue.");
       return;
     }
 
@@ -59,13 +51,8 @@ export default function OnboardingDocumentsPage() {
       form.append("password_enabled", "false");
       form.append("max_acknowledgers_enabled", "false");
       form.append("max_acknowledgers", "0");
-      if (sourceType === "upload" && file) {
+      if (file) {
         form.append("file", file);
-      } else {
-        form.append("cloud_file_url", cloudFileUrl.trim());
-        form.append("cloud_file_id", cloudFileId.trim());
-        form.append("cloud_revision_id", cloudRevisionId.trim());
-        form.append("cloud_access_token", cloudAccessToken.trim());
       }
 
       const res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
@@ -76,10 +63,6 @@ export default function OnboardingDocumentsPage() {
       setCreatedLink(link);
       setTitle("");
       setFile(null);
-      setCloudFileUrl("");
-      setCloudFileId("");
-      setCloudRevisionId("");
-      setCloudAccessToken("");
       await loadDocs();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -94,7 +77,7 @@ export default function OnboardingDocumentsPage() {
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Onboarding Documents</h1>
           <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Create onboarding documents from upload, Google Drive, or OneDrive.
+            Create onboarding documents from local PDF or DOCX upload.
           </p>
         </div>
         <Link
@@ -119,25 +102,16 @@ export default function OnboardingDocumentsPage() {
           <DocumentSourceChooser
             sourceType={sourceType}
             onSourceTypeChange={setSourceType}
-            cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId, accessToken: cloudAccessToken }}
-            onCloudChange={(patch) => {
-              if (typeof patch.fileUrl === "string") setCloudFileUrl(patch.fileUrl);
-              if (typeof patch.fileId === "string") setCloudFileId(patch.fileId);
-              if (typeof patch.revisionId === "string") setCloudRevisionId(patch.revisionId);
-              if (typeof patch.accessToken === "string") setCloudAccessToken(patch.accessToken);
-            }}
             disabled={loading}
           />
 
-          {sourceType === "upload" ? (
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-              style={{ borderColor: "var(--border)", borderRadius: 10 }}
-            />
-          ) : null}
+          <input
+            type="file"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          />
 
           <div className="flex items-center gap-2">
             <button

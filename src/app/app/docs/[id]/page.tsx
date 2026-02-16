@@ -133,10 +133,6 @@ export default function DocDetailPage({
   const [versionSourceType, setVersionSourceType] = useState<DocumentSourceType>("upload");
   const [versionNumberInput, setVersionNumberInput] = useState("");
   const [versionFile, setVersionFile] = useState<File | null>(null);
-  const [versionCloudFileUrl, setVersionCloudFileUrl] = useState("");
-  const [versionCloudFileId, setVersionCloudFileId] = useState("");
-  const [versionCloudRevisionId, setVersionCloudRevisionId] = useState("");
-  const [versionCloudAccessToken, setVersionCloudAccessToken] = useState("");
   const [versionUploading, setVersionUploading] = useState(false);
   const [versionError, setVersionError] = useState<string | null>(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -355,12 +351,8 @@ export default function DocDetailPage({
 
   async function uploadNewVersion() {
     setVersionError(null);
-    if (versionSourceType === "upload" && !versionFile) {
-      setVersionError("Choose a PDF file.");
-      return;
-    }
-    if (versionSourceType !== "upload" && !versionCloudFileUrl.trim()) {
-      setVersionError("Cloud URL is required.");
+    if (!versionFile) {
+      setVersionError("Choose a PDF or DOCX file.");
       return;
     }
 
@@ -369,13 +361,8 @@ export default function DocDetailPage({
       const form = new FormData();
       form.append("source_type", versionSourceType);
       if (versionNumberInput.trim()) form.append("version_number", versionNumberInput.trim());
-      if (versionSourceType === "upload" && versionFile) {
+      if (versionFile) {
         form.append("file", versionFile);
-      } else {
-        form.append("cloud_file_url", versionCloudFileUrl.trim());
-        form.append("cloud_file_id", versionCloudFileId.trim());
-        form.append("cloud_revision_id", versionCloudRevisionId.trim());
-        form.append("cloud_access_token", versionCloudAccessToken.trim());
       }
 
       const res = await fetch(`/api/app/documents/${id}/versions`, {
@@ -390,10 +377,6 @@ export default function DocDetailPage({
       setShowVersionModal(false);
       setVersionNumberInput("");
       setVersionFile(null);
-      setVersionCloudFileUrl("");
-      setVersionCloudFileId("");
-      setVersionCloudRevisionId("");
-      setVersionCloudAccessToken("");
 
       const [docRes, versionsRes] = await Promise.all([
         fetch(`/api/app/documents/${id}`, { cache: "no-store" }),
@@ -1256,30 +1239,16 @@ export default function DocDetailPage({
               <DocumentSourceChooser
                 sourceType={versionSourceType}
                 onSourceTypeChange={setVersionSourceType}
-                cloud={{
-                  fileUrl: versionCloudFileUrl,
-                  fileId: versionCloudFileId,
-                  revisionId: versionCloudRevisionId,
-                  accessToken: versionCloudAccessToken,
-                }}
-                onCloudChange={(patch) => {
-                  if (typeof patch.fileUrl === "string") setVersionCloudFileUrl(patch.fileUrl);
-                  if (typeof patch.fileId === "string") setVersionCloudFileId(patch.fileId);
-                  if (typeof patch.revisionId === "string") setVersionCloudRevisionId(patch.revisionId);
-                  if (typeof patch.accessToken === "string") setVersionCloudAccessToken(patch.accessToken);
-                }}
                 disabled={versionUploading}
               />
 
-              {versionSourceType === "upload" ? (
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setVersionFile(e.target.files?.[0] ?? null)}
-                  className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-                  style={{ borderColor: "var(--border)", borderRadius: 10 }}
-                />
-              ) : null}
+              <input
+                type="file"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={(e) => setVersionFile(e.target.files?.[0] ?? null)}
+                className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+                style={{ borderColor: "var(--border)", borderRadius: 10 }}
+              />
             </div>
 
             {versionError ? (

@@ -7,7 +7,8 @@ import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
 import { sendWithResend } from "@/lib/email/resend";
 
 const MAX_MB = 20;
-type SourceType = "upload" | "google_drive" | "microsoft_graph";
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+type SourceType = "upload";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -122,83 +123,41 @@ ${passwordEnabled ? "\nThis link is password-protected. The sender should share 
   return { html, text };
 }
 
-async function loadFileForSource(form: FormData, sourceType: SourceType) {
-  if (sourceType === "upload") {
-    const file = form.get("file");
-    if (!(file instanceof File)) throw new Error("Missing file");
-    if (file.type !== "application/pdf") throw new Error("PDFs only");
-    if (file.size > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
-    return {
-      fileName: file.name || "upload.pdf",
-      buffer: Buffer.from(await file.arrayBuffer()),
-      sourceFileId: "",
-      sourceRevisionId: "",
-      sourceUrl: "",
-    };
+function resolveUploadMeta(file: File) {
+  const name = (file.name || "").trim() || "upload";
+  const lowerName = name.toLowerCase();
+  const type = String(file.type ?? "").toLowerCase();
+
+  const isPdf = type === "application/pdf" || lowerName.endsWith(".pdf");
+  const isDocx = type === DOCX_MIME || lowerName.endsWith(".docx");
+  if (!isPdf && !isDocx) {
+    throw new Error("Only PDF or DOCX files are supported.");
   }
 
-  const sourceUrl = String(form.get("cloud_file_url") ?? "").trim();
-  const sourceFileId = String(form.get("cloud_file_id") ?? "").trim();
-  const sourceRevisionId = String(form.get("cloud_revision_id") ?? "").trim();
-  const sourceAccessToken = String(form.get("cloud_access_token") ?? "").trim();
-  let res: Response | null = null;
+  const ext = isDocx ? "docx" : "pdf";
+  const contentType = isDocx ? DOCX_MIME : "application/pdf";
+  return { ext, contentType, fileName: name };
+}
 
-  if (sourceAccessToken && sourceFileId) {
-    const providerUrl =
-      sourceType === "google_drive"
-        ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(sourceFileId)}?alt=media`
-        : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(sourceFileId)}/content`;
-    res = await fetch(providerUrl, {
-      method: "GET",
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${sourceAccessToken}` },
-    });
-  }
+async function loadFileForSource(form: FormData) {
+  const file = form.get("file");
+  if (!(file instanceof File)) throw new Error("Missing file");
+  if (file.size > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
 
-  if (!res) {
-    if (!sourceUrl) {
-      throw new Error("Cloud source URL is required.");
-    }
-
-    let url: URL;
-    try {
-      url = new URL(sourceUrl);
-    } catch {
-      throw new Error("Cloud source URL is invalid.");
-    }
-    if (url.protocol !== "https:") throw new Error("Cloud source URL must use HTTPS.");
-
-    res = await fetch(sourceUrl, { method: "GET", cache: "no-store" });
-  }
-
-  if (!res.ok) throw new Error(`Could not download cloud file (${res.status}).`);
-
-  const contentType = String(res.headers.get("content-type") ?? "").toLowerCase();
-  if (contentType && !contentType.includes("application/pdf") && !contentType.includes("octet-stream")) {
-    throw new Error("Cloud source must resolve to a PDF file.");
-  }
-
-  const arr = await res.arrayBuffer();
-  const buffer = Buffer.from(arr);
-  if (buffer.byteLength > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
-
+  const meta = resolveUploadMeta(file);
   return {
-    fileName: sourceType === "google_drive" ? "google-drive.pdf" : "onedrive.pdf",
-    buffer,
-    sourceFileId,
-    sourceRevisionId,
-    sourceUrl,
+    ...meta,
+    buffer: Buffer.from(await file.arrayBuffer()),
+    sourceFileId: "",
+    sourceRevisionId: "",
+    sourceUrl: "",
   };
 }
 
 export async function POST(req: Request) {
   try {
     const form = await req.formData();
-    const sourceTypeRaw = String(form.get("source_type") ?? "upload").trim().toLowerCase();
-    const sourceType =
-      sourceTypeRaw === "upload" || sourceTypeRaw === "google_drive" || sourceTypeRaw === "microsoft_graph"
-        ? (sourceTypeRaw as SourceType)
-        : "upload";
+    const sourceType: SourceType = "upload";
 
     const titleRaw = form.get("title");
     const passwordEnabledRaw = String(form.get("password_enabled") ?? "false").toLowerCase() === "true";
@@ -219,7 +178,7 @@ export async function POST(req: Request) {
     }
 
     const title = typeof titleRaw === "string" && titleRaw.trim().length ? titleRaw.trim() : "Untitled";
-    const sourceFile = await loadFileForSource(form, sourceType);
+    const sourceFile = await loadFileForSource(form);
 
     const supabase = await supabaseServer();
     const { data: userData, error: userErr } = await supabase.auth.getUser();
@@ -315,7 +274,7 @@ export async function POST(req: Request) {
     const insertWithVersionFields = {
       ...baseInsert,
       source_type: sourceType,
-      sync_mode: sourceType === "upload" ? "manual" : "auto_sync",
+      sync_mode: "manual",
       source_file_id: sourceFile.sourceFileId || null,
       source_revision_id: sourceFile.sourceRevisionId || null,
       source_url: sourceFile.sourceUrl || null,
@@ -357,9 +316,9 @@ export async function POST(req: Request) {
       doc = fallback.data as { id: string; public_id: string };
     }
 
-    const file_path = `public/${doc.id}.pdf`;
+    const file_path = `public/${doc.id}.${sourceFile.ext}`;
     const upload = await admin.storage.from("docs").upload(file_path, sourceFile.buffer, {
-      contentType: "application/pdf",
+      contentType: sourceFile.contentType,
       upsert: false,
     });
     if (upload.error) return NextResponse.json({ error: upload.error.message }, { status: 500 });
@@ -371,7 +330,7 @@ export async function POST(req: Request) {
           file_path,
           sha256,
           source_type: sourceType,
-          sync_mode: sourceType === "upload" ? "manual" : "auto_sync",
+          sync_mode: "manual",
           source_file_id: sourceFile.sourceFileId || null,
           source_revision_id: sourceFile.sourceRevisionId || null,
           source_url: sourceFile.sourceUrl || null,
@@ -463,7 +422,7 @@ export async function POST(req: Request) {
       public_id: doc.public_id,
       share_url: sharePath,
       source_type: sourceType,
-      sync_mode: sourceType === "upload" ? "manual" : "auto_sync",
+      sync_mode: "manual",
       current_version_id: versionId,
       version_number: versionNumber,
       emails: {
@@ -475,7 +434,7 @@ export async function POST(req: Request) {
     });
   } catch (e: unknown) {
     const msg = errMessage(e);
-    const code = /missing file|pdf|max file size|cloud source/i.test(msg) ? 400 : 500;
+    const code = /missing file|pdf|docx|max file size/i.test(msg) ? 400 : 500;
     return NextResponse.json({ error: msg }, { status: code });
   }
 }
