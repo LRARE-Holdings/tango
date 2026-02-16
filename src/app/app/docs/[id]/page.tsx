@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
-import { DocumentSourceChooser, type DocumentSourceType } from "@/components/document-source-chooser";
 
 type Recipient = {
   id: string;
@@ -130,7 +129,6 @@ export default function DocDetailPage({
   const [doc, setDoc] = useState<Doc | null>(null);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [versions, setVersions] = useState<VersionRow[]>([]);
-  const [versionSourceType, setVersionSourceType] = useState<DocumentSourceType>("upload");
   const [versionNumberInput, setVersionNumberInput] = useState("");
   const [versionFile, setVersionFile] = useState<File | null>(null);
   const [versionUploading, setVersionUploading] = useState(false);
@@ -359,7 +357,7 @@ export default function DocDetailPage({
     setVersionUploading(true);
     try {
       const form = new FormData();
-      form.append("source_type", versionSourceType);
+      form.append("source_type", "upload");
       if (versionNumberInput.trim()) form.append("version_number", versionNumberInput.trim());
       if (versionFile) {
         form.append("file", versionFile);
@@ -1235,12 +1233,6 @@ export default function DocDetailPage({
                   Use formats like 2, 2.1, 2.1.3. Leave empty to auto-increment.
                 </div>
               </div>
-
-              <DocumentSourceChooser
-                sourceType={versionSourceType}
-                onSourceTypeChange={setVersionSourceType}
-                disabled={versionUploading}
-              />
 
               <input
                 type="file"

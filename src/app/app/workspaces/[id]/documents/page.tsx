@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { DocumentSourceChooser, type DocumentSourceType } from "@/components/document-source-chooser";
 
 type WorkspaceInfo = {
   id: string;
@@ -62,7 +61,6 @@ export default function WorkspaceDocumentsPage() {
   const [documents, setDocuments] = useState<DocItem[]>([]);
   const [viewerRole, setViewerRole] = useState<ViewerRole>("member");
   const [search, setSearch] = useState("");
-  const [sourceType, setSourceType] = useState<DocumentSourceType>("upload");
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
@@ -126,7 +124,7 @@ export default function WorkspaceDocumentsPage() {
     setCreating(true);
     try {
       const form = new FormData();
-      form.append("source_type", sourceType);
+      form.append("source_type", "upload");
       form.append("title", title.trim() || "Untitled");
       form.append("send_emails", "false");
       form.append("recipients", "[]");
@@ -281,11 +279,6 @@ export default function WorkspaceDocumentsPage() {
           placeholder="e.g. Employee onboarding pack"
           className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
           style={{ borderColor: "var(--border)", borderRadius: 10 }}
-        />
-        <DocumentSourceChooser
-          sourceType={sourceType}
-          onSourceTypeChange={setSourceType}
-          disabled={creating}
         />
         <input
           type="file"

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { DocumentSourceChooser, type DocumentSourceType } from "@/components/document-source-chooser";
 
 type DocItem = {
   id: string;
@@ -13,7 +12,6 @@ type DocItem = {
 
 export default function OnboardingDocumentsPage() {
   const [title, setTitle] = useState("");
-  const [sourceType, setSourceType] = useState<DocumentSourceType>("upload");
   const [file, setFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -43,7 +41,7 @@ export default function OnboardingDocumentsPage() {
     setLoading(true);
     try {
       const form = new FormData();
-      form.append("source_type", sourceType);
+      form.append("source_type", "upload");
       form.append("title", title.trim() || "Untitled onboarding document");
       form.append("send_emails", "false");
       form.append("recipients", "[]");
@@ -97,12 +95,6 @@ export default function OnboardingDocumentsPage() {
             placeholder="e.g. Employee Handbook v1"
             className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
             style={{ borderColor: "var(--border)", borderRadius: 10 }}
-          />
-
-          <DocumentSourceChooser
-            sourceType={sourceType}
-            onSourceTypeChange={setSourceType}
-            disabled={loading}
           />
 
           <input

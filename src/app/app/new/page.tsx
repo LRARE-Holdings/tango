@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/toast";
-import { DocumentSourceChooser, type DocumentSourceType } from "@/components/document-source-chooser";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 
@@ -273,7 +272,6 @@ export default function NewReceipt() {
 
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [sourceType, setSourceType] = useState<DocumentSourceType>("upload");
 
   const [maxAcknowledgersEnabled, setMaxAcknowledgersEnabled] = useState(true);
   const [maxAcknowledgers, setMaxAcknowledgers] = useState<number>(1);
@@ -396,7 +394,7 @@ export default function NewReceipt() {
     setLoading(true);
     try {
       const form = new FormData();
-      form.append("source_type", sourceType);
+      form.append("source_type", "upload");
       form.append("title", title || "Untitled");
       if (file) {
         form.append("file", file);
@@ -469,7 +467,6 @@ export default function NewReceipt() {
   }, [
     plan,
     primaryWorkspaceId,
-    sourceType,
     hasFile,
     sendEmails,
     personalPlus,
@@ -530,12 +527,8 @@ export default function NewReceipt() {
 
           <div className="lg:col-span-5">
             <Label>DOCUMENT SOURCE</Label>
-            <div className="mt-2">
-              <DocumentSourceChooser
-                sourceType={sourceType}
-                onSourceTypeChange={setSourceType}
-                disabled={loading}
-              />
+            <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+              Upload local file
             </div>
             <label
               className="focus-ring mt-2 block cursor-pointer p-5"
