@@ -48,6 +48,7 @@ export default function WorkspacesPage() {
       const logoSrc = `/api/app/workspaces/${w.id}/branding/logo/view${
         w.brand_logo_updated_at ? `?v=${encodeURIComponent(w.brand_logo_updated_at)}` : ""
       }`;
+      const canManageWorkspace = w.my_role === "owner" || w.my_role === "admin";
 
       return (
         <div
@@ -87,31 +88,35 @@ export default function WorkspacesPage() {
               Open
             </Link>
 
-            <Link
-              href={`/app/workspaces/${identifier}/members`}
-              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-              style={{
-                border: "1px solid var(--border)",
-                color: "var(--muted)",
-                borderRadius: 10,
-              }}
-            >
-              Members
-            </Link>
+            {canManageWorkspace ? (
+              <>
+                <Link
+                  href={`/app/workspaces/${identifier}/members`}
+                  className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+                  style={{
+                    border: "1px solid var(--border)",
+                    color: "var(--muted)",
+                    borderRadius: 10,
+                  }}
+                >
+                  Members
+                </Link>
 
-            <Link
-              href={`/app/workspaces/${identifier}/branding`}
-              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-              style={{
-                border: "1px solid var(--border)",
-                color: "var(--muted)",
-                borderRadius: 10,
-              }}
-            >
-              Branding
-            </Link>
+                <Link
+                  href={`/app/workspaces/${identifier}/branding`}
+                  className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+                  style={{
+                    border: "1px solid var(--border)",
+                    color: "var(--muted)",
+                    borderRadius: 10,
+                  }}
+                >
+                  Branding
+                </Link>
+              </>
+            ) : null}
 
-            {(w.my_role === "owner" || w.my_role === "admin") ? (
+            {canManageWorkspace ? (
               <Link
                 href={`/app/workspaces/${identifier}/settings`}
                 className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"

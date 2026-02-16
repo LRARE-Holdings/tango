@@ -61,7 +61,7 @@ export async function GET(
 
     const plan = String(profile?.plan ?? "free").toLowerCase();
     if (plan !== "team" && plan !== "enterprise") {
-      return NextResponse.json({ error: "Workspace documents are available on Team plans." }, { status: 403 });
+      return NextResponse.json({ error: "We couldn't find any documents for you." }, { status: 403 });
     }
 
     const { data: member, error: memberErr } = await supabase

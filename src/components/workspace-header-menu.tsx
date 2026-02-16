@@ -66,12 +66,17 @@ export function WorkspaceHeaderMenu() {
 
   const idForLinks = workspace?.slug ?? workspaceIdentifier;
   const canManageSettings = viewerRole === "owner" || viewerRole === "admin";
+  const canSeeTeamManagement = viewerRole === "owner" || viewerRole === "admin";
 
   const links = [
     { href: `/app/workspaces/${idForLinks}/dashboard`, label: "Dashboard" },
     { href: `/app/workspaces/${idForLinks}/documents`, label: "Documents" },
-    { href: `/app/workspaces/${idForLinks}/members`, label: "Members" },
-    { href: `/app/workspaces/${idForLinks}/branding`, label: "Branding" },
+    ...(canSeeTeamManagement
+      ? [
+          { href: `/app/workspaces/${idForLinks}/members`, label: "Members" },
+          { href: `/app/workspaces/${idForLinks}/branding`, label: "Branding" },
+        ]
+      : []),
     ...(canManageSettings ? [{ href: `/app/workspaces/${idForLinks}/settings`, label: "Settings" }] : []),
   ];
 
