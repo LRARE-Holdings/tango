@@ -245,13 +245,6 @@ export default function WorkspaceDocumentsPage() {
           >
             Add document
           </Link>
-          <Link
-            href="/app/onboarding"
-            className="focus-ring px-3 py-2 text-sm hover:opacity-90"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-          >
-            Onboarding
-          </Link>
         </div>
       </div>
 
