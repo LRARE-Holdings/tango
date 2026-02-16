@@ -219,7 +219,11 @@ export function DocumentSourceChooser({
     const errJson = json as { error?: { message?: string } } | null;
     if (!res.ok) throw new Error(errJson?.error?.message ?? "Failed to list Google Drive files.");
 
-    return (json?.files ?? []).map((f) => ({
+    const files = "files" in (json ?? {}) && Array.isArray((json as { files?: unknown }).files)
+      ? ((json as { files: Array<{ id: string; name: string; mimeType: string; modifiedTime?: string | null }> }).files)
+      : [];
+
+    return files.map((f) => ({
       id: String(f.id),
       name: String(f.name || "Untitled"),
       isFolder: String(f.mimeType) === "application/vnd.google-apps.folder",
