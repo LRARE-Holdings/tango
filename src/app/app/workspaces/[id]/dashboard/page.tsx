@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { WorkspaceDashboardLoading } from "@/components/workspace-dashboard-loading";
 
 type DashboardPayload = {
+  scope?: "workspace" | "personal";
   workspace: {
     id: string;
     name: string;
@@ -104,6 +105,7 @@ export default function WorkspaceDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardPayload | null>(null);
+  const [scope, setScope] = useState<"workspace" | "personal">("workspace");
 
   useEffect(() => {
     let alive = true;
@@ -121,11 +123,17 @@ export default function WorkspaceDashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/dashboard`, { cache: "no-store" });
+        const res = await fetch(
+          `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/dashboard?scope=${scope}`,
+          { cache: "no-store" }
+        );
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load dashboard");
         if (!alive) return;
         setData(json as DashboardPayload);
+        if ((json as DashboardPayload)?.scope === "personal" && scope !== "personal") {
+          setScope("personal");
+        }
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -137,7 +145,7 @@ export default function WorkspaceDashboardPage() {
     return () => {
       alive = false;
     };
-  }, [workspaceIdentifier, workspaceId]);
+  }, [workspaceIdentifier, workspaceId, scope]);
 
   const logoSrc = useMemo(() => {
     const w = data?.workspace;
@@ -151,12 +159,19 @@ export default function WorkspaceDashboardPage() {
     if (!data) return "—";
     const total = data.counts.documents_total || 0;
     const pending = data.counts.documents_pending || 0;
-    if (total === 0) return "Create your first receipt to start tracking activity.";
+    if (total === 0) {
+      return data?.scope === "personal"
+        ? "No assigned documents yet."
+        : "Create your first receipt to start tracking activity.";
+    }
     const ratio = total > 0 ? 1 - pending / total : 0;
     if (ratio >= 0.8) return "Healthy: most documents have been acknowledged.";
     if (ratio >= 0.5) return "Mixed: a fair number are still pending.";
     return "Attention: many documents are pending acknowledgement.";
   }, [data]);
+
+  const isPersonalScope = data?.scope === "personal";
+  const canToggleScope = data?.viewer?.role === "owner" || data?.viewer?.role === "admin";
 
 
   if (loading && !data && !error) {
@@ -185,7 +200,11 @@ export default function WorkspaceDashboardPage() {
             ) : null}
             <div className="min-w-0">
               <h1 className={`font-semibold tracking-tight truncate ${logoSrc ? "text-lg md:text-xl" : "text-2xl md:text-3xl"}`}>
-                {loading ? "Loading…" : data?.workspace?.name ?? "Workspace"}
+                {loading
+                  ? "Loading…"
+                  : isPersonalScope
+                    ? `${data?.workspace?.name ?? "Workspace"} · My dashboard`
+                    : data?.workspace?.name ?? "Workspace"}
               </h1>
               {logoSrc ? (
                 <p className="mt-1 text-xs uppercase tracking-wide" style={{ color: "var(--muted2)" }}>
@@ -197,6 +216,37 @@ export default function WorkspaceDashboardPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
+          {canToggleScope ? (
+            <div
+              className="flex items-center gap-1 border p-1"
+              style={{ borderColor: "var(--border)", borderRadius: 999 }}
+            >
+              <button
+                type="button"
+                onClick={() => setScope("workspace")}
+                className="focus-ring px-3 py-1.5 text-xs hover:opacity-90"
+                style={{
+                  borderRadius: 999,
+                  background: scope === "workspace" ? "var(--fg)" : "transparent",
+                  color: scope === "workspace" ? "var(--bg)" : "var(--muted)",
+                }}
+              >
+                Admin workspace
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope("personal")}
+                className="focus-ring px-3 py-1.5 text-xs hover:opacity-90"
+                style={{
+                  borderRadius: 999,
+                  background: scope === "personal" ? "var(--fg)" : "transparent",
+                  color: scope === "personal" ? "var(--bg)" : "var(--muted)",
+                }}
+              >
+                My dashboard
+              </button>
+            </div>
+          ) : null}
           <Link
             href="/app/new"
             className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
@@ -227,17 +277,23 @@ export default function WorkspaceDashboardPage() {
 
       {!loading && !error && data && (
         <>
+          {isPersonalScope ? (
+            <div className="text-sm" style={{ color: "var(--muted)" }}>
+              Personal view: showing only documents you are responsible for.
+            </div>
+          ) : null}
+
           {/* KPI row */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Stat
-              label="DOCUMENTS"
+              label={isPersonalScope ? "MY DOCUMENTS" : "DOCUMENTS"}
               value={data.counts.documents_total}
               hint={`${data.counts.documents_pending} pending`}
             />
-            <Stat label="ACKNOWLEDGED" value={data.counts.documents_acknowledged} hint={healthHint} />
-            <Stat label="TEAM" value={data.counts.members} hint={`${data.counts.invites_pending} invites pending`} />
+            <Stat label={isPersonalScope ? "MY ACKNOWLEDGED" : "ACKNOWLEDGED"} value={data.counts.documents_acknowledged} hint={healthHint} />
+            <Stat label={isPersonalScope ? "WORKSPACE TEAM" : "TEAM"} value={data.counts.members} hint={`${data.counts.invites_pending} invites pending`} />
             <Stat
-              label="COMPLETIONS"
+              label={isPersonalScope ? "MY COMPLETIONS" : "COMPLETIONS"}
               value={data.counts.completions_total}
               hint={`${data.counts.acknowledgements_total} acknowledgements`}
             />
@@ -374,10 +430,6 @@ export default function WorkspaceDashboardPage() {
                 </div>
               )}
             </div>
-          </div>
-
-          <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-            Workspace dashboards show aggregate signals only. Receipt remains a neutral record (events + acknowledgement), not an e-signature product.
           </div>
         </>
       )}

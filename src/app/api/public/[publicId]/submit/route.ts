@@ -150,7 +150,7 @@ export async function POST(
   const withPasswordCols = await admin
     .from("documents")
     .select(
-      "id,title,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at"
+      "id,title,current_version_id,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at"
     )
     .eq("public_id", publicId)
     .maybeSingle();
@@ -158,6 +158,7 @@ export async function POST(
   let doc = withPasswordCols.data as {
     id: string;
     title?: string | null;
+    current_version_id?: string | null;
     password_enabled?: boolean | null;
     password_hash?: string | null;
     require_recipient_identity?: boolean | null;
@@ -175,12 +176,13 @@ export async function POST(
   ) {
     const fallback = await admin
       .from("documents")
-      .select("id,title,password_enabled,password_hash,require_recipient_identity")
+      .select("id,title,current_version_id,password_enabled,password_hash,require_recipient_identity")
       .eq("public_id", publicId)
       .maybeSingle();
     doc = fallback.data as {
       id: string;
       title?: string | null;
+      current_version_id?: string | null;
       password_enabled?: boolean | null;
       password_hash?: string | null;
       require_recipient_identity?: boolean | null;
@@ -279,21 +281,53 @@ export async function POST(
 
   // Create completion record
   const submittedAt = new Date().toISOString();
-  const { data: completion, error: compErr } = await admin
-    .from("completions")
-    .insert({
-      document_id: doc.id,
-      recipient_id: recipient.id,
-      acknowledged,
-      max_scroll_percent,
-      time_on_page_seconds,
-      active_seconds,
-      user_agent,
-      ip, // full IP stored intentionally
-      submitted_at: submittedAt,
-    })
-    .select("id")
-    .single();
+  const completionPayload = {
+    document_id: doc.id,
+    recipient_id: recipient.id,
+    acknowledged,
+    max_scroll_percent,
+    time_on_page_seconds,
+    active_seconds,
+    user_agent,
+    ip, // full IP stored intentionally
+    submitted_at: submittedAt,
+    document_version_id: doc.current_version_id ?? null,
+  };
+
+  let completion: { id: string } | null = null;
+  let compErr: { message?: string; code?: string } | null = null;
+  {
+    const ins = await admin
+      .from("completions")
+      .insert(completionPayload)
+      .select("id")
+      .single();
+    if (!ins.error && ins.data) {
+      completion = ins.data as { id: string };
+    } else {
+      compErr = ins.error;
+    }
+  }
+
+  if (!completion && compErr?.code === "42703") {
+    const fallbackInsert = await admin
+      .from("completions")
+      .insert({
+        document_id: doc.id,
+        recipient_id: recipient.id,
+        acknowledged,
+        max_scroll_percent,
+        time_on_page_seconds,
+        active_seconds,
+        user_agent,
+        ip,
+        submitted_at: submittedAt,
+      })
+      .select("id")
+      .single();
+    completion = (fallbackInsert.data as { id: string } | null) ?? null;
+    compErr = fallbackInsert.error;
+  }
 
   if (compErr || !completion) {
     return NextResponse.json(

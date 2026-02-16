@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/toast";
+import { DocumentSourceChooser, type DocumentSourceType } from "@/components/document-source-chooser";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 
@@ -272,6 +273,10 @@ export default function NewReceipt() {
 
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [sourceType, setSourceType] = useState<DocumentSourceType>("upload");
+  const [cloudFileUrl, setCloudFileUrl] = useState("");
+  const [cloudFileId, setCloudFileId] = useState("");
+  const [cloudRevisionId, setCloudRevisionId] = useState("");
 
   const [maxAcknowledgersEnabled, setMaxAcknowledgersEnabled] = useState(true);
   const [maxAcknowledgers, setMaxAcknowledgers] = useState<number>(1);
@@ -328,7 +333,7 @@ export default function NewReceipt() {
     return `${file.name} (${mb}MB)`;
   }, [file]);
 
-  const hasFile = Boolean(file);
+  const hasFile = sourceType === "upload" ? Boolean(file) : Boolean(cloudFileUrl.trim());
 
   const recipientsCount = useMemo(() => recipients.filter((r) => r.name.trim() || r.email.trim()).length, [recipients]);
 
@@ -368,7 +373,8 @@ export default function NewReceipt() {
     if (needsWorkspaceSelection) {
       return "Choose an active workspace from the top selector before creating a receipt.";
     }
-    if (!file) return "Please choose a PDF.";
+    if (sourceType === "upload" && !file) return "Please choose a PDF.";
+    if (sourceType !== "upload" && !cloudFileUrl.trim()) return "Please add a cloud PDF URL.";
     if (sendEmails && !personalPlus) return "Email sending is available on Personal plans and above.";
     if (!recipientsValid) return "Please add valid recipient emails (or turn off email sending).";
     if (passwordEnabled && !personalPlus) return "Password protection is available on Personal plans and above.";
@@ -394,8 +400,16 @@ export default function NewReceipt() {
     setLoading(true);
     try {
       const form = new FormData();
+      form.append("source_type", sourceType);
       form.append("title", title || "Untitled");
-      form.append("file", file as File);
+      if (sourceType === "upload" && file) {
+        form.append("file", file);
+      }
+      if (sourceType !== "upload") {
+        form.append("cloud_file_url", cloudFileUrl.trim());
+        form.append("cloud_file_id", cloudFileId.trim());
+        form.append("cloud_revision_id", cloudRevisionId.trim());
+      }
       form.append("send_emails", String(sendEmails && personalPlus));
       form.append("recipients", JSON.stringify(configuredRecipients));
       form.append("require_recipient_identity", String(requireRecipientIdentity && plan !== "free"));
@@ -407,7 +421,7 @@ export default function NewReceipt() {
       form.append("template_id", useTemplate && proPlus ? templateId : "");
       form.append("save_default", String(saveAsDefault && proPlus));
 
-      const res = await fetch("/api/docs", { method: "POST", body: form });
+      const res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Upload failed");
 
@@ -452,6 +466,7 @@ export default function NewReceipt() {
     return [
       { k: "Plan", v: plan.toUpperCase() },
       { k: "Mode", v: primaryWorkspaceId ? "Workspace" : "Personal" },
+      { k: "Source", v: sourceType === "upload" ? "Upload PDF" : sourceType === "google_drive" ? "Google Drive" : "OneDrive" },
       { k: "PDF", v: hasFile ? "Attached" : "Missing" },
       { k: "Email", v: emailState },
       { k: "Recipients", v: String(recipientsCount) },
@@ -463,6 +478,7 @@ export default function NewReceipt() {
   }, [
     plan,
     primaryWorkspaceId,
+    sourceType,
     hasFile,
     sendEmails,
     personalPlus,
@@ -498,7 +514,7 @@ export default function NewReceipt() {
               <Pill>{primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE"}</Pill>
             </div>
             <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-              Start with the document. Once uploaded, every advanced control appears below.
+              Start with the document source. Once attached, every advanced control appears below.
             </p>
             {meEmail ? (
               <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
@@ -535,42 +551,61 @@ export default function NewReceipt() {
           </div>
 
           <div className="lg:col-span-5">
-            <Label>UPLOAD PDF</Label>
-            <label
-              className="focus-ring mt-2 block cursor-pointer p-5"
-              style={{
-                borderRadius: 16,
-                border: hasFile ? "1px solid var(--fg)" : "1px solid var(--border)",
-                background: hasFile
-                  ? "color-mix(in srgb, var(--card2) 78%, transparent)"
-                  : "color-mix(in srgb, var(--bg) 92%, var(--card))",
-                transition: "all 180ms ease",
-              }}
-            >
-              <input
-                type="file"
-                accept="application/pdf"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            <Label>DOCUMENT SOURCE</Label>
+            <div className="mt-2">
+              <DocumentSourceChooser
+                sourceType={sourceType}
+                onSourceTypeChange={setSourceType}
+                cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId }}
+                onCloudChange={(patch) => {
+                  if (typeof patch.fileUrl === "string") setCloudFileUrl(patch.fileUrl);
+                  if (typeof patch.fileId === "string") setCloudFileId(patch.fileId);
+                  if (typeof patch.revisionId === "string") setCloudRevisionId(patch.revisionId);
+                }}
+                disabled={loading}
               />
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">{hasFile ? "PDF attached" : "Select your PDF"}</div>
-                  <div className="mt-1 text-xs truncate" style={{ color: "var(--muted)" }}>
-                    {fileLabel}
+            </div>
+            {sourceType === "upload" ? (
+              <label
+                className="focus-ring mt-2 block cursor-pointer p-5"
+                style={{
+                  borderRadius: 16,
+                  border: hasFile ? "1px solid var(--fg)" : "1px solid var(--border)",
+                  background: hasFile
+                    ? "color-mix(in srgb, var(--card2) 78%, transparent)"
+                    : "color-mix(in srgb, var(--bg) 92%, var(--card))",
+                  transition: "all 180ms ease",
+                }}
+              >
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{hasFile ? "PDF attached" : "Select your PDF"}</div>
+                    <div className="mt-1 text-xs truncate" style={{ color: "var(--muted)" }}>
+                      {fileLabel}
+                    </div>
+                    <div className="mt-2 text-[11px]" style={{ color: "var(--muted2)" }}>
+                      Max 20MB. PDF only.
+                    </div>
                   </div>
-                  <div className="mt-2 text-[11px]" style={{ color: "var(--muted2)" }}>
-                    Max 20MB. PDF only.
-                  </div>
+                  <span
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-semibold"
+                    style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
+                  >
+                    {hasFile ? "Replace" : "Browse"}
+                  </span>
                 </div>
-                <span
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold"
-                  style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
-                >
-                  {hasFile ? "Replace" : "Browse"}
-                </span>
+              </label>
+            ) : (
+              <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                Receipt will import the cloud PDF and track source metadata for version updates.
               </div>
-            </label>
+            )}
           </div>
         </div>
       </section>
@@ -596,7 +631,7 @@ export default function NewReceipt() {
         >
           <div className="text-sm font-semibold">Upload to unlock configuration</div>
           <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Recipient controls, password protection, closure rules, and template defaults appear here after your PDF is added.
+            Recipient controls, password protection, closure rules, and template defaults appear here after your source is added.
           </div>
         </section>
       ) : null}
@@ -965,7 +1000,7 @@ export default function NewReceipt() {
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Summary</div>
-                <Pill>{loading ? "Working…" : hasFile ? "Configured" : "Waiting for PDF"}</Pill>
+                <Pill>{loading ? "Working…" : hasFile ? "Configured" : "Waiting for source"}</Pill>
               </div>
 
               <div className="mt-4 space-y-2">

@@ -11,6 +11,7 @@ type RecipientRow = {
 type CompletionRow = {
   id: string;
   document_id: string;
+  document_version_id?: string | null;
   recipient_id: string;
   acknowledged: boolean | null;
   max_scroll_percent: number | null;
@@ -27,6 +28,8 @@ type DocumentRow = {
   public_id: string;
   file_path: string;
   created_at: string;
+  current_version_id?: string | null;
+  version_count?: number | null;
 };
 
 export async function GET(
@@ -49,7 +52,7 @@ export async function GET(
   // Document
   const { data: doc, error: docErr } = await supabase
     .from("documents")
-    .select("id,title,public_id,file_path,created_at")
+    .select("id,title,public_id,file_path,created_at,current_version_id,version_count")
     .eq("id", id)
     .maybeSingle();
 
@@ -66,7 +69,7 @@ export async function GET(
   const { data: comps, error: compErr } = await admin
     .from("completions")
     .select(
-      "id,document_id,recipient_id,acknowledged,max_scroll_percent,time_on_page_seconds,submitted_at,ip,user_agent"
+      "id,document_id,document_version_id,recipient_id,acknowledged,max_scroll_percent,time_on_page_seconds,submitted_at,ip,user_agent"
     )
     .eq("document_id", id)
     .order("submitted_at", { ascending: false });
@@ -120,6 +123,8 @@ export async function GET(
       publicId: document.public_id,
       createdAt: document.created_at,
       filePath: document.file_path,
+      currentVersionId: (document as { current_version_id?: string | null }).current_version_id ?? null,
+      versionCount: Number((document as { version_count?: number | null }).version_count ?? 1),
       status: acknowledgements > 0 ? "Acknowledged" : "Pending",
       acknowledgements,
       latestAcknowledgedAt,

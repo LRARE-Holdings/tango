@@ -8,6 +8,7 @@ type DocRow = {
   file_path: string;
   created_at: string;
   public_id: string;
+  current_version_id?: string | null;
   password_enabled?: boolean | null;
   password_hash?: string | null;
   require_recipient_identity?: boolean | null;
@@ -46,7 +47,7 @@ export async function GET(
   const withPasswordCols = await admin
     .from("documents")
     .select(
-      "id,title,file_path,created_at,public_id,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at"
+      "id,title,file_path,created_at,public_id,current_version_id,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at"
     )
     .eq("public_id", publicId)
     .maybeSingle();
@@ -62,7 +63,7 @@ export async function GET(
   ) {
     const fallback = await admin
       .from("documents")
-      .select("id,title,file_path,created_at,public_id,password_enabled,password_hash,require_recipient_identity")
+      .select("id,title,file_path,created_at,public_id,current_version_id,password_enabled,password_hash,require_recipient_identity")
       .eq("public_id", publicId)
       .maybeSingle();
     doc = fallback.data as DocRow | null;
@@ -83,7 +84,25 @@ export async function GET(
     );
   }
 
-  if (!doc.file_path || doc.file_path === "pending") {
+  let effectiveFilePath = doc.file_path;
+  let versionNumber: number | null = null;
+  let versionId: string | null = null;
+  let versionSha256: string | null = null;
+  if (doc.current_version_id) {
+    const { data: vRow, error: vErr } = await admin
+      .from("document_versions")
+      .select("id,version_number,file_path,sha256")
+      .eq("id", doc.current_version_id)
+      .maybeSingle();
+    if (!vErr && vRow) {
+      effectiveFilePath = String((vRow as { file_path?: string | null }).file_path ?? effectiveFilePath);
+      versionNumber = Number((vRow as { version_number?: number | null }).version_number ?? 0) || null;
+      versionId = String((vRow as { id?: string }).id ?? "");
+      versionSha256 = String((vRow as { sha256?: string | null }).sha256 ?? "");
+    }
+  }
+
+  if (!effectiveFilePath || effectiveFilePath === "pending") {
     return NextResponse.json(
       { error: "Document has no uploaded file yet", doc },
       { status: 500 }
@@ -127,7 +146,7 @@ export async function GET(
 
   const { data: signed, error: signErr } = await admin.storage
     .from("docs")
-    .createSignedUrl(doc.file_path, 60 * 10);
+    .createSignedUrl(effectiveFilePath, 60 * 10);
 
   if (signErr || !signed?.signedUrl) {
     return NextResponse.json(
@@ -144,6 +163,9 @@ export async function GET(
       require_recipient_identity: Boolean(doc.require_recipient_identity),
       max_acknowledgers_enabled: maxAcknowledgersEnabled,
       max_acknowledgers: maxAcknowledgers,
+      version_id: versionId,
+      version_number: versionNumber,
+      sha256: versionSha256,
     },
     signedUrl: signed.signedUrl,
   });

@@ -8,6 +8,7 @@ type DocRow = {
   title: string;
   public_id: string;
   created_at: string;
+  owner_id: string;
 };
 
 type CompletionRow = {
@@ -21,6 +22,12 @@ function normalizeQuery(v: string | null) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+}
+
+function isMissingTableError(error: { code?: string; message?: string } | null | undefined, table: string) {
+  if (!error) return false;
+  if (error.code === "42P01") return true;
+  return String(error.message ?? "").toLowerCase().includes(table.toLowerCase());
 }
 
 export async function GET(
@@ -78,13 +85,30 @@ export async function GET(
 
     const { data: docs, error: docsErr } = await supabase
       .from("documents")
-      .select("id,title,public_id,created_at")
+      .select("id,title,public_id,created_at,owner_id")
       .eq("workspace_id", resolved.id)
       .order("created_at", { ascending: false })
       .limit(250);
     if (docsErr) throw new Error(docsErr.message);
 
     let documents = (docs ?? []) as DocRow[];
+
+    if (member.role === "member" && documents.length > 0) {
+      const docIds = documents.map((d) => d.id);
+      const { data: assignedRows, error: assignedErr } = await supabase
+        .from("document_responsibilities")
+        .select("document_id")
+        .eq("workspace_id", resolved.id)
+        .eq("user_id", userId)
+        .in("document_id", docIds);
+
+      if (assignedErr && !isMissingTableError(assignedErr, "document_responsibilities")) {
+        throw new Error(assignedErr.message);
+      }
+
+      const assigned = new Set((assignedRows ?? []).map((r) => String((r as { document_id: string }).document_id)));
+      documents = documents.filter((d) => d.owner_id === userId || assigned.has(d.id));
+    }
     if (q) {
       documents = documents.filter((d) => {
         const hay = `${d.title ?? ""} ${d.public_id ?? ""}`.toLowerCase();

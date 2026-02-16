@@ -154,7 +154,6 @@ export default function OnboardingPage() {
   });
 
   const progress = Math.round(((step + 1) / STEPS.length) * 100);
-
   const recommendation = useMemo(() => computeRecommendation(answers), [answers]);
 
   function next() {

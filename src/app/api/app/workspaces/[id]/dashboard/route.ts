@@ -24,6 +24,14 @@ type ActivityItem =
       };
     };
 
+type DashboardScope = "workspace" | "personal";
+
+function isMissingTableError(error: { code?: string; message?: string } | null | undefined, table: string) {
+  if (!error) return false;
+  if (error.code === "42P01") return true;
+  return String(error.message ?? "").toLowerCase().includes(table.toLowerCase());
+}
+
 function safeIso(s: any): string | null {
   if (!s) return null;
   const d = new Date(s);
@@ -37,7 +45,7 @@ function avg(nums: Array<number | null | undefined>) {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
@@ -68,6 +76,16 @@ export async function GET(
 
     if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 });
     if (!mem) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const viewerRole = String(mem.role ?? "member") as "owner" | "admin" | "member";
+    const requestedScopeRaw = String(new URL(req.url).searchParams.get("scope") ?? "")
+      .trim()
+      .toLowerCase();
+    const requestedScope: DashboardScope | null =
+      requestedScopeRaw === "personal" || requestedScopeRaw === "workspace"
+        ? (requestedScopeRaw as DashboardScope)
+        : null;
+    const scope: DashboardScope =
+      viewerRole === "member" ? "personal" : requestedScope ?? "workspace";
 
     // Run independent dashboard queries in parallel to reduce first-byte time.
     const [workspaceResult, membersResult, invitesResult, docsResult] = await Promise.all([
@@ -84,10 +102,10 @@ export async function GET(
         .in("status", ["pending", "sent"]),
       supabase
         .from("documents")
-        .select("id,title,public_id,created_at")
+        .select("id,title,public_id,created_at,owner_id")
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false })
-        .limit(40),
+        .limit(250),
     ]);
 
     const { data: workspace, error: wsErr } = workspaceResult;
@@ -104,12 +122,33 @@ export async function GET(
 
     if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
-    const documents = (docs ?? []).map((d) => ({
+    let documents = (docs ?? []).map((d) => ({
       id: d.id as string,
       title: (d.title as string) ?? "Untitled",
       public_id: (d.public_id as string) ?? "",
       created_at: (d.created_at as string) ?? new Date().toISOString(),
+      owner_id: (d.owner_id as string) ?? "",
     }));
+
+    if (scope === "personal" && documents.length > 0) {
+      const docIds = documents.map((d) => d.id);
+      const { data: assignedRows, error: assignedErr } = await supabase
+        .from("document_responsibilities")
+        .select("document_id")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", userId)
+        .in("document_id", docIds);
+
+      let assignedDocIds = new Set<string>();
+      if (assignedErr && !isMissingTableError(assignedErr, "document_responsibilities")) {
+        return NextResponse.json({ error: assignedErr.message }, { status: 500 });
+      }
+      if (!assignedErr) {
+        assignedDocIds = new Set((assignedRows ?? []).map((r) => String((r as { document_id: string }).document_id)));
+      }
+
+      documents = documents.filter((d) => d.owner_id === userId || assignedDocIds.has(d.id));
+    }
 
     const docIds = documents.map((d) => d.id);
     const docsTotal = documents.length;
@@ -199,6 +238,7 @@ export async function GET(
       }));
 
     return NextResponse.json({
+      scope,
       workspace: {
         id: workspace.id,
         name: workspace.name,
@@ -208,7 +248,7 @@ export async function GET(
       },
       viewer: {
         user_id: userId,
-        role: mem.role,
+        role: viewerRole,
       },
       counts: {
         members: membersCount ?? 0,

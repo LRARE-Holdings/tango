@@ -1,0 +1,464 @@
+import { NextResponse } from "next/server";
+import { nanoid } from "nanoid";
+import crypto from "crypto";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseServer } from "@/lib/supabase/server";
+import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
+import { sendWithResend } from "@/lib/email/resend";
+
+const MAX_MB = 20;
+type SourceType = "upload" | "google_drive" | "microsoft_graph";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type ParsedRecipient = {
+  name: string;
+  email: string;
+};
+
+function errMessage(e: unknown) {
+  return e instanceof Error ? e.message : "Server error";
+}
+
+function clampInt(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function isEmail(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim().toLowerCase());
+}
+
+function parseRecipients(raw: FormDataEntryValue | null): ParsedRecipient[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  const out: ParsedRecipient[] = [];
+  for (const item of parsed) {
+    if (!item || typeof item !== "object") continue;
+    const name = String((item as { name?: unknown }).name ?? "").trim();
+    const email = String((item as { email?: unknown }).email ?? "").trim().toLowerCase();
+    if (!email || !isEmail(email)) continue;
+    out.push({ name, email });
+  }
+
+  const dedup = new Map<string, ParsedRecipient>();
+  for (const r of out) dedup.set(r.email, r);
+  return [...dedup.values()].slice(0, 50);
+}
+
+function appBaseUrl(req: Request) {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (envUrl) return envUrl.replace(/\/$/, "");
+
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+  if (host) return `${proto}://${host}`;
+  return "https://www.getreceipt.xyz";
+}
+
+function escapeHtml(v: string) {
+  return v
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildReceiptEmail({
+  recipientName,
+  workspaceName,
+  title,
+  shareUrl,
+  passwordEnabled,
+}: {
+  recipientName: string;
+  workspaceName: string | null;
+  title: string;
+  shareUrl: string;
+  passwordEnabled: boolean;
+}) {
+  const safeTitle = escapeHtml(title);
+  const safeWorkspace = workspaceName ? escapeHtml(workspaceName) : "Receipt";
+  const intro = recipientName ? `Hi ${escapeHtml(recipientName)},` : "Hello,";
+
+  const passwordNote = passwordEnabled
+    ? `<p style="margin:16px 0 0;color:#5f6368;font-size:13px;line-height:1.5;">This link is password-protected. The sender should share the password separately.</p>`
+    : "";
+
+  const html = `
+  <div style="margin:0;padding:24px;background:#f7f7f8;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;">
+    <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:24px;">
+      <div style="font-size:11px;letter-spacing:0.08em;color:#666;font-weight:700;">RECEIPT</div>
+      <h1 style="margin:10px 0 0;font-size:20px;line-height:1.3;">${safeWorkspace} shared a document</h1>
+      <p style="margin:14px 0 0;color:#333;font-size:14px;line-height:1.6;">${intro}</p>
+      <p style="margin:10px 0 0;color:#333;font-size:14px;line-height:1.6;">You have been asked to review and acknowledge:</p>
+      <p style="margin:8px 0 0;color:#111;font-size:15px;font-weight:600;">${safeTitle}</p>
+      <div style="margin-top:20px;">
+        <a href="${shareUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:11px 16px;border-radius:999px;font-size:14px;font-weight:600;">Open document</a>
+      </div>
+      <p style="margin:14px 0 0;color:#5f6368;font-size:12px;line-height:1.5;">If the button does not work, open this URL:</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.5;word-break:break-all;"><a href="${shareUrl}" style="color:#111;">${shareUrl}</a></p>
+      ${passwordNote}
+    </div>
+  </div>`;
+
+  const text = `${recipientName ? `Hi ${recipientName},` : "Hello,"}
+
+${workspaceName ?? "Receipt"} shared a document with you:
+${title}
+
+Open document: ${shareUrl}
+${passwordEnabled ? "\nThis link is password-protected. The sender should share the password separately." : ""}
+`;
+
+  return { html, text };
+}
+
+async function loadFileForSource(form: FormData, sourceType: SourceType) {
+  if (sourceType === "upload") {
+    const file = form.get("file");
+    if (!(file instanceof File)) throw new Error("Missing file");
+    if (file.type !== "application/pdf") throw new Error("PDFs only");
+    if (file.size > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
+    return {
+      fileName: file.name || "upload.pdf",
+      buffer: Buffer.from(await file.arrayBuffer()),
+      sourceFileId: "",
+      sourceRevisionId: "",
+      sourceUrl: "",
+    };
+  }
+
+  const sourceUrl = String(form.get("cloud_file_url") ?? "").trim();
+  const sourceFileId = String(form.get("cloud_file_id") ?? "").trim();
+  const sourceRevisionId = String(form.get("cloud_revision_id") ?? "").trim();
+
+  if (!sourceUrl) {
+    throw new Error("Cloud source URL is required.");
+  }
+
+  let url: URL;
+  try {
+    url = new URL(sourceUrl);
+  } catch {
+    throw new Error("Cloud source URL is invalid.");
+  }
+  if (url.protocol !== "https:") throw new Error("Cloud source URL must use HTTPS.");
+
+  const res = await fetch(sourceUrl, { method: "GET", cache: "no-store" });
+  if (!res.ok) throw new Error(`Could not download cloud file (${res.status}).`);
+
+  const contentType = String(res.headers.get("content-type") ?? "").toLowerCase();
+  if (!contentType.includes("application/pdf")) {
+    throw new Error("Cloud source must resolve to a PDF file.");
+  }
+
+  const arr = await res.arrayBuffer();
+  const buffer = Buffer.from(arr);
+  if (buffer.byteLength > MAX_MB * 1024 * 1024) throw new Error(`Max file size is ${MAX_MB}MB`);
+
+  return {
+    fileName: sourceType === "google_drive" ? "google-drive.pdf" : "onedrive.pdf",
+    buffer,
+    sourceFileId,
+    sourceRevisionId,
+    sourceUrl,
+  };
+}
+
+export async function POST(req: Request) {
+  try {
+    const form = await req.formData();
+    const sourceTypeRaw = String(form.get("source_type") ?? "upload").trim().toLowerCase();
+    const sourceType =
+      sourceTypeRaw === "upload" || sourceTypeRaw === "google_drive" || sourceTypeRaw === "microsoft_graph"
+        ? (sourceTypeRaw as SourceType)
+        : "upload";
+
+    const titleRaw = form.get("title");
+    const passwordEnabledRaw = String(form.get("password_enabled") ?? "false").toLowerCase() === "true";
+    const passwordRaw = typeof form.get("password") === "string" ? String(form.get("password")).trim() : "";
+    const requireRecipientIdentityRaw =
+      String(form.get("require_recipient_identity") ?? "false").toLowerCase() === "true";
+    const maxAcknowledgersEnabledRaw =
+      String(form.get("max_acknowledgers_enabled") ?? "false").toLowerCase() === "true";
+    const maxAcknowledgersRaw = Number(form.get("max_acknowledgers") ?? 0);
+    const maxAcknowledgers = maxAcknowledgersEnabledRaw
+      ? clampInt(Number.isFinite(maxAcknowledgersRaw) ? maxAcknowledgersRaw : 1, 1, 1000)
+      : null;
+    const sendEmailsRaw = String(form.get("send_emails") ?? "false").toLowerCase() === "true";
+    const recipients = parseRecipients(form.get("recipients"));
+
+    if (passwordEnabledRaw && !isPasswordStrongEnough(passwordRaw)) {
+      return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
+    }
+
+    const title = typeof titleRaw === "string" && titleRaw.trim().length ? titleRaw.trim() : "Untitled";
+    const sourceFile = await loadFileForSource(form, sourceType);
+
+    const supabase = await supabaseServer();
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+    if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const admin = supabaseAdmin();
+    const owner_id = userData.user.id;
+    let workspace_id: string | null = null;
+
+    const { data: profile, error: profileErr } = await supabase
+      .from("profiles")
+      .select("plan,primary_workspace_id")
+      .eq("id", owner_id)
+      .maybeSingle();
+
+    if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
+
+    const plan = String(profile?.plan ?? "free").toLowerCase();
+    const isPaidPlan = plan !== "free";
+    const personalPlus = plan === "personal" || plan === "pro" || plan === "team" || plan === "enterprise";
+    const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
+    const isWorkspacePlan = plan === "team" || plan === "enterprise";
+
+    if (requireRecipientIdentityRaw && !isPaidPlan) {
+      return NextResponse.json(
+        { error: "Requiring name/email acknowledgement is available on paid plans." },
+        { status: 403 }
+      );
+    }
+    if (sendEmailsRaw && !personalPlus) {
+      return NextResponse.json(
+        { error: "Email sending is available on Personal plans and above." },
+        { status: 403 }
+      );
+    }
+    if (sendEmailsRaw && recipients.length === 0) {
+      return NextResponse.json({ error: "Add at least one valid recipient email." }, { status: 400 });
+    }
+    if (sendEmailsRaw && !process.env.RESEND_API_KEY) {
+      return NextResponse.json({ error: "Email sending is not configured yet." }, { status: 500 });
+    }
+
+    if (activeWorkspaceId) {
+      const { data: membership, error: membershipErr } = await supabase
+        .from("workspace_members")
+        .select("role")
+        .eq("workspace_id", activeWorkspaceId)
+        .eq("user_id", owner_id)
+        .maybeSingle();
+      if (membershipErr) return NextResponse.json({ error: membershipErr.message }, { status: 500 });
+      if (!membership) return NextResponse.json({ error: "Active workspace is invalid for this user." }, { status: 403 });
+      workspace_id = activeWorkspaceId;
+    } else if (isWorkspacePlan) {
+      const { count: membershipCount, error: countErr } = await supabase
+        .from("workspace_members")
+        .select("workspace_id", { count: "exact", head: true })
+        .eq("user_id", owner_id);
+      if (countErr) return NextResponse.json({ error: countErr.message }, { status: 500 });
+      if ((membershipCount ?? 0) > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Select an active workspace before creating receipts. Team/Enterprise receipts must belong to a workspace.",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const public_id = nanoid(10);
+    const password_hash = passwordEnabledRaw ? await hashPassword(passwordRaw) : null;
+    const sha256 = crypto.createHash("sha256").update(sourceFile.buffer).digest("hex");
+
+    const baseInsert: Record<string, unknown> = {
+      owner_id,
+      workspace_id,
+      public_id,
+      title,
+      file_path: "pending",
+      sha256,
+    };
+    if (passwordEnabledRaw) {
+      baseInsert.password_enabled = true;
+      baseInsert.password_hash = password_hash;
+    }
+    if (requireRecipientIdentityRaw && isPaidPlan) baseInsert.require_recipient_identity = true;
+    if (maxAcknowledgersEnabledRaw && maxAcknowledgers) {
+      baseInsert.max_acknowledgers_enabled = true;
+      baseInsert.max_acknowledgers = maxAcknowledgers;
+    }
+
+    const insertWithVersionFields = {
+      ...baseInsert,
+      source_type: sourceType,
+      sync_mode: sourceType === "upload" ? "manual" : "auto_sync",
+      source_file_id: sourceFile.sourceFileId || null,
+      source_revision_id: sourceFile.sourceRevisionId || null,
+      source_url: sourceFile.sourceUrl || null,
+    };
+
+    let doc:
+      | {
+          id: string;
+          public_id: string;
+        }
+      | null = null;
+
+    let insertErr: { message?: string; code?: string } | null = null;
+    {
+      const withExtended = await supabase
+        .from("documents")
+        .insert(insertWithVersionFields)
+        .select("id,public_id")
+        .single();
+      if (!withExtended.error && withExtended.data) {
+        doc = withExtended.data as { id: string; public_id: string };
+      } else {
+        insertErr = withExtended.error;
+      }
+    }
+
+    if (!doc) {
+      const fallback = await supabase
+        .from("documents")
+        .insert(baseInsert)
+        .select("id,public_id")
+        .single();
+      if (fallback.error || !fallback.data) {
+        return NextResponse.json(
+          { error: fallback.error?.message ?? insertErr?.message ?? "Insert failed" },
+          { status: 500 }
+        );
+      }
+      doc = fallback.data as { id: string; public_id: string };
+    }
+
+    const file_path = `public/${doc.id}.pdf`;
+    const upload = await admin.storage.from("docs").upload(file_path, sourceFile.buffer, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (upload.error) return NextResponse.json({ error: upload.error.message }, { status: 500 });
+
+    {
+      const updWithExtended = await supabase
+        .from("documents")
+        .update({
+          file_path,
+          sha256,
+          source_type: sourceType,
+          sync_mode: sourceType === "upload" ? "manual" : "auto_sync",
+          source_file_id: sourceFile.sourceFileId || null,
+          source_revision_id: sourceFile.sourceRevisionId || null,
+          source_url: sourceFile.sourceUrl || null,
+        })
+        .eq("id", doc.id);
+      if (updWithExtended.error && updWithExtended.error.code !== "42703") {
+        return NextResponse.json({ error: updWithExtended.error.message }, { status: 500 });
+      }
+      if (updWithExtended.error?.code === "42703") {
+        const upd = await supabase.from("documents").update({ file_path, sha256 }).eq("id", doc.id);
+        if (upd.error) return NextResponse.json({ error: upd.error.message }, { status: 500 });
+      }
+    }
+
+    let versionId: string | null = null;
+    let versionNumber = 1;
+    {
+      const insVersion = await supabase
+        .from("document_versions")
+        .insert({
+          document_id: doc.id,
+          version_number: 1,
+          source_type: sourceType,
+          source_file_id: sourceFile.sourceFileId || null,
+          source_revision_id: sourceFile.sourceRevisionId || null,
+          file_path,
+          sha256,
+          created_by: owner_id,
+        })
+        .select("id,version_number")
+        .maybeSingle();
+      if (!insVersion.error && insVersion.data) {
+        versionId = String((insVersion.data as { id: string }).id);
+        versionNumber = Number((insVersion.data as { version_number: number }).version_number ?? 1);
+        const updDoc = await supabase
+          .from("documents")
+          .update({ current_version_id: versionId, version_count: versionNumber })
+          .eq("id", doc.id);
+        if (updDoc.error && updDoc.error.code !== "42703") {
+          return NextResponse.json({ error: updDoc.error.message }, { status: 500 });
+        }
+      }
+    }
+
+    const sharePath = passwordEnabledRaw ? `/d/${doc.public_id}/access` : `/d/${doc.public_id}`;
+    const shareUrl = `${appBaseUrl(req)}${sharePath}`;
+
+    const emailFailures: Array<{ email: string; error: string }> = [];
+    if (sendEmailsRaw && recipients.length > 0) {
+      const workspaceName =
+        workspace_id
+          ? (
+              (
+                await admin
+                  .from("workspaces")
+                  .select("name")
+                  .eq("id", workspace_id)
+                  .maybeSingle()
+              ).data as { name?: string } | null
+            )?.name ?? null
+          : null;
+
+      await Promise.all(
+        recipients.map(async (r) => {
+          const content = buildReceiptEmail({
+            recipientName: r.name,
+            workspaceName,
+            title,
+            shareUrl,
+            passwordEnabled: passwordEnabledRaw,
+          });
+          const subject = `${workspaceName ?? "Receipt"}: ${title}`;
+          const result = await sendWithResend({
+            to: r.email,
+            subject,
+            html: content.html,
+            text: content.text,
+          });
+          if (!result.ok) {
+            emailFailures.push({ email: r.email, error: result.error ?? "Failed to send." });
+          }
+        })
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      id: doc.id,
+      public_id: doc.public_id,
+      share_url: sharePath,
+      source_type: sourceType,
+      sync_mode: sourceType === "upload" ? "manual" : "auto_sync",
+      current_version_id: versionId,
+      version_number: versionNumber,
+      emails: {
+        requested: sendEmailsRaw,
+        attempted: sendEmailsRaw ? recipients.length : 0,
+        sent: sendEmailsRaw ? recipients.length - emailFailures.length : 0,
+        failed: emailFailures,
+      },
+    });
+  } catch (e: unknown) {
+    const msg = errMessage(e);
+    const code = /missing file|pdf|max file size|cloud source/i.test(msg) ? 400 : 500;
+    return NextResponse.json({ error: msg }, { status: code });
+  }
+}

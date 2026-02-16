@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { DocumentSourceChooser, type DocumentSourceType } from "@/components/document-source-chooser";
 
 type WorkspaceInfo = {
   id: string;
@@ -52,6 +53,13 @@ export default function WorkspaceDocumentsPage() {
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [documents, setDocuments] = useState<DocItem[]>([]);
   const [search, setSearch] = useState("");
+  const [sourceType, setSourceType] = useState<DocumentSourceType>("upload");
+  const [title, setTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [cloudFileUrl, setCloudFileUrl] = useState("");
+  const [cloudFileId, setCloudFileId] = useState("");
+  const [cloudRevisionId, setCloudRevisionId] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -91,6 +99,61 @@ export default function WorkspaceDocumentsPage() {
     };
   }, [workspaceIdentifier, search]);
 
+  async function createDocument() {
+    if (creating) return;
+    setError(null);
+
+    if (sourceType === "upload" && !file) {
+      setError("Choose a PDF file.");
+      return;
+    }
+    if (sourceType !== "upload" && !cloudFileUrl.trim()) {
+      setError("Cloud URL is required.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const form = new FormData();
+      form.append("source_type", sourceType);
+      form.append("title", title.trim() || "Untitled");
+      form.append("send_emails", "false");
+      form.append("recipients", "[]");
+      form.append("require_recipient_identity", "false");
+      form.append("password_enabled", "false");
+      form.append("max_acknowledgers_enabled", "false");
+      form.append("max_acknowledgers", "0");
+      if (sourceType === "upload" && file) {
+        form.append("file", file);
+      } else {
+        form.append("cloud_file_url", cloudFileUrl.trim());
+        form.append("cloud_file_id", cloudFileId.trim());
+        form.append("cloud_revision_id", cloudRevisionId.trim());
+      }
+
+      const res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to create document");
+
+      setTitle("");
+      setFile(null);
+      setCloudFileUrl("");
+      setCloudFileId("");
+      setCloudRevisionId("");
+      const q = search.trim();
+      const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+      const docsRes = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/documents${qs}`, {
+        cache: "no-store",
+      });
+      const docsJson = await docsRes.json().catch(() => null);
+      if (docsRes.ok) setDocuments((docsJson?.documents ?? []) as DocItem[]);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to create document");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   const counts = useMemo(() => {
     const acknowledged = documents.filter((d) => d.status === "Acknowledged").length;
     return { total: documents.length, acknowledged, pending: documents.length - acknowledged };
@@ -107,8 +170,21 @@ export default function WorkspaceDocumentsPage() {
             Team document catalogue with search across titles and public IDs.
           </p>
         </div>
-        <div className="text-xs uppercase tracking-wide" style={{ color: "var(--muted2)" }}>
-          Workspace Documents
+        <div className="flex items-center gap-2">
+          <Link
+            href="/app/new"
+            className="focus-ring px-3 py-2 text-sm font-semibold hover:opacity-90"
+            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+          >
+            Add document
+          </Link>
+          <Link
+            href="/app/onboarding"
+            className="focus-ring px-3 py-2 text-sm hover:opacity-90"
+            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+          >
+            Onboarding
+          </Link>
         </div>
       </div>
 
@@ -124,6 +200,50 @@ export default function WorkspaceDocumentsPage() {
           <div className="text-xs" style={{ color: "var(--muted2)" }}>
             {counts.total} total • {counts.pending} pending • {counts.acknowledged} acknowledged
           </div>
+        </div>
+      </div>
+
+      <div className="border p-4 space-y-3" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+        <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+          ADD DOCUMENT
+        </div>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Employee onboarding pack"
+          className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+          style={{ borderColor: "var(--border)", borderRadius: 10 }}
+        />
+        <DocumentSourceChooser
+          sourceType={sourceType}
+          onSourceTypeChange={setSourceType}
+          cloud={{ fileUrl: cloudFileUrl, fileId: cloudFileId, revisionId: cloudRevisionId }}
+          onCloudChange={(patch) => {
+            if (typeof patch.fileUrl === "string") setCloudFileUrl(patch.fileUrl);
+            if (typeof patch.fileId === "string") setCloudFileId(patch.fileId);
+            if (typeof patch.revisionId === "string") setCloudRevisionId(patch.revisionId);
+          }}
+          disabled={creating}
+        />
+        {sourceType === "upload" ? (
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          />
+        ) : null}
+        <div>
+          <button
+            type="button"
+            onClick={() => void createDocument()}
+            disabled={creating}
+            className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+          >
+            {creating ? "Creating…" : "Create document"}
+          </button>
         </div>
       </div>
 
