@@ -527,9 +527,6 @@ export default function NewReceipt() {
 
           <div className="lg:col-span-5">
             <Label>DOCUMENT SOURCE</Label>
-            <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-              Upload local file
-            </div>
             <label
               className="focus-ring mt-2 block cursor-pointer p-5"
               style={{
