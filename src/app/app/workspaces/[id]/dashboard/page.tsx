@@ -172,6 +172,7 @@ export default function WorkspaceDashboardPage() {
 
   const isPersonalScope = data?.scope === "personal";
   const canToggleScope = data?.viewer?.role === "owner" || data?.viewer?.role === "admin";
+  const isMemberView = data?.viewer?.role === "member";
 
 
   if (loading && !data && !error) {
@@ -247,13 +248,15 @@ export default function WorkspaceDashboardPage() {
               </button>
             </div>
           ) : null}
-          <Link
-            href="/app/new"
-            className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
-            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
-          >
-            Create receipt
-          </Link>
+          {!isMemberView ? (
+            <Link
+              href="/app/new"
+              className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
+              style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+            >
+              Create receipt
+            </Link>
+          ) : null}
         </div>
       </div>
 
@@ -283,37 +286,94 @@ export default function WorkspaceDashboardPage() {
             </div>
           ) : null}
 
-          {/* KPI row */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <Stat
-              label={isPersonalScope ? "MY DOCUMENTS" : "DOCUMENTS"}
-              value={data.counts.documents_total}
-              hint={`${data.counts.documents_pending} pending`}
-            />
-            <Stat label={isPersonalScope ? "MY ACKNOWLEDGED" : "ACKNOWLEDGED"} value={data.counts.documents_acknowledged} hint={healthHint} />
-            <Stat label={isPersonalScope ? "WORKSPACE TEAM" : "TEAM"} value={data.counts.members} hint={`${data.counts.invites_pending} invites pending`} />
-            <Stat
-              label={isPersonalScope ? "MY COMPLETIONS" : "COMPLETIONS"}
-              value={data.counts.completions_total}
-              hint={`${data.counts.acknowledgements_total} acknowledgements`}
-            />
-          </div>
+          {/* Member-focused simplified layout */}
+          {isMemberView ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Stat label="MY DOCUMENTS" value={data.counts.documents_total} hint={`${data.counts.documents_pending} pending`} />
+                <Stat label="MY ACKNOWLEDGED" value={data.counts.documents_acknowledged} hint={healthHint} />
+                <Stat label="MY COMPLETIONS" value={data.counts.completions_total} hint={`${data.counts.acknowledgements_total} acknowledgements`} />
+              </div>
 
-          {/* Signal row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Stat
-              label="AVG SCROLL"
-              value={data.averages.max_scroll_percent == null ? "—" : `${Math.round(data.averages.max_scroll_percent)}%`}
-              hint="Across recent completions"
-            />
-            <Stat label="AVG TIME ON PAGE" value={fmtDur(data.averages.time_on_page_seconds)} hint="Across recent completions" />
-            <Stat label="AVG ACTIVE TIME" value={fmtDur(data.averages.active_seconds)} hint="Across recent completions" />
-          </div>
+              <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                <div className="px-5 py-3 text-xs tracking-wide" style={{ background: "var(--card2)", color: "var(--muted2)" }}>
+                  MY PENDING DOCUMENTS
+                </div>
 
-          {/* Two-column: Pending + Activity */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Pending */}
-            <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                {data.pending.length === 0 ? (
+                  <div className="px-5 py-5 text-sm" style={{ color: "var(--muted)" }}>
+                    Nothing pending. You are up to date.
+                  </div>
+                ) : (
+                  <div>
+                    {data.pending.map((d) => (
+                      <div
+                        key={d.id}
+                        className="px-5 py-4 flex items-start justify-between gap-4"
+                        style={{ borderTop: "1px solid var(--border2)" }}
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold truncate">{d.title}</div>
+                          <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                            Created {fmtUtc(d.created_at)}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 flex-wrap">
+                          <Link
+                            href={`/app/docs/${d.id}`}
+                            className="focus-ring px-3 py-2 text-sm hover:opacity-80"
+                            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+                          >
+                            View
+                          </Link>
+                          <Link
+                            href={`/d/${d.public_id}`}
+                            className="focus-ring px-3 py-2 text-sm hover:opacity-80"
+                            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+                          >
+                            Open link
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* KPI row */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Stat
+                  label={isPersonalScope ? "MY DOCUMENTS" : "DOCUMENTS"}
+                  value={data.counts.documents_total}
+                  hint={`${data.counts.documents_pending} pending`}
+                />
+                <Stat label={isPersonalScope ? "MY ACKNOWLEDGED" : "ACKNOWLEDGED"} value={data.counts.documents_acknowledged} hint={healthHint} />
+                <Stat label={isPersonalScope ? "WORKSPACE TEAM" : "TEAM"} value={data.counts.members} hint={`${data.counts.invites_pending} invites pending`} />
+                <Stat
+                  label={isPersonalScope ? "MY COMPLETIONS" : "COMPLETIONS"}
+                  value={data.counts.completions_total}
+                  hint={`${data.counts.acknowledgements_total} acknowledgements`}
+                />
+              </div>
+
+              {/* Signal row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Stat
+                  label="AVG SCROLL"
+                  value={data.averages.max_scroll_percent == null ? "—" : `${Math.round(data.averages.max_scroll_percent)}%`}
+                  hint="Across recent completions"
+                />
+                <Stat label="AVG TIME ON PAGE" value={fmtDur(data.averages.time_on_page_seconds)} hint="Across recent completions" />
+                <Stat label="AVG ACTIVE TIME" value={fmtDur(data.averages.active_seconds)} hint="Across recent completions" />
+              </div>
+
+              {/* Two-column: Pending + Activity */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Pending */}
+                <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
               <div className="px-5 py-3 text-xs tracking-wide" style={{ background: "var(--card2)", color: "var(--muted2)" }}>
                 PENDING ACKNOWLEDGEMENTS
               </div>
@@ -429,8 +489,10 @@ export default function WorkspaceDashboardPage() {
                   })}
                 </div>
               )}
-            </div>
-          </div>
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
