@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
+import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import {
   PDFDocument,
   StandardFonts,
@@ -117,17 +118,6 @@ export async function GET(
 
   const admin = supabaseAdmin();
 
-  const { data: profile, error: profileErr } = await supabase
-    .from("profiles")
-    .select("plan")
-    .eq("id", userData.user.id)
-    .maybeSingle();
-  if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
-
-  const plan = String(profile?.plan ?? "free").toLowerCase();
-  const watermarkEnabled = plan === "free";
-  const teamBrandingEnabled = plan === "team" || plan === "enterprise";
-
   const { data: docRaw, error: docErr } = await supabase
     .from("documents")
     .select("id,title,public_id,created_at,sha256,workspace_id")
@@ -138,6 +128,26 @@ export async function GET(
   if (!docRaw) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const doc = docRaw as DocumentRow;
+
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("plan")
+    .eq("id", userData.user.id)
+    .maybeSingle();
+  if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
+
+  let effectivePlan = String(profile?.plan ?? "free").toLowerCase();
+  if (doc.workspace_id) {
+    const workspaceEntitlements = await getWorkspaceEntitlementsForUser(admin, doc.workspace_id, userData.user.id);
+    if (workspaceEntitlements && workspaceEntitlements.license_active) {
+      effectivePlan = workspaceEntitlements.plan;
+    } else {
+      effectivePlan = "free";
+    }
+  }
+
+  const watermarkEnabled = effectivePlan === "free";
+  const teamBrandingEnabled = effectivePlan === "team" || effectivePlan === "enterprise";
 
   const { data: comps, error: compErr } = await admin
     .from("completions")
