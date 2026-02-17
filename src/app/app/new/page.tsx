@@ -555,7 +555,7 @@ export default function NewReceipt() {
               Back
             </Link>
             <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasFile}>
-              {loading ? "Creating…" : "Create link"}
+              {loading ? "Creating…" : "Create"}
             </PrimaryButton>
           </div>
         </div>
