@@ -31,9 +31,14 @@ function isValidVersionLabel(value: string) {
 
 function isMissingVersioningSchema(error: { code?: string; message?: string } | null | undefined) {
   if (!error) return false;
-  if (error.code === "42P01" || error.code === "42703") return true;
+  if (error.code === "42P01" || error.code === "42703" || error.code === "PGRST204") return true;
   const msg = String(error.message ?? "").toLowerCase();
-  return msg.includes("document_versions") || msg.includes("current_version_id");
+  return (
+    msg.includes("document_versions") ||
+    msg.includes("current_version_id") ||
+    msg.includes("version_label") ||
+    msg.includes("schema cache")
+  );
 }
 
 async function resolveDocumentForUser(documentId: string, userId: string) {
@@ -148,6 +153,25 @@ export async function GET(
         return NextResponse.json({ error: versionsRes.error.message }, { status: 500 });
       }
 
+      const withoutLabel = await admin
+        .from("document_versions")
+        .select("id,document_id,version_number,source_type,source_file_id,source_revision_id,file_path,sha256,created_at,superseded_at")
+        .eq("document_id", id)
+        .order("version_number", { ascending: false });
+
+      if (!withoutLabel.error) {
+        const rows = ((withoutLabel.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+          ...r,
+          version_label: String(r.version_number ?? ""),
+        }));
+        return NextResponse.json({
+          document_id: access.doc.id,
+          current_version_id: access.doc.current_version_id,
+          version_count: access.doc.version_count ?? rows.length,
+          versions: rows,
+        });
+      }
+
       const fallback = [
         {
           id: access.doc.current_version_id ?? `${access.doc.id}-v1`,
@@ -242,7 +266,7 @@ export async function POST(
         .eq("document_id", id)
         .eq("version_label", requestedVersionLabel)
         .maybeSingle();
-      if (existingRequested.error && existingRequested.error.code !== "42703") {
+      if (existingRequested.error && !isMissingVersioningSchema(existingRequested.error)) {
         return NextResponse.json({ error: existingRequested.error.message }, { status: 500 });
       }
       if (existingRequested.data) {
@@ -277,7 +301,7 @@ export async function POST(
       .single();
 
     if (insertVersion.error || !insertVersion.data) {
-      if (insertVersion.error?.code === "42703") {
+      if (isMissingVersioningSchema(insertVersion.error)) {
         insertVersion = await admin
           .from("document_versions")
           .insert({
