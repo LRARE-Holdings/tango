@@ -6,6 +6,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
 import { sendWithResend } from "@/lib/email/resend";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
+import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "@/lib/document-limits";
 
 const MAX_MB = 20;
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -249,11 +250,13 @@ export async function POST(req: Request) {
 
     if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
 
-    const personalPlan = String(profile?.plan ?? "free").toLowerCase();
+    const personalPlan = normalizeEffectivePlan(profile?.plan);
+    let effectivePlan = personalPlan;
     let isPaidPlan = personalPlan !== "free";
     let personalPlus =
       personalPlan === "personal" || personalPlan === "pro" || personalPlan === "team" || personalPlan === "enterprise";
     const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
+    let seatLimitForQuota = 1;
 
     if (activeWorkspaceId) {
       const { data: membership, error: membershipErr } = await supabase
@@ -281,6 +284,8 @@ export async function POST(req: Request) {
 
       isPaidPlan = workspaceEntitlements.is_paid;
       personalPlus = workspaceEntitlements.personal_plus;
+      effectivePlan = workspaceEntitlements.plan;
+      seatLimitForQuota = workspaceEntitlements.seat_limit;
       workspace_id = activeWorkspaceId;
     } else if (personalPlan === "team" || personalPlan === "enterprise") {
       const { count: membershipCount, error: countErr } = await supabase
@@ -296,6 +301,67 @@ export async function POST(req: Request) {
           },
           { status: 409 }
         );
+      }
+    }
+
+    if (effectivePlan === "team" && !workspace_id) {
+      const { data: ent } = await supabase
+        .from("profile_entitlements")
+        .select("seats")
+        .eq("id", owner_id)
+        .maybeSingle();
+      const seats = Number((ent as { seats?: unknown } | null)?.seats ?? 1);
+      seatLimitForQuota = Number.isFinite(seats) && seats > 0 ? Math.floor(seats) : 1;
+    }
+
+    const quota = getDocumentQuota(effectivePlan, seatLimitForQuota);
+    if (quota.limit !== null) {
+      if (quota.window === "total") {
+        const { count, error: countErr } = await supabase
+          .from("documents")
+          .select("id", { count: "exact", head: true })
+          .eq("owner_id", owner_id);
+        if (countErr) return NextResponse.json({ error: countErr.message }, { status: 500 });
+        if ((count ?? 0) >= quota.limit) {
+          return NextResponse.json(
+            {
+              error: `You've reached the Free plan limit of ${quota.limit} receipts total. Upgrade to Personal or Pro to create more.`,
+              code: "DOCUMENT_LIMIT_REACHED",
+              plan: effectivePlan,
+              limit: quota.limit,
+              window: quota.window,
+              upgrade_url: "/pricing",
+            },
+            { status: 403 }
+          );
+        }
+      } else if (quota.window === "monthly") {
+        const { startIso, endIso } = currentUtcMonthRange();
+        let countQuery = supabase
+          .from("documents")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", startIso)
+          .lt("created_at", endIso);
+        if (effectivePlan === "team" && workspace_id) {
+          countQuery = countQuery.eq("workspace_id", workspace_id);
+        } else {
+          countQuery = countQuery.eq("owner_id", owner_id);
+        }
+        const { count, error: countErr } = await countQuery;
+        if (countErr) return NextResponse.json({ error: countErr.message }, { status: 500 });
+        if ((count ?? 0) >= quota.limit) {
+          return NextResponse.json(
+            {
+              error: `You've reached your ${effectivePlan} plan receipt limit for this month (${quota.limit}). Upgrade your plan to create more.`,
+              code: "DOCUMENT_LIMIT_REACHED",
+              plan: effectivePlan,
+              limit: quota.limit,
+              window: quota.window,
+              upgrade_url: "/pricing",
+            },
+            { status: 403 }
+          );
+        }
       }
     }
 

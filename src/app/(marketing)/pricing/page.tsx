@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { DOCUMENT_LIMITS } from "@/lib/document-limits";
 
 type Billing = "monthly" | "annual";
 
@@ -11,14 +12,7 @@ const TRIAL_DAYS = {
 } as const;
 const ANNUAL_DISCOUNT = 0.15;
 
-// Explicit, tiered limits that make sense
-const DOC_LIMITS = {
-  freeTotalPerUser: 10,
-  personalPerMonth: 100,
-  proPerMonth: 500,
-  teamBasePerMonth: 1000,
-  teamExtraPerSeatPerMonth: 200,
-};
+const DOC_LIMITS = DOCUMENT_LIMITS;
 
 const PRICING = {
   personal: { monthly: 12 },
