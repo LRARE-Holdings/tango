@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "@/lib/document-limits";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
+import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +127,24 @@ export async function GET() {
   const entRow = (ent ?? null) as EntitlementsRow | null;
   const profRow = (prof ?? null) as ProfileCoreRow | null;
   const plan = normalizeEffectivePlan(entRow?.plan ?? "free");
+  const primaryWorkspaceId = String(profRow?.primary_workspace_id ?? "").trim() || null;
+  let workspaceLicenseActive = false;
+  let workspacePlan: string | null = null;
+
+  if (primaryWorkspaceId) {
+    try {
+      const admin = supabaseAdmin();
+      const wsEnt = await getWorkspaceEntitlementsForUser(admin, primaryWorkspaceId, userId);
+      if (wsEnt && wsEnt.license_active) {
+        workspaceLicenseActive = true;
+        workspacePlan = wsEnt.plan;
+      }
+    } catch {
+      // Keep /me resilient: if workspace licensing read fails, continue with profile entitlements only.
+    }
+  }
+
+  const displayPlan = workspaceLicenseActive && plan === "free" ? "licensed" : plan;
   const quota = getDocumentQuota(plan, entRow?.seats ?? 1);
 
   let usageUsed = 0;
@@ -163,6 +183,9 @@ export async function GET() {
     email: userRes.user.email ?? null,
 
     plan,
+    display_plan: displayPlan,
+    workspace_license_active: workspaceLicenseActive,
+    workspace_plan: workspacePlan,
     subscription_status: entRow?.subscription_status ?? null,
     billing_interval: entRow?.billing_interval ?? null,
     seats: entRow?.seats ?? 1,

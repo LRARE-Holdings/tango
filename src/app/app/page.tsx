@@ -18,6 +18,9 @@ type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 
 type MeResponse = {
   plan?: string | null;
+  display_plan?: string | null;
+  workspace_license_active?: boolean | null;
+  workspace_plan?: string | null;
   subscription_status?: string | null;
   billing_interval?: string | null;
   seats?: number | null;
@@ -38,6 +41,9 @@ type MeResponse = {
 
 type WorkspaceDashboard = {
   scope?: "workspace" | "personal";
+  viewer?: {
+    role?: "owner" | "admin" | "member";
+  };
   workspace?: {
     id: string;
     name: string;
@@ -75,6 +81,16 @@ function normalizePlan(input: string | null | undefined): Plan {
     .toLowerCase();
   if (p === "personal" || p === "pro" || p === "team" || p === "enterprise") return p;
   return "free";
+}
+
+function planDisplayLabel(input: string | null | undefined) {
+  const p = String(input ?? "").trim().toLowerCase();
+  if (p === "licensed") return "LICENSED";
+  if (p === "personal") return "PERSONAL";
+  if (p === "pro") return "PRO";
+  if (p === "team") return "TEAM";
+  if (p === "enterprise") return "ENTERPRISE";
+  return "FREE";
 }
 
 function formatDate(iso: string | null | undefined) {
@@ -152,6 +168,7 @@ export default function AppHome() {
   const copiedTimerRef = useRef<number | null>(null);
 
   const plan = normalizePlan(me?.plan);
+  const planDisplay = planDisplayLabel(me?.display_plan ?? me?.plan);
   const personalPlus = plan !== "free";
   const proPlus = plan === "pro" || plan === "team" || plan === "enterprise";
   const workspacePlus = plan === "team" || plan === "enterprise";
@@ -160,6 +177,12 @@ export default function AppHome() {
   const usage = me?.usage ?? null;
   const usagePercent = Math.max(0, Math.min(100, usage?.percent ?? 0));
   const usageTone = usage?.at_limit ? "#b91c1c" : usage?.near_limit ? "#c2410c" : "var(--fg)";
+  const workspaceViewerRole = workspaceAnalytics?.viewer?.role ?? null;
+  const shouldShowUsageCard =
+    !workspacePlus ||
+    !primaryWorkspaceId ||
+    workspaceViewerRole === "owner" ||
+    workspaceViewerRole === "admin";
 
   useEffect(() => {
     async function load() {
@@ -299,7 +322,7 @@ export default function AppHome() {
               className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide"
               style={{ borderColor: "var(--border)", color: "var(--muted)" }}
             >
-              {plan.toUpperCase()}
+              {planDisplay}
             </span>
           </div>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
@@ -331,7 +354,7 @@ export default function AppHome() {
 
       {!loading && !error ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <StatCard label="Plan" value={plan.toUpperCase()} hint={me?.subscription_status ?? "No active subscription"} />
+          <StatCard label="Plan" value={planDisplay} hint={me?.subscription_status ?? "No active subscription"} />
           <StatCard label="Documents" value={String(counts.total)} hint={`${counts.pending} pending • ${counts.acknowledged} acknowledged`} />
           <StatCard label="Acknowledgement Rate" value={`${acknowledgementRate}%`} hint="Acknowledged documents / total documents" />
           <StatCard
@@ -342,15 +365,15 @@ export default function AppHome() {
         </div>
       ) : null}
 
-      {!loading && !error ? (
+      {!loading && !error && shouldShowUsageCard ? (
         <div className="border p-5" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
               PLAN USAGE
             </div>
-            <div className="text-xs font-semibold" style={{ color: usageTone }}>
-              {plan.toUpperCase()}
-            </div>
+              <div className="text-xs font-semibold" style={{ color: usageTone }}>
+              {planDisplay}
+              </div>
           </div>
 
           <div className="mt-2 text-sm" style={{ color: usageTone }}>

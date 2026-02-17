@@ -11,6 +11,9 @@ type MeResponse = {
   email?: string | null;
 
   plan?: string | null; // "free" | "personal" | "pro" | "team"
+  display_plan?: string | null; // e.g. "licensed" for workspace-licensed members
+  workspace_license_active?: boolean | null;
+  workspace_plan?: string | null;
   billing_interval?: string | null; // "month" | "year" (Stripe interval)
   seats?: number | null;
 
@@ -66,6 +69,7 @@ function intervalLabel(interval: string | null) {
 function planLabel(plan: string | null | undefined) {
   if (!plan) return "Free";
   const p = String(plan).toLowerCase();
+  if (p === "licensed") return "Licensed";
   if (p === "personal") return "Personal";
   if (p === "pro") return "Pro";
   if (p === "team") return "Team";
@@ -377,7 +381,7 @@ export default function AccountPage() {
 
   const email = me?.email ?? null;
 
-  const plan = useMemo(() => planLabel(me?.plan ?? null), [me?.plan]);
+  const plan = useMemo(() => planLabel(me?.display_plan ?? me?.plan ?? null), [me?.display_plan, me?.plan]);
   const interval = useMemo(() => intervalLabel(me?.billing_interval ?? null), [me?.billing_interval]);
   const status = me?.subscription_status ?? null;
   const statusTone = useMemo(() => toneForStatus(status), [status]);
@@ -509,7 +513,7 @@ export default function AccountPage() {
       {/* Quick status row */}
       <div className="flex flex-wrap items-center gap-2">
         <Pill tone={statusTone}>
-          {meLoading ? "LOADING…" : status ? statusLabel(status).toUpperCase() : "FREE"}
+          {meLoading ? "LOADING…" : status ? statusLabel(status).toUpperCase() : plan.toUpperCase()}
         </Pill>
         <Pill>{meLoading ? "—" : plan.toUpperCase()}</Pill>
         {isPaid ? <Pill>{interval.toUpperCase()}</Pill> : null}

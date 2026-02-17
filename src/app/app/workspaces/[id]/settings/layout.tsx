@@ -57,6 +57,7 @@ export default async function WorkspaceSettingsLayout({
         {[
           { href: `/app/workspaces/${id}/settings/general`, label: "General" },
           { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
+          { href: `/app/workspaces/${id}/settings/usage`, label: "Usage" },
           { href: `/app/workspaces/${id}/settings/domains`, label: "Domains" },
         ].map((item) => (
           <Link

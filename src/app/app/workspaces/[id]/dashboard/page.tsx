@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { WorkspaceDashboardLoading } from "@/components/workspace-dashboard-loading";
 
@@ -109,16 +109,9 @@ function Stat({ label, value, hint }: { label: string; value: React.ReactNode; h
   );
 }
 
-function planLabel(plan: DashboardPayload["usage"]["plan"]) {
-  if (plan === "free") return "Free";
-  if (plan === "personal") return "Personal";
-  if (plan === "pro") return "Pro";
-  if (plan === "team") return "Team";
-  return "Enterprise";
-}
-
 export default function WorkspaceDashboardPage() {
   const params = useParams<{ id?: string }>();
+  const router = useRouter();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
   const workspaceIdentifier = useMemo(() => workspaceId.trim(), [workspaceId]);
 
@@ -150,8 +143,16 @@ export default function WorkspaceDashboardPage() {
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load dashboard");
         if (!alive) return;
-        setData(json as DashboardPayload);
-        if ((json as DashboardPayload)?.scope === "personal" && scope !== "personal") {
+        const payload = json as DashboardPayload;
+        if (
+          payload?.viewer?.role === "member" &&
+          (payload?.usage?.plan === "team" || payload?.usage?.plan === "enterprise")
+        ) {
+          router.replace(`/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/documents`);
+          return;
+        }
+        setData(payload);
+        if (payload?.scope === "personal" && scope !== "personal") {
           setScope("personal");
         }
       } catch (e: unknown) {
@@ -165,7 +166,7 @@ export default function WorkspaceDashboardPage() {
     return () => {
       alive = false;
     };
-  }, [workspaceIdentifier, workspaceId, scope]);
+  }, [workspaceIdentifier, workspaceId, scope, router]);
 
   const logoSrc = useMemo(() => {
     const w = data?.workspace;
@@ -192,32 +193,6 @@ export default function WorkspaceDashboardPage() {
 
   const isPersonalScope = data?.scope === "personal";
   const canToggleScope = data?.viewer?.role === "owner" || data?.viewer?.role === "admin";
-  const isMemberView = data?.viewer?.role === "member";
-  const usage = data?.usage ?? null;
-  const usagePercent = usage?.percent ?? 0;
-  const usageTone = usage?.at_limit ? "#b91c1c" : usage?.near_limit ? "#c2410c" : "var(--fg)";
-  const usageHint = useMemo(() => {
-    if (!usage) return "Loading usage…";
-    const target = usage.count_by === "workspace" ? "workspace" : "account";
-    const windowLabel =
-      usage.window === "monthly"
-        ? "this month"
-        : usage.window === "total"
-          ? "lifetime"
-          : "current cycle";
-    if (usage.limit == null) {
-      return `${planLabel(usage.plan)} plan (${target}): custom limit.`;
-    }
-    if (usage.at_limit) {
-      return `Limit reached: ${usage.used}/${usage.limit} receipts ${windowLabel}.`;
-    }
-    if (usage.near_limit) {
-      return `Near limit: ${usage.used}/${usage.limit} receipts ${windowLabel}.`;
-    }
-    return `${usage.used}/${usage.limit} receipts used ${windowLabel}.`;
-  }, [usage]);
-
-
   if (loading && !data && !error) {
     return <WorkspaceDashboardLoading />;
   }
@@ -293,15 +268,20 @@ export default function WorkspaceDashboardPage() {
               </button>
             </div>
           ) : null}
-          {!isMemberView ? (
-            <Link
-              href="/app/new"
-              className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
-              style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
-            >
-              Create receipt
-            </Link>
-          ) : null}
+          <Link
+            href="/app/new"
+            className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
+            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+          >
+            Create receipt
+          </Link>
+          <Link
+            href={`/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/settings/usage`}
+            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+          >
+            Usage settings
+          </Link>
         </div>
       </div>
 
@@ -331,101 +311,7 @@ export default function WorkspaceDashboardPage() {
             </div>
           ) : null}
 
-          <div
-            className="border p-4"
-            style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
-          >
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-                PLAN USAGE
-              </div>
-              <div className="text-xs font-semibold" style={{ color: usageTone }}>
-                {usage ? `${planLabel(usage.plan)} plan` : "—"}
-              </div>
-            </div>
-            <div className="mt-2 text-sm" style={{ color: usageTone }}>
-              {usageHint}
-            </div>
-            <div
-              className="mt-3 h-2.5 w-full overflow-hidden"
-              style={{ background: "var(--card2)", borderRadius: 999 }}
-              aria-label="Plan usage progress"
-            >
-              <div
-                style={{
-                  width: `${Math.max(0, Math.min(100, usagePercent || 0))}%`,
-                  background: usageTone,
-                  height: "100%",
-                  transition: "width 180ms ease",
-                }}
-              />
-            </div>
-            <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-              {usage?.limit == null
-                ? "Limit details are custom for this plan."
-                : usage.remaining === 0
-                  ? "You are at your limit."
-                  : `${usage.remaining} receipts remaining.`}
-            </div>
-          </div>
-
-          {/* Member-focused simplified layout */}
-          {isMemberView ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Stat label="MY DOCUMENTS" value={data.counts.documents_total} hint={`${data.counts.documents_pending} pending`} />
-                <Stat label="MY ACKNOWLEDGED" value={data.counts.documents_acknowledged} hint={healthHint} />
-                <Stat label="MY COMPLETIONS" value={data.counts.completions_total} hint={`${data.counts.acknowledgements_total} acknowledgements`} />
-              </div>
-
-              <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
-                <div className="px-5 py-3 text-xs tracking-wide" style={{ background: "var(--card2)", color: "var(--muted2)" }}>
-                  MY PENDING DOCUMENTS
-                </div>
-
-                {data.pending.length === 0 ? (
-                  <div className="px-5 py-5 text-sm" style={{ color: "var(--muted)" }}>
-                    Nothing pending. You are up to date.
-                  </div>
-                ) : (
-                  <div>
-                    {data.pending.map((d) => (
-                      <div
-                        key={d.id}
-                        className="px-5 py-4 flex items-start justify-between gap-4"
-                        style={{ borderTop: "1px solid var(--border2)" }}
-                      >
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold truncate">{d.title}</div>
-                          <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                            Created {fmtUtc(d.created_at)}
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 flex-wrap">
-                          <Link
-                            href={`/app/docs/${d.id}`}
-                            className="focus-ring px-3 py-2 text-sm hover:opacity-80"
-                            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-                          >
-                            View
-                          </Link>
-                          <Link
-                            href={`/d/${d.public_id}`}
-                            className="focus-ring px-3 py-2 text-sm hover:opacity-80"
-                            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-                          >
-                            Open link
-                          </Link>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <>
+          <>
               {/* KPI row */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <Stat
@@ -574,8 +460,7 @@ export default function WorkspaceDashboardPage() {
               )}
                 </div>
               </div>
-            </>
-          )}
+          </>
         </>
       )}
     </div>

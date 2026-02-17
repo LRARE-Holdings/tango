@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { DOCUMENT_LIMITS } from "@/lib/document-limits";
 
 type Billing = "monthly" | "annual";
@@ -200,9 +201,34 @@ export default function PricingPage() {
   const [seats, setSeats] = useState<number>(5);
   const [checkoutLoading, setCheckoutLoading] = useState<null | "personal" | "pro" | "team">(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<"unknown" | "signed_in" | "signed_out">("unknown");
+
+  useEffect(() => {
+    let alive = true;
+    async function loadAuthState() {
+      try {
+        const res = await fetch("/api/app/me", { cache: "no-store" });
+        if (!alive) return;
+        setAuthState(res.ok ? "signed_in" : "signed_out");
+      } catch {
+        if (!alive) return;
+        setAuthState("signed_out");
+      }
+    }
+    loadAuthState();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function goCheckout(plan: "personal" | "pro" | "team") {
     setCheckoutError(null);
+    if (authState === "signed_out") {
+      setCheckoutError("Create an account first to choose a paid plan.");
+      const next = `/pricing?plan=${encodeURIComponent(plan)}&billing=${encodeURIComponent(billing)}`;
+      window.location.href = `/auth?next=${encodeURIComponent(next)}`;
+      return;
+    }
     setCheckoutLoading(plan);
     try {
       const res = await fetch("/api/billing/checkout", {
@@ -218,8 +244,15 @@ export default function PricingPage() {
       if (!res.ok) throw new Error(json?.error ?? "Checkout failed");
       if (!json?.url) throw new Error("No checkout URL returned");
       window.location.href = json.url;
-    } catch (e: any) {
-      setCheckoutError(e?.message ?? "Something went wrong");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Something went wrong";
+      if (/unauthorized/i.test(message)) {
+        const next = `/pricing?plan=${encodeURIComponent(plan)}&billing=${encodeURIComponent(billing)}`;
+        setCheckoutError("Create an account first to choose a paid plan.");
+        window.location.href = `/auth?next=${encodeURIComponent(next)}`;
+        return;
+      }
+      setCheckoutError(message);
       setCheckoutLoading(null);
     }
   }
@@ -293,8 +326,15 @@ export default function PricingPage() {
           </div>
         </div>
         {checkoutError ? (
-          <div className="mt-3 text-sm text-red-600 dark:text-red-400">
-            {checkoutError}
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+            <div>{checkoutError}</div>
+            {authState === "signed_out" ? (
+              <div className="mt-2">
+                <Link href="/auth" className="underline hover:opacity-80">
+                  Sign up
+                </Link>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </section>
@@ -338,7 +378,13 @@ export default function PricingPage() {
                 </span>
               </>
             }
-            ctaLabel={checkoutLoading === "personal" ? "Redirecting…" : "Choose Personal"}
+            ctaLabel={
+              authState === "signed_out"
+                ? "Sign up for Personal"
+                : checkoutLoading === "personal"
+                  ? "Redirecting…"
+                  : "Choose Personal"
+            }
             ctaOnClick={() => goCheckout("personal")}
             bullets={[
               `${DOC_LIMITS.personalPerMonth} documents per month`,
@@ -365,7 +411,13 @@ export default function PricingPage() {
                 </span>
               </>
             }
-            ctaLabel={checkoutLoading === "pro" ? "Redirecting…" : "Choose Pro"}
+            ctaLabel={
+              authState === "signed_out"
+                ? "Sign up for Pro"
+                : checkoutLoading === "pro"
+                  ? "Redirecting…"
+                  : "Choose Pro"
+            }
             ctaOnClick={() => goCheckout("pro")}
             highlight
             bullets={[
@@ -454,7 +506,11 @@ export default function PricingPage() {
                 disabled={checkoutLoading === "team"}
                 className="inline-flex w-full items-center justify-center rounded-full bg-zinc-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60 dark:bg-white dark:text-zinc-950"
               >
-                {checkoutLoading === "team" ? "Redirecting…" : "Choose Team"}
+                {authState === "signed_out"
+                  ? "Sign up for Team"
+                  : checkoutLoading === "team"
+                    ? "Redirecting…"
+                    : "Choose Team"}
               </button>
             </div>
           </div>
