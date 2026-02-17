@@ -19,6 +19,12 @@ type DocumentAccessRow = {
   version_count?: number | null;
 };
 
+function isMissingTableError(error: { code?: string; message?: string } | null | undefined, table: string) {
+  if (!error) return false;
+  if (error.code === "42P01") return true;
+  return String(error.message ?? "").toLowerCase().includes(table.toLowerCase());
+}
+
 function isEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim().toLowerCase());
 }
@@ -107,7 +113,7 @@ async function resolveDocumentForUser(documentId: string, userId: string) {
 
   const { data: member, error: memErr } = await supabase
     .from("workspace_members")
-    .select("role")
+    .select("role,license_active")
     .eq("workspace_id", doc.workspace_id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -115,8 +121,24 @@ async function resolveDocumentForUser(documentId: string, userId: string) {
   if (!member) return { allowed: false as const, reason: "Forbidden" };
 
   const role = String((member as { role?: string }).role ?? "");
-  if (role !== "owner" && role !== "admin") return { allowed: false as const, reason: "Forbidden" };
-  return { allowed: true as const, doc };
+  const licenseActive = Boolean((member as { license_active?: boolean }).license_active ?? true);
+  if (!licenseActive) return { allowed: false as const, reason: "Forbidden" };
+
+  if (role === "owner" || role === "admin") return { allowed: true as const, doc };
+  if (doc.owner_id === userId) return { allowed: true as const, doc };
+
+  const { data: responsibility, error: respErr } = await supabase
+    .from("document_responsibilities")
+    .select("user_id")
+    .eq("document_id", documentId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (respErr && !isMissingTableError(respErr, "document_responsibilities")) {
+    throw new Error(respErr.message);
+  }
+  if (!respErr && responsibility) return { allowed: true as const, doc };
+
+  return { allowed: false as const, reason: "Forbidden" };
 }
 
 export async function POST(

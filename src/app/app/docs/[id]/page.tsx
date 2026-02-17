@@ -738,83 +738,119 @@ export default function DocDetailPage({
           )}
 
           {activeTab === "sharing" && (
-            <div className="space-y-3 pt-1">
-              <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-                SHARING OPTIONS
-              </div>
-              <div className="text-xs" style={{ color: "var(--muted)" }}>
-                Configure recipient emails to send this document link.
-              </div>
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={shareEmailsInput}
-                  onChange={(e) => setShareEmailsInput(e.target.value)}
-                  placeholder="name@company.com, team@company.com"
-                  className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-                  style={{ borderColor: "var(--border)", borderRadius: 10 }}
-                />
-                <button
-                  type="button"
-                  onClick={addShareEmailsFromInput}
-                  className="focus-ring shrink-0 rounded-full border px-4 py-2 text-sm hover:opacity-80"
-                  style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                >
-                  Add emails
-                </button>
-              </div>
-              {shareEmails.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {shareEmails.map((email) => (
-                    <button
-                      key={email}
-                      type="button"
-                      onClick={() => removeShareEmail(email)}
-                      className="focus-ring rounded-full border px-3 py-1 text-xs hover:opacity-80"
-                      style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                      title="Remove email"
-                    >
-                      {email} ×
-                    </button>
-                  ))}
+            <div className="space-y-4 pt-1">
+              <div
+                className="border p-4"
+                style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
+              >
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                      SHARING
+                    </div>
+                    <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+                      Manage recipients and send the public document link.
+                    </div>
+                  </div>
+                  <div
+                    className="rounded-full border px-3 py-1 text-xs"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    {shareEmails.length} recipient{shareEmails.length === 1 ? "" : "s"}
+                  </div>
                 </div>
-              ) : (
-                <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                  No recipient emails configured yet.
+
+                <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
+                  <input
+                    value={shareEmailsInput}
+                    onChange={(e) => setShareEmailsInput(e.target.value)}
+                    placeholder="name@company.com, team@company.com"
+                    className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+                    style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={addShareEmailsFromInput}
+                    className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    Add recipients
+                  </button>
                 </div>
-              )}
-              {shareError ? (
-                <div className="text-sm" style={{ color: "#ff3b30" }}>
-                  {shareError}
+
+                <div
+                  className="mt-3 border p-3"
+                  style={{ borderColor: "var(--border2)", borderRadius: 10, background: "var(--card2)" }}
+                >
+                  {shareEmails.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {shareEmails.map((email) => (
+                        <button
+                          key={email}
+                          type="button"
+                          onClick={() => removeShareEmail(email)}
+                          className="focus-ring rounded-full border px-3 py-1 text-xs hover:opacity-80"
+                          style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                          title="Remove email"
+                        >
+                          {email} ×
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                      No recipient emails configured yet.
+                    </div>
+                  )}
                 </div>
-              ) : null}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link
-                  href={shareUrl!}
-                  className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
-                  style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                >
-                  Open public link
-                </Link>
-                <button
-                  type="button"
-                  onClick={copyLink}
-                  className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
-                  style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                >
-                  {copiedId === "share" ? "Copied link" : "Copy public link"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendShareEmails()}
-                  disabled={shareSending}
-                  className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                  style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                >
-                  {shareSending ? "Sending…" : "Send email"}
-                </button>
+
+                {shareError ? (
+                  <div className="mt-3 text-sm" style={{ color: "#ff3b30" }}>
+                    {shareError}
+                  </div>
+                ) : null}
               </div>
-              <div className="mt-3 text-xs break-all" style={{ color: "var(--muted2)" }}>
-                {shareUrl}
+
+              <div
+                className="border p-4"
+                style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
+              >
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  PUBLIC LINK
+                </div>
+                <div
+                  className="mt-2 break-all rounded-lg border px-3 py-2 text-xs"
+                  style={{ borderColor: "var(--border2)", color: "var(--muted)" }}
+                >
+                  {shareUrl}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    href={shareUrl!}
+                    className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    Open link
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={copyLink}
+                    className="focus-ring rounded-full border px-4 py-2 text-sm hover:opacity-80"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    {copiedId === "share" ? "Copied link" : "Copy link"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void sendShareEmails()}
+                    disabled={shareSending}
+                    className="focus-ring rounded-full px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                    style={{ background: "var(--fg)", color: "var(--bg)" }}
+                  >
+                    {shareSending ? "Sending…" : "Send email"}
+                  </button>
+                </div>
               </div>
             </div>
           )}
