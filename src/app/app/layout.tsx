@@ -106,6 +106,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const dashboardHref = me?.primary_workspace_id
     ? `/app/workspaces/${me.primary_workspace_id}/dashboard`
     : "/app";
+  const plan = String(me?.plan ?? "").toLowerCase();
+  const showTopSettings = plan !== "team" && plan !== "enterprise";
 
   return (
     <ToastProvider>
@@ -145,6 +147,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="hidden md:block text-xs" style={{ color: "var(--muted)" }}>
                   {meLoading ? "Loading…" : me?.email ? `Signed in as ${me.email}` : "Session unavailable"}
                 </div>
+
+                {showTopSettings ? (
+                  <Link
+                    href="/app/account"
+                    className="focus-ring px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: 10,
+                      color: "var(--muted)",
+                      background: "transparent",
+                    }}
+                  >
+                    Settings
+                  </Link>
+                ) : null}
 
                 <button
                   type="button"
