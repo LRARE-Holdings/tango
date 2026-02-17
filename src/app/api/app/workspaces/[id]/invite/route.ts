@@ -6,6 +6,12 @@ import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, column: string) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  return String(error.message ?? "").toLowerCase().includes(column.toLowerCase());
+}
+
 function isEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
@@ -58,7 +64,7 @@ export async function POST(
     }
 
     // Insert/Upsert invite record (admin to avoid any RLS mismatch)
-    const { error: invErr } = await admin
+    const insertInvite = await admin
       .from("workspace_invites")
       .insert({
         workspace_id: workspaceId,
@@ -66,9 +72,23 @@ export async function POST(
         role,
         invited_by: userData.user.id,
         status: "pending",
+        activation_blocked_reason: null,
       });
 
-    if (invErr) throw new Error(invErr.message);
+    if (insertInvite.error && isMissingColumnError(insertInvite.error, "activation_blocked_reason")) {
+      const fallback = await admin
+        .from("workspace_invites")
+        .insert({
+          workspace_id: workspaceId,
+          email,
+          role,
+          invited_by: userData.user.id,
+          status: "pending",
+        });
+      if (fallback.error) throw new Error(fallback.error.message);
+    } else if (insertInvite.error) {
+      throw new Error(insertInvite.error.message);
+    }
 
     // Trigger Supabase invite email (their template)
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL

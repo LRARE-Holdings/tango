@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
+import { useToast } from "@/components/toast";
 import { EmailVerificationGate } from "@/components/email-verification-gate";
 import { OnboardingGate } from "@/components/onboarding-gate";
 import { WorkspaceHeaderMenu } from "@/components/workspace-header-menu";
@@ -25,6 +26,40 @@ function PrimaryCta({ href, children }: { href: string; children: React.ReactNod
       {children}
     </Link>
   );
+}
+
+function InviteReconcileNotifier() {
+  const toast = useToast();
+
+  useEffect(() => {
+    let active = true;
+
+    async function reconcileInvites() {
+      try {
+        const res = await fetch("/api/app/invites/reconcile", { method: "POST" });
+        const json = (await res.json().catch(() => null)) as
+          | { blocked?: Array<{ reason?: string }> }
+          | null;
+        if (!active || !res.ok) return;
+        const blocked = Array.isArray(json?.blocked) ? json.blocked : [];
+        if (blocked.length > 0) {
+          toast.info(
+            "Some workspace invites are blocked",
+            "No available seats. Ask an owner/admin to free seats or increase seats in billing."
+          );
+        }
+      } catch {
+        // noop
+      }
+    }
+
+    void reconcileInvites();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return null;
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -58,11 +93,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     loadMe();
   }, [supabase]);
 
-  useEffect(() => {
-    // Reconcile any pending workspace invites after login
-    fetch("/api/app/invites/reconcile", { method: "POST" }).catch(() => {});
-  }, []);
-
   async function signOut() {
     setSigningOut(true);
     try {
@@ -79,6 +109,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastProvider>
+      <InviteReconcileNotifier />
       <Suspense fallback={null}>
         <EmailVerificationGate />
         <OnboardingGate />

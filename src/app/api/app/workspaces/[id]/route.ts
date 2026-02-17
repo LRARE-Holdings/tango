@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
+import { getWorkspaceLicensing } from "@/lib/workspace-licensing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -98,14 +99,19 @@ export async function GET(
 
     const withSlug = await supabase
       .from("workspaces")
-      .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields")
+      .select(
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields,billing_owner_user_id"
+      )
       .eq("id", resolved.id)
       .maybeSingle();
 
     let workspace = withSlug.data as Record<string, unknown> | null;
     let wsErr = withSlug.error;
 
-    if (wsErr && isMissingColumnError(wsErr, "slug")) {
+    if (
+      wsErr &&
+      (isMissingColumnError(wsErr, "slug") || isMissingColumnError(wsErr, "billing_owner_user_id"))
+    ) {
       const fallback = await supabase
         .from("workspaces")
         .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
@@ -116,21 +122,14 @@ export async function GET(
       if (workspace) {
         workspace.slug = null;
         workspace.document_tag_fields = [];
+        workspace.billing_owner_user_id = workspace.created_by;
       }
     }
 
     if (wsErr) throw new Error(wsErr.message);
     if (!workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const { data: members, error: memErr } = await supabase
-      .from("workspace_members")
-      .select("user_id,role,joined_at")
-      .eq("workspace_id", resolved.id)
-      .order("joined_at", { ascending: true });
-
-    if (memErr) throw new Error(memErr.message);
-
-    const memberList = (members ?? []) as Array<{ user_id: string; role: string; joined_at: string }>;
+    const { summary: licensing, members: memberList } = await getWorkspaceLicensing(admin, resolved.id);
     const userIds = Array.from(new Set(memberList.map((m) => m.user_id).filter(Boolean)));
     const emailsByUserId = new Map<string, string | null>();
 
@@ -155,6 +154,7 @@ export async function GET(
         ...workspace,
         document_tag_fields: parseDocumentTagFields((workspace as { document_tag_fields?: unknown }).document_tag_fields),
       },
+      licensing,
       members: membersWithEmails,
       viewer: {
         user_id: userData.user.id,

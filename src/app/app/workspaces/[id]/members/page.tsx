@@ -8,6 +8,9 @@ type Member = {
   email: string | null;
   role: "owner" | "admin" | "member";
   joined_at: string;
+  license_active?: boolean;
+  license_assigned_at?: string | null;
+  license_revoked_at?: string | null;
 };
 
 type Workspace = {
@@ -21,6 +24,13 @@ type Viewer = {
   role: "owner" | "admin" | "member";
 };
 
+type LicensingSummary = {
+  seat_limit: number;
+  used_seats: number;
+  available_seats: number;
+  billing_owner_user_id: string;
+};
+
 export default function WorkspaceMembersPage() {
   const params = useParams<{ id?: string }>();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
@@ -32,6 +42,8 @@ export default function WorkspaceMembersPage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [viewer, setViewer] = useState<Viewer | null>(null);
+  const [licensing, setLicensing] = useState<LicensingSummary | null>(null);
+  const [licenseSavingUserId, setLicenseSavingUserId] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"member" | "admin">("member");
@@ -62,6 +74,7 @@ export default function WorkspaceMembersPage() {
         setWorkspace(json?.workspace ?? null);
         setMembers(json?.members ?? []);
         setViewer((json?.viewer ?? null) as Viewer | null);
+        setLicensing((json?.licensing ?? null) as LicensingSummary | null);
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -85,6 +98,7 @@ export default function WorkspaceMembersPage() {
     setWorkspace(json?.workspace ?? null);
     setMembers(json?.members ?? []);
     setViewer((json?.viewer ?? null) as Viewer | null);
+    setLicensing((json?.licensing ?? null) as LicensingSummary | null);
   }
 
   async function invite() {
@@ -150,6 +164,30 @@ export default function WorkspaceMembersPage() {
     }
   }
 
+  async function setMemberLicense(userId: string, licenseActive: boolean) {
+    if (!workspaceIdentifier) return;
+    setInviteMsg(null);
+    setLicenseSavingUserId(userId);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/licenses/members/${encodeURIComponent(userId)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ license_active: licenseActive }),
+        }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Could not update license.");
+      await refresh();
+      setInviteMsg(licenseActive ? "License assigned." : "License revoked.");
+    } catch (e: unknown) {
+      setInviteMsg(e instanceof Error ? e.message : "Could not update license.");
+    } finally {
+      setLicenseSavingUserId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
@@ -179,6 +217,9 @@ export default function WorkspaceMembersPage() {
           {canManageMembers ? (
           <div className="border p-5" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}>
             <div className="text-sm font-semibold">Invite someone</div>
+            <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+              New members are auto-assigned a license on acceptance. If seats are full, activation is blocked.
+            </div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-2">
                 <label className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
@@ -232,6 +273,33 @@ export default function WorkspaceMembersPage() {
           </div>
           ) : null}
 
+          {licensing ? (
+            <div className="border p-4" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}>
+              <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                LICENSES
+              </div>
+              <div className="mt-2 text-sm">
+                {licensing.used_seats} / {licensing.seat_limit} seats used • {licensing.available_seats} available
+              </div>
+              {licensing.available_seats <= 0 ? (
+                <div className="mt-2 text-xs" style={{ color: "#ff3b30" }}>
+                  No available seats. Increase seats in billing or revoke a current license.
+                </div>
+              ) : null}
+              {canManageMembers ? (
+                <div className="mt-3">
+                  <a
+                    href="/app/account"
+                    className="focus-ring inline-flex px-3 py-2 text-xs font-medium hover:opacity-80"
+                    style={{ border: "1px solid var(--border)", borderRadius: 8, color: "var(--muted)" }}
+                  >
+                    Manage billing
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           {/* Member list */}
           <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
             <div className="px-5 py-3 text-xs" style={{ color: "var(--muted2)", background: "var(--card2)" }}>
@@ -251,6 +319,11 @@ export default function WorkspaceMembersPage() {
                   !isSelf &&
                   m.role !== "owner" &&
                   !(viewer?.role === "admin" && m.role !== "member");
+                const canManageLicense =
+                  canManageMembers &&
+                  !(viewer?.role === "admin" && m.role === "owner");
+                const licenseActive = Boolean(m.license_active ?? true);
+                const canEnableLicense = licenseActive || (licensing?.available_seats ?? 0) > 0;
                 return (
                 <div
                   key={m.user_id}
@@ -262,9 +335,26 @@ export default function WorkspaceMembersPage() {
                     <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
                       Role: {m.role}
                     </div>
+                    <div className="mt-1 text-xs" style={{ color: licenseActive ? "var(--muted2)" : "#ff3b30" }}>
+                      License: {licenseActive ? "Active" : "Inactive"}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {canManageLicense ? (
+                      <label className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
+                        <input
+                          type="checkbox"
+                          checked={licenseActive}
+                          onChange={(e) => void setMemberLicense(m.user_id, e.currentTarget.checked)}
+                          disabled={
+                            licenseSavingUserId === m.user_id ||
+                            (!licenseActive && !canEnableLicense)
+                          }
+                        />
+                        License
+                      </label>
+                    ) : null}
                     {canChangeRole ? (
                       <select
                         value={m.role}
