@@ -33,6 +33,17 @@ type DashboardPayload = {
     time_on_page_seconds: number | null;
     active_seconds: number | null;
   };
+  usage: {
+    plan: "free" | "personal" | "pro" | "team" | "enterprise";
+    count_by: "user" | "workspace";
+    used: number;
+    limit: number | null;
+    remaining: number | null;
+    percent: number | null;
+    window: "total" | "monthly" | "custom";
+    near_limit: boolean;
+    at_limit: boolean;
+  };
   pending: Array<{
     id: string;
     title: string;
@@ -96,6 +107,14 @@ function Stat({ label, value, hint }: { label: string; value: React.ReactNode; h
       ) : null}
     </div>
   );
+}
+
+function planLabel(plan: DashboardPayload["usage"]["plan"]) {
+  if (plan === "free") return "Free";
+  if (plan === "personal") return "Personal";
+  if (plan === "pro") return "Pro";
+  if (plan === "team") return "Team";
+  return "Enterprise";
 }
 
 export default function WorkspaceDashboardPage() {
@@ -174,6 +193,29 @@ export default function WorkspaceDashboardPage() {
   const isPersonalScope = data?.scope === "personal";
   const canToggleScope = data?.viewer?.role === "owner" || data?.viewer?.role === "admin";
   const isMemberView = data?.viewer?.role === "member";
+  const usage = data?.usage ?? null;
+  const usagePercent = usage?.percent ?? 0;
+  const usageTone = usage?.at_limit ? "#b91c1c" : usage?.near_limit ? "#c2410c" : "var(--fg)";
+  const usageHint = useMemo(() => {
+    if (!usage) return "Loading usage…";
+    const target = usage.count_by === "workspace" ? "workspace" : "account";
+    const windowLabel =
+      usage.window === "monthly"
+        ? "this month"
+        : usage.window === "total"
+          ? "lifetime"
+          : "current cycle";
+    if (usage.limit == null) {
+      return `${planLabel(usage.plan)} plan (${target}): custom limit.`;
+    }
+    if (usage.at_limit) {
+      return `Limit reached: ${usage.used}/${usage.limit} receipts ${windowLabel}.`;
+    }
+    if (usage.near_limit) {
+      return `Near limit: ${usage.used}/${usage.limit} receipts ${windowLabel}.`;
+    }
+    return `${usage.used}/${usage.limit} receipts used ${windowLabel}.`;
+  }, [usage]);
 
 
   if (loading && !data && !error) {
@@ -288,6 +330,44 @@ export default function WorkspaceDashboardPage() {
               Personal view: showing only documents you are responsible for.
             </div>
           ) : null}
+
+          <div
+            className="border p-4"
+            style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
+          >
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                PLAN USAGE
+              </div>
+              <div className="text-xs font-semibold" style={{ color: usageTone }}>
+                {usage ? `${planLabel(usage.plan)} plan` : "—"}
+              </div>
+            </div>
+            <div className="mt-2 text-sm" style={{ color: usageTone }}>
+              {usageHint}
+            </div>
+            <div
+              className="mt-3 h-2.5 w-full overflow-hidden"
+              style={{ background: "var(--card2)", borderRadius: 999 }}
+              aria-label="Plan usage progress"
+            >
+              <div
+                style={{
+                  width: `${Math.max(0, Math.min(100, usagePercent || 0))}%`,
+                  background: usageTone,
+                  height: "100%",
+                  transition: "width 180ms ease",
+                }}
+              />
+            </div>
+            <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+              {usage?.limit == null
+                ? "Limit details are custom for this plan."
+                : usage.remaining === 0
+                  ? "You are at your limit."
+                  : `${usage.remaining} receipts remaining.`}
+            </div>
+          </div>
 
           {/* Member-focused simplified layout */}
           {isMemberView ? (

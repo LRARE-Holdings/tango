@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
+import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "@/lib/document-limits";
 import { supabaseServer } from "@/lib/supabase/server";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 
@@ -25,6 +28,7 @@ type ActivityItem =
     };
 
 type DashboardScope = "workspace" | "personal";
+type UsageWindow = "total" | "monthly" | "custom";
 
 function isMissingTableError(error: { code?: string; message?: string } | null | undefined, table: string) {
   if (!error) return false;
@@ -59,6 +63,7 @@ export async function GET(
     const workspaceId = resolved.id;
 
     const supabase = await supabaseServer();
+    const admin = supabaseAdmin();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
@@ -86,6 +91,23 @@ export async function GET(
         : null;
     const scope: DashboardScope =
       viewerRole === "member" ? "personal" : requestedScope ?? "workspace";
+
+    const workspaceEntitlements = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
+    if (!workspaceEntitlements || !workspaceEntitlements.license_active) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const effectivePlan = normalizeEffectivePlan(workspaceEntitlements.plan);
+    let seatLimitForQuota = workspaceEntitlements.seat_limit;
+    if (effectivePlan === "team" && !seatLimitForQuota) {
+      const { data: ent } = await supabase
+        .from("profile_entitlements")
+        .select("seats")
+        .eq("id", userId)
+        .maybeSingle();
+      const seats = Number((ent as { seats?: unknown } | null)?.seats ?? 1);
+      seatLimitForQuota = Number.isFinite(seats) && seats > 0 ? Math.floor(seats) : 1;
+    }
 
     // Run independent dashboard queries in parallel to reduce first-byte time.
     const [workspaceResult, membersResult, invitesResult, docsResult] = await Promise.all([
@@ -237,6 +259,38 @@ export async function GET(
         acknowledgements: 0,
       }));
 
+    const quota = getDocumentQuota(effectivePlan, seatLimitForQuota);
+    const usageLimit: number | null = quota.limit;
+    let usageUsed = 0;
+    const usageWindow: UsageWindow = quota.window;
+    const usageCountBy = effectivePlan === "team" ? "workspace" : "user";
+
+    if (quota.limit !== null) {
+      let usageQuery = supabase.from("documents").select("id", { count: "exact", head: true });
+      if (quota.window === "monthly") {
+        const { startIso, endIso } = currentUtcMonthRange();
+        usageQuery = usageQuery.gte("created_at", startIso).lt("created_at", endIso);
+      }
+      if (effectivePlan === "team") {
+        usageQuery = usageQuery.eq("workspace_id", workspaceId);
+      } else {
+        usageQuery = usageQuery.eq("owner_id", userId);
+      }
+
+      const { count: usageCount, error: usageErr } = await usageQuery;
+      if (usageErr) return NextResponse.json({ error: usageErr.message }, { status: 500 });
+      usageUsed = usageCount ?? 0;
+    }
+
+    const usageRemaining =
+      usageLimit == null ? null : Math.max(0, usageLimit - usageUsed);
+    const usagePercent =
+      usageLimit == null || usageLimit <= 0
+        ? null
+        : Math.min(100, Math.round((usageUsed / usageLimit) * 100));
+    const usageNearLimit = usageLimit != null && usageUsed >= Math.floor(usageLimit * 0.8);
+    const usageAtLimit = usageLimit != null && usageUsed >= usageLimit;
+
     return NextResponse.json({
       scope,
       workspace: {
@@ -263,6 +317,17 @@ export async function GET(
         max_scroll_percent: avgScroll,
         time_on_page_seconds: avgTime,
         active_seconds: avgActive,
+      },
+      usage: {
+        plan: effectivePlan,
+        count_by: usageCountBy,
+        used: usageUsed,
+        limit: usageLimit,
+        remaining: usageRemaining,
+        percent: usagePercent,
+        window: usageWindow,
+        near_limit: usageNearLimit,
+        at_limit: usageAtLimit,
       },
       pending: pendingList,
       activity,
