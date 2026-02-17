@@ -41,6 +41,11 @@ function isMissingVersioningSchema(error: { code?: string; message?: string } | 
   );
 }
 
+function isStorageAlreadyExistsError(error: { message?: string } | null | undefined) {
+  const msg = String(error?.message ?? "").toLowerCase();
+  return msg.includes("already exists") || msg.includes("resource already exists");
+}
+
 async function resolveDocumentForUser(documentId: string, userId: string) {
   const supabase = await supabaseServer();
 
@@ -274,12 +279,20 @@ export async function POST(
       }
     }
 
-    const filePath = `public/${id}_v${nextVersion}.${source.ext}`;
+    const baseFilePath = `public/${id}_v${nextVersion}.${source.ext}`;
+    let filePath = baseFilePath;
 
-    const uploadRes = await admin.storage.from("docs").upload(filePath, source.buffer, {
+    let uploadRes = await admin.storage.from("docs").upload(filePath, source.buffer, {
       contentType: source.contentType,
       upsert: false,
     });
+    if (uploadRes.error && isStorageAlreadyExistsError(uploadRes.error)) {
+      filePath = `public/${id}_v${nextVersion}_${Date.now()}.${source.ext}`;
+      uploadRes = await admin.storage.from("docs").upload(filePath, source.buffer, {
+        contentType: source.contentType,
+        upsert: false,
+      });
+    }
     if (uploadRes.error) {
       return NextResponse.json({ error: uploadRes.error.message }, { status: 500 });
     }
