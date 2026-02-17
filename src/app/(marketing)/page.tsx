@@ -168,7 +168,7 @@ export default async function Home({
             One link. Open the document. Review it. Acknowledge it. No accounts, portals, or unnecessary friction.
           </FeatureCard>
           <FeatureCard title="Clean output for the file">
-            A clean record your team can export and keep alongside the matter , consistent, readable, and audit‑friendly.
+            A clean record your team can export and keep alongside the matter, consistent, readable, and audit‑friendly.
           </FeatureCard>
         </div>
       </section>
@@ -186,7 +186,7 @@ export default async function Home({
             Upload a PDF and send a single link. You stay in control the whole time.
           </FeatureCard>
           <FeatureCard title="2) Review">
-            Receipt records access and on‑page review activity , time spent and scroll depth , while the PDF is viewed.
+            Receipt records access and on‑page review activity, time spent and scroll depth, while the PDF is viewed.
           </FeatureCard>
           <FeatureCard title="3) Acknowledge">
             The recipient confirms they’ve reviewed the document. Receipt timestamps it and attaches it to the record.
@@ -200,7 +200,7 @@ export default async function Home({
                 What gets recorded (and what doesn’t)
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                Receipt records timestamps, activity, and acknowledgement , nothing more.
+                Receipt records timestamps, activity, and acknowledgement, nothing more.
               </p>
             </div>
 
@@ -224,7 +224,7 @@ export default async function Home({
         <SectionTitle
           eyebrow="SECURITY"
           title="Designed for professional use."
-          subtitle="Receipt is intentionally narrow , a focused utility with clear boundaries and clean records."
+          subtitle="Receipt is intentionally narrow, a focused utility with clear boundaries and clean records."
         />
         <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
           <FeatureCard title="Minimal claims">
@@ -257,7 +257,7 @@ export default async function Home({
           <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
             <div className="text-sm font-semibold">Does Receipt prove understanding?</div>
             <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-              No , and it doesn’t try to. Receipt records observable behaviour (open, scroll, time) plus a direct acknowledgement.
+              No, and it doesn’t try to. Receipt records observable behaviour (open, scroll, time) plus a direct acknowledgement.
             </div>
           </div>
 

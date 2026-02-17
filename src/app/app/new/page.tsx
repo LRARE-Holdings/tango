@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
@@ -46,6 +46,9 @@ function planRank(p: Plan) {
 function can(plan: Plan, min: Plan) {
   return planRank(plan) >= planRank(min);
 }
+
+const UPGRADE_NUDGE_KEY = "receipt_upgrade_nudges_v1";
+const UPGRADE_NUDGE_COOLDOWN_MS = 1000 * 60 * 60 * 8; // 8 hours per nudge key
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
@@ -261,9 +264,9 @@ function Panel({
 
 export default function NewReceipt() {
   const toast = useToast();
+  const nudgesShownRef = useRef<Record<string, boolean>>({});
 
   const [plan, setPlan] = useState<Plan>("free");
-  const [meEmail, setMeEmail] = useState<string | null>(null);
   const [primaryWorkspaceId, setPrimaryWorkspaceId] = useState<string | null>(null);
   const [workspaceCount, setWorkspaceCount] = useState(0);
 
@@ -292,6 +295,7 @@ export default function NewReceipt() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [showUpgradeCard, setShowUpgradeCard] = useState(false);
 
   useEffect(() => {
     async function loadMe() {
@@ -311,7 +315,6 @@ export default function NewReceipt() {
         };
         const wsJson = wsRes.ok ? await wsRes.json() : { workspaces: [] };
 
-        setMeEmail(json.email ?? null);
         setPrimaryWorkspaceId(json.primary_workspace_id ?? null);
         setWorkspaceCount(Array.isArray(wsJson?.workspaces) ? wsJson.workspaces.length : 0);
 
@@ -364,6 +367,45 @@ export default function NewReceipt() {
     loadMe();
   }, []);
 
+  function maybeNudgeUpgrade(key: string, title: string, description: string) {
+    if (plan !== "free") return;
+    if (nudgesShownRef.current[key]) return;
+    try {
+      const raw = window.localStorage.getItem(UPGRADE_NUDGE_KEY);
+      const history = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+      const lastShownAt = Number(history[key] ?? 0);
+      const now = Date.now();
+      if (now - lastShownAt < UPGRADE_NUDGE_COOLDOWN_MS) return;
+
+      history[key] = now;
+      window.localStorage.setItem(UPGRADE_NUDGE_KEY, JSON.stringify(history));
+      nudgesShownRef.current[key] = true;
+      toast.info(title, description);
+    } catch {
+      // ignore storage parsing issues
+    }
+  }
+
+  useEffect(() => {
+    if (!file || plan !== "free") {
+      setShowUpgradeCard(false);
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(UPGRADE_NUDGE_KEY);
+      const history = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+      const lastShownAt = Number(history.on_file_upload_card ?? 0);
+      const now = Date.now();
+      if (now - lastShownAt >= UPGRADE_NUDGE_COOLDOWN_MS) {
+        history.on_file_upload_card = now;
+        window.localStorage.setItem(UPGRADE_NUDGE_KEY, JSON.stringify(history));
+        setShowUpgradeCard(true);
+      }
+    } catch {
+      // ignore storage parsing issues
+    }
+  }, [file, plan]);
+
   const needsWorkspaceSelection = useMemo(() => {
     const isWorkspacePlan = plan === "team" || plan === "enterprise";
     return isWorkspacePlan && workspaceCount > 0 && !primaryWorkspaceId;
@@ -405,6 +447,11 @@ export default function NewReceipt() {
 
   function addRecipient() {
     setRecipients((rs) => [...rs, { id: uid(), name: "", email: "", save: true }]);
+    maybeNudgeUpgrade(
+      "on_add_recipient",
+      "Manual sharing on Free",
+      "Upgrade to Personal to send receipt links directly by email from Receipt."
+    );
   }
 
   function removeRecipient(id: string) {
@@ -475,6 +522,11 @@ export default function NewReceipt() {
       } else {
         toast.success("Created", "Your link is ready.");
       }
+      maybeNudgeUpgrade(
+        "on_create_success",
+        "Ready to automate delivery?",
+        "Personal adds email sending and password protection. Pro adds reusable templates."
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       setError(msg);
@@ -566,7 +618,7 @@ export default function NewReceipt() {
             <Input
               value={title}
               onChange={setTitle}
-              placeholder="e.g. Client Care Letter , Residential Conveyancing"
+              placeholder="e.g. Client Care Letter, Residential Conveyancing"
             />
             <div className="text-xs" style={{ color: "var(--muted2)" }}>
               This appears on your dashboard and evidence export.
@@ -627,6 +679,43 @@ export default function NewReceipt() {
           </div>
         </div>
       </section>
+
+      {showUpgradeCard ? (
+        <section
+          className="p-4 md:p-5"
+          style={{
+            borderRadius: 16,
+            border: "1px solid var(--border)",
+            background: "color-mix(in srgb, var(--card2) 80%, var(--bg))",
+          }}
+        >
+          <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">You are on Free</div>
+              <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+                Personal unlocks email sending and password protection. Pro adds templates and saved defaults.
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/pricing"
+                className="focus-ring px-3 py-2 text-sm font-medium hover:opacity-90"
+                style={{ borderRadius: 10, border: "1px solid var(--border)", color: "var(--fg)" }}
+              >
+                Compare plans
+              </Link>
+              <button
+                type="button"
+                className="focus-ring px-3 py-2 text-sm hover:opacity-80"
+                style={{ borderRadius: 10, color: "var(--muted)" }}
+                onClick={() => setShowUpgradeCard(false)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {needsWorkspaceSelection ? (
         <div
@@ -701,7 +790,18 @@ export default function NewReceipt() {
               id="recipients"
               title="Recipients"
               subtitle="Add recipients, optionally send from Receipt, and save recipients on Pro+."
-              right={!personalPlus ? <Pill>PERSONAL+</Pill> : <Pill>{sendEmails ? "Email on" : "Email off"}</Pill>}
+              right={
+                !personalPlus ? (
+                  <div className="flex items-center gap-2">
+                    <Pill>PERSONAL+</Pill>
+                    <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
+                      Upgrade
+                    </Link>
+                  </div>
+                ) : (
+                  <Pill>{sendEmails ? "Email on" : "Email off"}</Pill>
+                )
+              }
             >
               <div className="space-y-5">
                 <div
@@ -871,7 +971,18 @@ export default function NewReceipt() {
               id="protection"
               title="Protection"
               subtitle="Optionally require a password before the PDF can be opened."
-              right={!personalPlus ? <Pill>PERSONAL+</Pill> : <Pill>{passwordEnabled ? "On" : "Off"}</Pill>}
+              right={
+                !personalPlus ? (
+                  <div className="flex items-center gap-2">
+                    <Pill>PERSONAL+</Pill>
+                    <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
+                      Upgrade
+                    </Link>
+                  </div>
+                ) : (
+                  <Pill>{passwordEnabled ? "On" : "Off"}</Pill>
+                )
+              }
             >
               <div className="space-y-4">
                 <div
@@ -917,7 +1028,18 @@ export default function NewReceipt() {
               id="templates"
               title="Templates"
               subtitle="Use presets and save defaults (Pro+)."
-              right={!proPlus ? <Pill>PRO+</Pill> : <Pill>{useTemplate ? "On" : "Off"}</Pill>}
+              right={
+                !proPlus ? (
+                  <div className="flex items-center gap-2">
+                    <Pill>PRO+</Pill>
+                    <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
+                      Upgrade
+                    </Link>
+                  </div>
+                ) : (
+                  <Pill>{useTemplate ? "On" : "Off"}</Pill>
+                )
+              }
             >
               <div className="space-y-4">
                 <div
@@ -927,7 +1049,7 @@ export default function NewReceipt() {
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">Use a template</div>
                     <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      {proPlus ? "Pick a preset (wire to DB later)." : "Upgrade to Pro to use templates."}
+                      {proPlus ? "Pick a preset for this receipt." : "Upgrade to Pro to use templates."}
                     </div>
                   </div>
                   <Toggle checked={useTemplate} setChecked={setUseTemplate} disabled={!proPlus} />
@@ -943,7 +1065,7 @@ export default function NewReceipt() {
                       <option value="completion-statement">Completion Statement</option>
                     </Select>
                     <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                      Replace these options with your real template IDs.
+                      Choose the template that best matches this document.
                     </div>
                   </div>
                 ) : null}

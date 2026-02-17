@@ -249,7 +249,7 @@ export default function OnboardingPage() {
         return;
 
       case "needs":
-        // Needs can be empty , some users won’t know yet
+        // Needs can be empty, some users won’t know yet
         next();
         return;
 
@@ -291,7 +291,7 @@ export default function OnboardingPage() {
               Let’s set you up properly.
             </h1>
             <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-              A couple of quick questions , then we’ll recommend the right plan.
+              A couple of quick questions, then we’ll recommend the right plan.
             </p>
           </div>
         </div>

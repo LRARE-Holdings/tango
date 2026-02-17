@@ -177,7 +177,11 @@ export async function GET(
     }
     if (q) {
       documents = documents.filter((d) => {
-        const hay = `${d.title ?? ""} ${d.public_id ?? ""}`.toLowerCase();
+        const tags = parseDocumentTags(d.tags);
+        const tagHay = Object.entries(tags)
+          .map(([k, v]) => `${k} ${v}`)
+          .join(" ");
+        const hay = `${d.title ?? ""} ${d.public_id ?? ""} ${tagHay}`.toLowerCase();
         return hay.includes(q);
       });
     }

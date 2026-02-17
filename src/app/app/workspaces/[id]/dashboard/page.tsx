@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { WorkspaceDashboardLoading } from "@/components/workspace-dashboard-loading";
@@ -190,12 +191,14 @@ export default function WorkspaceDashboardPage() {
                 className="shrink-0 border p-2"
                 style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
               >
-                <img
+                <Image
                   src={logoSrc}
                   alt={`${data?.workspace?.name ?? "Workspace"} logo`}
+                  width={64}
+                  height={64}
+                  unoptimized
                   className="h-12 w-12 md:h-16 md:w-16"
                   style={{ objectFit: "contain" }}
-                  onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
                 />
               </div>
             ) : null}

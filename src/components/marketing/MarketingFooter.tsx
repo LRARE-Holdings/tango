@@ -20,6 +20,9 @@ export function MarketingFooter() {
                   <Link href="/product" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Product</Link>
                 </li>
                 <li>
+                  <Link href="/use-cases" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Use cases</Link>
+                </li>
+                <li>
                   <Link href="/how-it-works" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">How it works</Link>
                 </li>
                 <li>

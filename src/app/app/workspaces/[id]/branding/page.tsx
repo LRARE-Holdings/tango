@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 type Workspace = {
@@ -10,11 +11,6 @@ type Workspace = {
   brand_logo_updated_at?: string | null;
 };
 
-type Viewer = {
-  user_id: string;
-  role: "owner" | "admin" | "member";
-};
-
 export default function WorkspaceBrandingPage() {
   const params = useParams<{ id?: string }>();
   const workspaceId = typeof params?.id === "string" ? params.id : "";
@@ -22,7 +18,6 @@ export default function WorkspaceBrandingPage() {
 
   const [loading, setLoading] = useState(true);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [viewer, setViewer] = useState<Viewer | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -50,7 +45,6 @@ export default function WorkspaceBrandingPage() {
         if (!res.ok) throw new Error(json?.error ?? "Failed to load");
         if (!alive) return;
         setWorkspace(json?.workspace ?? null);
-        setViewer((json?.viewer ?? null) as Viewer | null);
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -131,12 +125,14 @@ export default function WorkspaceBrandingPage() {
               <div className="text-sm font-semibold">Current logo</div>
               <div className="mt-3 border p-4" style={{ borderColor: "var(--border2)", background: "var(--bg)", borderRadius: 12 }}>
                 {logoSrc ? (
-                  <img
+                  <Image
                     src={logoSrc}
                     alt="Workspace logo"
+                    width={192}
+                    height={48}
+                    unoptimized
                     className="h-12 w-auto"
                     style={{ objectFit: "contain" }}
-                    onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
                   />
                 ) : (
                   <div className="text-sm" style={{ color: "var(--muted)" }}>
@@ -145,7 +141,7 @@ export default function WorkspaceBrandingPage() {
                 )}
               </div>
               <div className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
-                PNG only (v1). Recommended: transparent background, 512×512.
+                PNG only. Recommended: transparent background, 512×512.
               </div>
             </div>
 
@@ -193,7 +189,7 @@ export default function WorkspaceBrandingPage() {
               </div>
 
               <div className="mt-4 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-                v1 keeps brand consistent: only the logo changes (no colours, no typography changes).
+                Branding currently supports logo updates only (no colour or typography changes).
               </div>
             </div>
           </div>

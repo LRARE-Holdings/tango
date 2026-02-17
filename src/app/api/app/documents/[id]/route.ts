@@ -243,14 +243,14 @@ export async function PATCH(
         .maybeSingle();
       if (memberErr) return NextResponse.json({ error: memberErr.message }, { status: 500 });
       const role = String((member as { role?: string } | null)?.role ?? "");
-      if (role === "owner" || role === "admin") canEdit = true;
+      if (role === "owner" || role === "admin" || role === "member") canEdit = true;
     }
 
     if (!canEdit) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = (await req.json().catch(() => null)) as { tags?: unknown } | null;
     const rawTags = parseDocumentTags(body?.tags);
-    let tags: Record<string, string> = {};
+    const tags: Record<string, string> = {};
 
     if (workspaceId) {
       const wsTagRes = await supabase

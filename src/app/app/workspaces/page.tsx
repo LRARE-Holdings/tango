@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 type Workspace = {
@@ -63,15 +64,14 @@ export default function WorkspacesPage() {
                 {w.id}
               </div>
             </div>
-            <img
+            <Image
               src={logoSrc}
               alt=""
+              width={32}
+              height={32}
+              unoptimized
               className="h-8 w-8"
               style={{ objectFit: "contain" }}
-              onError={(e) => {
-                // hide broken logo
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
             />
           </div>
 

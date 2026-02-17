@@ -321,7 +321,7 @@ export async function POST(req: Request) {
     const public_id = nanoid(10);
     const password_hash = passwordEnabledRaw ? await hashPassword(passwordRaw) : null;
     const sha256 = crypto.createHash("sha256").update(sourceFile.buffer).digest("hex");
-    let tags: Record<string, string> = {};
+    const tags: Record<string, string> = {};
 
     if (workspace_id && Object.keys(rawTags).length > 0) {
       const wsTagFieldsRes = await supabase

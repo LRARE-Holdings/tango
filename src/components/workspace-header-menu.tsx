@@ -34,8 +34,6 @@ export function WorkspaceHeaderMenu() {
   useEffect(() => {
     let active = true;
     if (typeof workspaceIdentifier !== "string" || workspaceIdentifier.length === 0) {
-      setWorkspace(null);
-      setViewerRole(undefined);
       return () => {
         active = false;
       };

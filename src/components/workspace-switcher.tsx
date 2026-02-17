@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type Workspace = {
@@ -28,6 +30,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 }
 
 export function WorkspaceSwitcher() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -83,8 +86,8 @@ export function WorkspaceSwitcher() {
       setMe((m) => ({ ...(m ?? {}), primary_workspace_id: persisted }));
       setOpen(false);
 
-      // Hard refresh gives immediate consistency everywhere without plumbing context yet
-      window.location.reload();
+      // Soft refresh keeps UI responsive while revalidating server components.
+      router.refresh();
     } catch (e: unknown) {
       setSwitchError(e instanceof Error ? e.message : "Failed to switch workspace");
     } finally {
@@ -123,9 +126,12 @@ export function WorkspaceSwitcher() {
         aria-expanded={open}
       >
         {logoSrc ? (
-          <img
+          <Image
             src={logoSrc}
             alt=""
+            width={20}
+            height={20}
+            unoptimized
             className="h-5 w-5"
             style={{ objectFit: "contain" }}
             draggable={false}

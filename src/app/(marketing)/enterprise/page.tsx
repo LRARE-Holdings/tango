@@ -11,8 +11,8 @@ async function submitEnterpriseEnquiry(formData: FormData) {
     createdAt: new Date().toISOString(),
   };
 
-  // TODO: Wire this to your email/CRM.
-  console.log("Enterprise enquiry", payload);
+  // Enquiry handling can be wired to CRM/email without changing this page copy.
+  void payload;
 }
 
 export default function EnterprisePage() {
@@ -33,11 +33,11 @@ export default function EnterprisePage() {
           <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
             For organisations that need clarity, control, and custom terms.
           </h1>
-          <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Enterprise plans are designed for firms with procurement requirements,
-            bespoke workflows, or enhanced governance needs. We scope these properly ,
-            no generic bundles, no vague promises.
-          </p>
+              <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
+                Enterprise plans are designed for firms with procurement requirements,
+                bespoke workflows, or enhanced governance needs. We scope these properly,
+                no generic bundles, no vague promises.
+              </p>
         </div>
       </section>
 
@@ -141,7 +141,7 @@ export default function EnterprisePage() {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
                 Tell us a little about your organisation and what you need.
-                We’ll respond with clarity , not a hard sell.
+                We’ll respond with clarity, not a hard sell.
               </p>
             </div>
 

@@ -30,6 +30,8 @@ type ResponsibilityMember = {
   role: ViewerRole;
 };
 
+type SortMode = "created_desc" | "created_asc" | "title_asc" | "title_desc" | "status" | "tag";
+
 function formatDate(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -67,6 +69,11 @@ export default function WorkspaceDocumentsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [tagValues, setTagValues] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "acknowledged">("all");
+  const [tagFilterKey, setTagFilterKey] = useState<string>("__all");
+  const [tagFilterValue, setTagFilterValue] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("created_desc");
+  const [sortTagKey, setSortTagKey] = useState<string>("");
   const [ownershipDoc, setOwnershipDoc] = useState<DocItem | null>(null);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
   const [ownershipSaving, setOwnershipSaving] = useState(false);
@@ -75,6 +82,10 @@ export default function WorkspaceDocumentsPage() {
   const [ownershipSelectedUserIds, setOwnershipSelectedUserIds] = useState<string[]>([]);
   const [ownershipOwnerUserId, setOwnershipOwnerUserId] = useState<string | null>(null);
   const [ownershipCanManage, setOwnershipCanManage] = useState(false);
+  const [tagEditorDoc, setTagEditorDoc] = useState<DocItem | null>(null);
+  const [tagEditorValues, setTagEditorValues] = useState<Record<string, string>>({});
+  const [tagEditorSaving, setTagEditorSaving] = useState(false);
+  const [tagEditorError, setTagEditorError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -165,6 +176,58 @@ export default function WorkspaceDocumentsPage() {
     return { total: documents.length, acknowledged, pending: documents.length - acknowledged };
   }, [documents]);
 
+  const tagFieldOptions = useMemo(() => workspace?.document_tag_fields ?? [], [workspace?.document_tag_fields]);
+
+  const tagFilterSuggestions = useMemo(() => {
+    const values = new Set<string>();
+    for (const doc of documents) {
+      const entries = Object.entries(doc.tags ?? {});
+      for (const [k, v] of entries) {
+        if (tagFilterKey !== "__all" && k !== tagFilterKey) continue;
+        const clean = String(v ?? "").trim();
+        if (clean) values.add(clean);
+      }
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [documents, tagFilterKey]);
+
+  const filteredDocuments = useMemo(() => {
+    const tagNeedle = tagFilterValue.trim().toLowerCase();
+    const out = documents.filter((doc) => {
+      if (statusFilter === "pending" && doc.status !== "Pending") return false;
+      if (statusFilter === "acknowledged" && doc.status !== "Acknowledged") return false;
+      if (!tagNeedle) return true;
+
+      const entries = Object.entries(doc.tags ?? {});
+      if (tagFilterKey === "__all") {
+        return entries.some(([k, v]) => `${k} ${v}`.toLowerCase().includes(tagNeedle));
+      }
+      const selectedValue = (doc.tags ?? {})[tagFilterKey] ?? "";
+      return String(selectedValue).toLowerCase().includes(tagNeedle);
+    });
+
+    out.sort((a, b) => {
+      if (sortMode === "created_asc") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (sortMode === "created_desc") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sortMode === "title_asc") return a.title.localeCompare(b.title);
+      if (sortMode === "title_desc") return b.title.localeCompare(a.title);
+      if (sortMode === "status") return a.status.localeCompare(b.status);
+      if (sortMode === "tag") {
+        const av = String((a.tags ?? {})[sortTagKey] ?? "");
+        const bv = String((b.tags ?? {})[sortTagKey] ?? "");
+        return av.localeCompare(bv);
+      }
+      return 0;
+    });
+
+    return out;
+  }, [documents, statusFilter, tagFilterKey, tagFilterValue, sortMode, sortTagKey]);
+
+  const filteredCounts = useMemo(() => {
+    const acknowledged = filteredDocuments.filter((d) => d.status === "Acknowledged").length;
+    return { total: filteredDocuments.length, acknowledged, pending: filteredDocuments.length - acknowledged };
+  }, [filteredDocuments]);
+
   async function openOwnership(doc: DocItem) {
     setOwnershipDoc(doc);
     setOwnershipLoading(true);
@@ -229,6 +292,46 @@ export default function WorkspaceDocumentsPage() {
     }
   }
 
+  function openTagEditor(doc: DocItem) {
+    const next: Record<string, string> = {};
+    for (const field of tagFieldOptions) {
+      next[field.key] = String((doc.tags ?? {})[field.key] ?? "");
+    }
+    setTagEditorDoc(doc);
+    setTagEditorValues(next);
+    setTagEditorSaving(false);
+    setTagEditorError(null);
+  }
+
+  function closeTagEditor() {
+    setTagEditorDoc(null);
+    setTagEditorValues({});
+    setTagEditorSaving(false);
+    setTagEditorError(null);
+  }
+
+  async function saveTagEditor() {
+    if (!tagEditorDoc) return;
+    setTagEditorSaving(true);
+    setTagEditorError(null);
+    try {
+      const res = await fetch(`/api/app/documents/${tagEditorDoc.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tags: tagEditorValues }),
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string; tags?: Record<string, string> } | null;
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save tags");
+      const saved = json?.tags ?? {};
+      setDocuments((list) => list.map((d) => (d.id === tagEditorDoc.id ? { ...d, tags: saved } : d)));
+      closeTagEditor();
+    } catch (e: unknown) {
+      setTagEditorError(e instanceof Error ? e.message : "Failed to save tags");
+    } finally {
+      setTagEditorSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
@@ -247,14 +350,82 @@ export default function WorkspaceDocumentsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search title or public ID…"
+            placeholder="Search title, public ID, or tags…"
             className="focus-ring w-full sm:w-110 border px-4 py-3 text-sm bg-transparent"
             style={{ borderColor: "var(--border)", borderRadius: 10 }}
           />
           <div className="text-xs" style={{ color: "var(--muted2)" }}>
-            {counts.total} total • {counts.pending} pending • {counts.acknowledged} acknowledged
+            {filteredCounts.total} shown / {counts.total} total • {filteredCounts.pending} pending • {filteredCounts.acknowledged} acknowledged
           </div>
         </div>
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "all" | "pending" | "acknowledged")}
+            className="focus-ring border px-3 py-2 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending (Open)</option>
+            <option value="acknowledged">Acknowledged</option>
+          </select>
+          <select
+            value={tagFilterKey}
+            onChange={(e) => setTagFilterKey(e.target.value)}
+            className="focus-ring border px-3 py-2 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          >
+            <option value="__all">All tag fields</option>
+            {tagFieldOptions.map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <input
+            value={tagFilterValue}
+            onChange={(e) => setTagFilterValue(e.target.value)}
+            placeholder="Filter tag value (e.g. Open, Matter-123)"
+            list="workspace-tag-filter-values"
+            className="focus-ring border px-3 py-2 text-sm bg-transparent lg:col-span-2"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          />
+          <datalist id="workspace-tag-filter-values">
+            {tagFilterSuggestions.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
+          <select
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as SortMode)}
+            className="focus-ring border px-3 py-2 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          >
+            <option value="created_desc">Newest first</option>
+            <option value="created_asc">Oldest first</option>
+            <option value="title_asc">Title A-Z</option>
+            <option value="title_desc">Title Z-A</option>
+            <option value="status">Status</option>
+            <option value="tag">Tag value</option>
+          </select>
+        </div>
+        {sortMode === "tag" ? (
+          <div className="mt-2">
+            <select
+              value={sortTagKey}
+              onChange={(e) => setSortTagKey(e.target.value)}
+              className="focus-ring border px-3 py-2 text-sm bg-transparent"
+              style={{ borderColor: "var(--border)", borderRadius: 10 }}
+            >
+              <option value="">Select tag field for sorting</option>
+              {tagFieldOptions.map((f) => (
+                <option key={f.key} value={f.key}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
 
       <div className="border p-4 space-y-3" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
@@ -313,22 +484,22 @@ export default function WorkspaceDocumentsPage() {
         </div>
       )}
 
-      {!loading && !error && documents.length === 0 && (
+      {!loading && !error && filteredDocuments.length === 0 && (
         <div className="border p-6" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}>
-          <div className="text-sm font-semibold">No documents found</div>
+          <div className="text-sm font-semibold">No documents match your filters</div>
           <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Create a receipt or refine your search.
+            Adjust search, status, or tag filters.
           </div>
         </div>
       )}
 
-      {!loading && !error && documents.length > 0 && (
+      {!loading && !error && filteredDocuments.length > 0 && (
         <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
           <div className="px-5 py-3 text-xs tracking-wide" style={{ background: "var(--card2)", color: "var(--muted2)" }}>
             CATALOGUE
           </div>
           <div>
-            {documents.map((d) => (
+            {filteredDocuments.map((d) => (
               <div key={d.id} className="px-5 py-4" style={{ borderTop: "1px solid var(--border2)" }}>
                 <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
                   <div className="min-w-0">
@@ -358,6 +529,16 @@ export default function WorkspaceDocumentsPage() {
                   </div>
 
                   <div className="flex gap-2">
+                    {tagFieldOptions.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => openTagEditor(d)}
+                        className="focus-ring px-3 py-2 text-sm hover:opacity-80"
+                        style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
+                      >
+                        Tags
+                      </button>
+                    ) : null}
                     {(viewerRole === "owner" || viewerRole === "admin") ? (
                       <button
                         type="button"
@@ -458,6 +639,63 @@ export default function WorkspaceDocumentsPage() {
                   {ownershipSaving ? "Saving…" : "Save ownership"}
                 </button>
               ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {tagEditorDoc ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
+          <div
+            className="w-full max-w-xl border p-5 md:p-6"
+            style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
+          >
+            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+              DOCUMENT TAGS
+            </div>
+            <h3 className="mt-1 text-lg font-semibold">{tagEditorDoc.title}</h3>
+            <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+              Add values such as Open and a matter/project reference.
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+              {tagFieldOptions.map((f) => (
+                <input
+                  key={f.key}
+                  value={tagEditorValues[f.key] ?? ""}
+                  onChange={(e) => setTagEditorValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder || f.label}
+                  className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+                  style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                />
+              ))}
+            </div>
+
+            {tagEditorError ? (
+              <div className="mt-3 text-sm" style={{ color: "#ff3b30" }}>
+                {tagEditorError}
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeTagEditor}
+                disabled={tagEditorSaving}
+                className="focus-ring px-4 py-2 text-sm hover:opacity-90 disabled:opacity-50"
+                style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveTagEditor()}
+                disabled={tagEditorSaving}
+                className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+              >
+                {tagEditorSaving ? "Saving…" : "Save tags"}
+              </button>
             </div>
           </div>
         </div>

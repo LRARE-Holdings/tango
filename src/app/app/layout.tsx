@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -57,7 +58,7 @@ function InviteReconcileNotifier() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [toast]);
 
   return null;
 }
@@ -137,21 +138,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="mx-auto max-w-6xl px-6">
             <div className="py-4">
               <div className="flex items-center justify-between gap-6">
-              <div className="flex items-center gap-6">
-                <Link href={dashboardHref} className="flex items-center">
-                  <img src="/receipt-logo.svg" alt="Receipt" className="receipt-logo" draggable={false} />
-                </Link>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="hidden md:block text-xs" style={{ color: "var(--muted)" }}>
-                  {meLoading ? "Loading…" : me?.email ? `Signed in as ${me.email}` : "Session unavailable"}
+                <div className="flex items-center gap-6">
+                  <Link href={dashboardHref} className="flex items-center">
+                    <Image src="/receipt-logo.svg" alt="Receipt" width={104} height={26} className="receipt-logo" priority />
+                  </Link>
                 </div>
 
-                {showTopSettings ? (
-                  <Link
-                    href="/app/account"
-                    className="focus-ring px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+                <div className="flex items-center gap-3">
+                  <div className="hidden md:block text-xs" style={{ color: "var(--muted)" }}>
+                    {meLoading ? "Loading…" : me?.email ? `Signed in as ${me.email}` : "Session unavailable"}
+                  </div>
+
+                  {showTopSettings ? (
+                    <Link
+                      href="/app/account"
+                      className="focus-ring px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+                      style={{
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        color: "var(--muted)",
+                        background: "transparent",
+                      }}
+                    >
+                      Settings
+                    </Link>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    disabled={signingOut}
+                    className="focus-ring px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
                     style={{
                       border: "1px solid var(--border)",
                       borderRadius: 10,
@@ -159,28 +176,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       background: "transparent",
                     }}
                   >
-                    Settings
-                  </Link>
-                ) : null}
+                    {signingOut ? "Signing out…" : "Sign out"}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={signOut}
-                  disabled={signingOut}
-                  className="focus-ring px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-                  style={{
-                    border: "1px solid var(--border)",
-                    borderRadius: 10,
-                    color: "var(--muted)",
-                    background: "transparent",
-                  }}
-                >
-                  {signingOut ? "Signing out…" : "Sign out"}
-                </button>
-
-                <PrimaryCta href="/app/new">+</PrimaryCta>
+                  <PrimaryCta href="/app/new">+</PrimaryCta>
+                </div>
               </div>
-            </div>
               <WorkspaceHeaderMenu />
             </div>
           </div>
