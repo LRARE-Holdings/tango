@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "@/lib/document-limits";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -123,12 +124,45 @@ export async function GET() {
 
   const entRow = (ent ?? null) as EntitlementsRow | null;
   const profRow = (prof ?? null) as ProfileCoreRow | null;
+  const plan = normalizeEffectivePlan(entRow?.plan ?? "free");
+  const quota = getDocumentQuota(plan, entRow?.seats ?? 1);
+
+  let usageUsed = 0;
+  if (quota.limit !== null) {
+    let countQuery = supabase.from("documents").select("id", { count: "exact", head: true });
+    if (quota.window === "monthly") {
+      const { startIso, endIso } = currentUtcMonthRange();
+      countQuery = countQuery.gte("created_at", startIso).lt("created_at", endIso);
+    }
+
+    if (plan === "team") {
+      const workspaceId = String(profRow?.primary_workspace_id ?? "").trim();
+      if (workspaceId) {
+        countQuery = countQuery.eq("workspace_id", workspaceId);
+      } else {
+        countQuery = countQuery.eq("owner_id", userId);
+      }
+    } else {
+      countQuery = countQuery.eq("owner_id", userId);
+    }
+
+    const { count, error: usageErr } = await countQuery;
+    if (usageErr) return NextResponse.json({ error: usageErr.message }, { status: 500 });
+    usageUsed = count ?? 0;
+  }
+
+  const usageLimit = quota.limit;
+  const usageRemaining = usageLimit == null ? null : Math.max(0, usageLimit - usageUsed);
+  const usagePercent =
+    usageLimit == null || usageLimit <= 0 ? null : Math.min(100, Math.round((usageUsed / usageLimit) * 100));
+  const usageNearLimit = usageLimit != null && usageUsed >= Math.floor(usageLimit * 0.8);
+  const usageAtLimit = usageLimit != null && usageUsed >= usageLimit;
 
   return NextResponse.json({
     id: userId,
     email: userRes.user.email ?? null,
 
-    plan: entRow?.plan ?? "free",
+    plan,
     subscription_status: entRow?.subscription_status ?? null,
     billing_interval: entRow?.billing_interval ?? null,
     seats: entRow?.seats ?? 1,
@@ -150,5 +184,14 @@ export async function GET() {
     marketing_opt_in: prefs.marketing_opt_in,
     default_ack_limit: prefs.default_ack_limit,
     default_password_enabled: prefs.default_password_enabled,
+    usage: {
+      used: usageUsed,
+      limit: usageLimit,
+      remaining: usageRemaining,
+      percent: usagePercent,
+      window: quota.window,
+      near_limit: usageNearLimit,
+      at_limit: usageAtLimit,
+    },
   });
 }

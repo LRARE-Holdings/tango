@@ -678,10 +678,6 @@ export default function AccountPage() {
               description="If your plan supports it, new links will default to requiring a recipient password."
               disabled={prefsLoading || meLoading}
             />
-            <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-              Saving will call <code>/api/app/account</code> (PATCH). If you haven’t created these columns yet,
-              you’ll see an error — that’s expected until the backend is wired.
-            </div>
           </div>
         </div>
       </Section>

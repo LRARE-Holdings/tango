@@ -25,6 +25,15 @@ type MeResponse = {
   cancel_at_period_end?: boolean | null;
   is_paid?: boolean | null;
   primary_workspace_id?: string | null;
+  usage?: {
+    used: number;
+    limit: number | null;
+    remaining: number | null;
+    percent: number | null;
+    window: "total" | "monthly" | "custom";
+    near_limit: boolean;
+    at_limit: boolean;
+  } | null;
 };
 
 type WorkspaceDashboard = {
@@ -148,6 +157,9 @@ export default function AppHome() {
   const workspacePlus = plan === "team" || plan === "enterprise";
   const primaryWorkspaceId = String(me?.primary_workspace_id ?? "").trim() || null;
   const mode = primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE";
+  const usage = me?.usage ?? null;
+  const usagePercent = Math.max(0, Math.min(100, usage?.percent ?? 0));
+  const usageTone = usage?.at_limit ? "#b91c1c" : usage?.near_limit ? "#c2410c" : "var(--fg)";
 
   useEffect(() => {
     async function load() {
@@ -327,6 +339,48 @@ export default function AppHome() {
             value={formatDate(me?.current_period_end)}
             hint={me?.cancel_at_period_end ? "Cancels at period end" : "Renews automatically"}
           />
+        </div>
+      ) : null}
+
+      {!loading && !error ? (
+        <div className="border p-5" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+              PLAN USAGE
+            </div>
+            <div className="text-xs font-semibold" style={{ color: usageTone }}>
+              {plan.toUpperCase()}
+            </div>
+          </div>
+
+          <div className="mt-2 text-sm" style={{ color: usageTone }}>
+            {usage?.limit == null
+              ? "Custom usage limit."
+              : usage.at_limit
+                ? `Limit reached: ${usage.used}/${usage.limit} receipts used.`
+                : usage.near_limit
+                  ? `Near limit: ${usage.used}/${usage.limit} receipts used.`
+                  : `${usage.used}/${usage.limit} receipts used.`}
+          </div>
+
+          <div className="mt-3 h-2.5 w-full overflow-hidden" style={{ background: "var(--card2)", borderRadius: 999 }}>
+            <div
+              style={{
+                width: `${usagePercent}%`,
+                background: usageTone,
+                height: "100%",
+                transition: "width 180ms ease",
+              }}
+            />
+          </div>
+
+          <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+            {usage?.limit == null
+              ? "Usage is governed by your custom plan."
+              : usage.remaining === 0
+                ? "You are at your plan limit."
+                : `${usage?.remaining ?? 0} receipts remaining.`}
+          </div>
         </div>
       ) : null}
 
