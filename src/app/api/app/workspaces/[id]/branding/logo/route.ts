@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
+import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,16 +43,8 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Enforce plan is Team/Enterprise (branding is Team-tier feature)
-    const { data: prof, error: profErr } = await admin
-      .from("profiles")
-      .select("plan")
-      .eq("id", userData.user.id)
-      .maybeSingle();
-
-    if (profErr) throw new Error(profErr.message);
-    const plan = (prof?.plan ?? "free") as string;
-    if (plan !== "team" && plan !== "enterprise") {
+    const entitlements = await getWorkspaceEntitlementsForUser(admin, workspaceId, userData.user.id);
+    if (!entitlements || !entitlements.license_active || !entitlements.workspace_plus) {
       return NextResponse.json({ error: "Branding is available on Team plans." }, { status: 403 });
     }
 

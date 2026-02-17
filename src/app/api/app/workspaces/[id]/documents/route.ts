@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
+import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 
 type DocRow = {
   id: string;
@@ -100,26 +101,19 @@ export async function GET(
 
     const userId = userData.user.id;
 
-    const { data: profile, error: profileErr } = await admin
-      .from("profiles")
-      .select("plan")
-      .eq("id", userId)
-      .maybeSingle();
-    if (profileErr) throw new Error(profileErr.message);
-
-    const plan = String(profile?.plan ?? "free").toLowerCase();
-    if (plan !== "team" && plan !== "enterprise") {
+    const workspaceEntitlements = await getWorkspaceEntitlementsForUser(admin, resolved.id, userId);
+    if (!workspaceEntitlements) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!workspaceEntitlements.license_active) {
+      return NextResponse.json(
+        { error: "No active workspace license is assigned to your account." },
+        { status: 403 }
+      );
+    }
+    if (!workspaceEntitlements.workspace_plus) {
       return NextResponse.json({ error: "We couldn't find any documents for you." }, { status: 403 });
     }
 
-    const { data: member, error: memberErr } = await supabase
-      .from("workspace_members")
-      .select("role")
-      .eq("workspace_id", resolved.id)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (memberErr) throw new Error(memberErr.message);
-    if (!member) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const member = { role: workspaceEntitlements.role };
 
     const withTagFields = await supabase
       .from("workspaces")

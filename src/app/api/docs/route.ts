@@ -5,6 +5,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import crypto from "crypto";
 import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
 import { sendWithResend } from "@/lib/email/resend";
+import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 
 const MAX_MB = 20;
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -195,35 +196,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: profileErr.message }, { status: 500 });
     }
 
-    const plan = String(profile?.plan ?? "free").toLowerCase();
-    const isPaidPlan = plan !== "free";
-    const personalPlus = plan === "personal" || plan === "pro" || plan === "team" || plan === "enterprise";
+    const personalPlan = String(profile?.plan ?? "free").toLowerCase();
+    let isPaidPlan = personalPlan !== "free";
+    let personalPlus =
+      personalPlan === "personal" || personalPlan === "pro" || personalPlan === "team" || personalPlan === "enterprise";
     const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
-    const isWorkspacePlan = plan === "team" || plan === "enterprise";
-
-    if (requireRecipientIdentityRaw && !isPaidPlan) {
-      return NextResponse.json(
-        { error: "Requiring name/email acknowledgement is available on paid plans." },
-        { status: 403 }
-      );
-    }
-    if (sendEmailsRaw && !personalPlus) {
-      return NextResponse.json(
-        { error: "Email sending is available on Personal plans and above." },
-        { status: 403 }
-      );
-    }
-    if (sendEmailsRaw && recipients.length === 0) {
-      return NextResponse.json({ error: "Add at least one valid recipient email." }, { status: 400 });
-    }
-    if (sendEmailsRaw && !process.env.RESEND_API_KEY) {
-      return NextResponse.json({ error: "Email sending is not configured yet." }, { status: 500 });
-    }
 
     if (activeWorkspaceId) {
       const { data: membership, error: membershipErr } = await supabase
         .from("workspace_members")
-        .select("role")
+        .select("role,license_active")
         .eq("workspace_id", activeWorkspaceId)
         .eq("user_id", owner_id)
         .maybeSingle();
@@ -234,8 +216,24 @@ export async function POST(req: Request) {
       if (!membership) {
         return NextResponse.json({ error: "Active workspace is invalid for this user." }, { status: 403 });
       }
+      if (membership.license_active === false) {
+        return NextResponse.json(
+          { error: "No active workspace license is assigned to your account." },
+          { status: 403 }
+        );
+      }
+
+      const workspaceEntitlements = await getWorkspaceEntitlementsForUser(admin, activeWorkspaceId, owner_id);
+      if (!workspaceEntitlements || !workspaceEntitlements.license_active) {
+        return NextResponse.json(
+          { error: "No active workspace license is assigned to your account." },
+          { status: 403 }
+        );
+      }
+      isPaidPlan = workspaceEntitlements.is_paid;
+      personalPlus = workspaceEntitlements.personal_plus;
       workspace_id = activeWorkspaceId;
-    } else if (isWorkspacePlan) {
+    } else if (personalPlan === "team" || personalPlan === "enterprise") {
       const { count: membershipCount, error: countErr } = await supabase
         .from("workspace_members")
         .select("workspace_id", { count: "exact", head: true })
@@ -254,6 +252,25 @@ export async function POST(req: Request) {
           { status: 409 }
         );
       }
+    }
+
+    if (requireRecipientIdentityRaw && !isPaidPlan) {
+      return NextResponse.json(
+        { error: "Requiring name/email acknowledgement is available on paid plans." },
+        { status: 403 }
+      );
+    }
+    if (sendEmailsRaw && !personalPlus) {
+      return NextResponse.json(
+        { error: "Email sending is available on Personal plans and above." },
+        { status: 403 }
+      );
+    }
+    if (sendEmailsRaw && recipients.length === 0) {
+      return NextResponse.json({ error: "Add at least one valid recipient email." }, { status: 400 });
+    }
+    if (sendEmailsRaw && !process.env.RESEND_API_KEY) {
+      return NextResponse.json({ error: "Email sending is not configured yet." }, { status: 500 });
     }
 
     const public_id = nanoid(10);

@@ -301,7 +301,14 @@ export default function NewReceipt() {
           fetch("/api/app/workspaces", { cache: "no-store" }),
         ]);
         if (!meRes.ok) return;
-        const json = await meRes.json();
+        const json = (await meRes.json()) as {
+          id?: string | null;
+          plan?: string | null;
+          tier?: string | null;
+          subscription_plan?: string | null;
+          primary_workspace_id?: string | null;
+          email?: string | null;
+        };
         const wsJson = wsRes.ok ? await wsRes.json() : { workspaces: [] };
 
         setMeEmail(json.email ?? null);
@@ -311,7 +318,16 @@ export default function NewReceipt() {
         const activeWorkspaceId = String(json.primary_workspace_id ?? "").trim();
         if (activeWorkspaceId) {
           const wsRes = await fetch(`/api/app/workspaces/${encodeURIComponent(activeWorkspaceId)}`, { cache: "no-store" });
-          const wsJson2 = wsRes.ok ? await wsRes.json().catch(() => null) : null;
+          const wsJson2 = wsRes.ok
+            ? (await wsRes.json().catch(() => null)) as
+                | {
+                    workspace?: { document_tag_fields?: Array<{ key: string; label: string; placeholder?: string }> };
+                    licensing?: { plan?: string };
+                    viewer?: { user_id?: string };
+                    members?: Array<{ user_id?: string; license_active?: boolean }>;
+                  }
+                | null
+            : null;
           const fields = Array.isArray(wsJson2?.workspace?.document_tag_fields)
             ? (wsJson2.workspace.document_tag_fields as Array<{ key: string; label: string; placeholder?: string }>)
             : [];
@@ -321,6 +337,17 @@ export default function NewReceipt() {
             for (const f of fields) next[f.key] = prev[f.key] ?? "";
             return next;
           });
+
+          const meId = String(json?.id ?? wsJson2?.viewer?.user_id ?? "").trim();
+          const memberRow = Array.isArray(wsJson2?.members)
+            ? wsJson2.members.find((m) => String(m?.user_id ?? "") === meId)
+            : null;
+          const licenseActive = memberRow?.license_active !== false;
+          const workspacePlan = String(wsJson2?.licensing?.plan ?? "").toLowerCase();
+          if (licenseActive && (workspacePlan === "team" || workspacePlan === "enterprise")) {
+            setPlan(workspacePlan as Plan);
+            return;
+          }
         } else {
           setWorkspaceTagFields([]);
           setTagValues({});

@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
 import { sendWithResend } from "@/lib/email/resend";
+import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 
 const MAX_MB = 20;
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -248,11 +249,55 @@ export async function POST(req: Request) {
 
     if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
 
-    const plan = String(profile?.plan ?? "free").toLowerCase();
-    const isPaidPlan = plan !== "free";
-    const personalPlus = plan === "personal" || plan === "pro" || plan === "team" || plan === "enterprise";
+    const personalPlan = String(profile?.plan ?? "free").toLowerCase();
+    let isPaidPlan = personalPlan !== "free";
+    let personalPlus =
+      personalPlan === "personal" || personalPlan === "pro" || personalPlan === "team" || personalPlan === "enterprise";
     const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
-    const isWorkspacePlan = plan === "team" || plan === "enterprise";
+
+    if (activeWorkspaceId) {
+      const { data: membership, error: membershipErr } = await supabase
+        .from("workspace_members")
+        .select("role,license_active")
+        .eq("workspace_id", activeWorkspaceId)
+        .eq("user_id", owner_id)
+        .maybeSingle();
+      if (membershipErr) return NextResponse.json({ error: membershipErr.message }, { status: 500 });
+      if (!membership) return NextResponse.json({ error: "Active workspace is invalid for this user." }, { status: 403 });
+      if (membership.license_active === false) {
+        return NextResponse.json(
+          { error: "No active workspace license is assigned to your account." },
+          { status: 403 }
+        );
+      }
+
+      const workspaceEntitlements = await getWorkspaceEntitlementsForUser(admin, activeWorkspaceId, owner_id);
+      if (!workspaceEntitlements || !workspaceEntitlements.license_active) {
+        return NextResponse.json(
+          { error: "No active workspace license is assigned to your account." },
+          { status: 403 }
+        );
+      }
+
+      isPaidPlan = workspaceEntitlements.is_paid;
+      personalPlus = workspaceEntitlements.personal_plus;
+      workspace_id = activeWorkspaceId;
+    } else if (personalPlan === "team" || personalPlan === "enterprise") {
+      const { count: membershipCount, error: countErr } = await supabase
+        .from("workspace_members")
+        .select("workspace_id", { count: "exact", head: true })
+        .eq("user_id", owner_id);
+      if (countErr) return NextResponse.json({ error: countErr.message }, { status: 500 });
+      if ((membershipCount ?? 0) > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Select an active workspace before creating receipts. Team/Enterprise receipts must belong to a workspace.",
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     if (requireRecipientIdentityRaw && !isPaidPlan) {
       return NextResponse.json(
@@ -271,33 +316,6 @@ export async function POST(req: Request) {
     }
     if (sendEmailsRaw && !process.env.RESEND_API_KEY) {
       return NextResponse.json({ error: "Email sending is not configured yet." }, { status: 500 });
-    }
-
-    if (activeWorkspaceId) {
-      const { data: membership, error: membershipErr } = await supabase
-        .from("workspace_members")
-        .select("role")
-        .eq("workspace_id", activeWorkspaceId)
-        .eq("user_id", owner_id)
-        .maybeSingle();
-      if (membershipErr) return NextResponse.json({ error: membershipErr.message }, { status: 500 });
-      if (!membership) return NextResponse.json({ error: "Active workspace is invalid for this user." }, { status: 403 });
-      workspace_id = activeWorkspaceId;
-    } else if (isWorkspacePlan) {
-      const { count: membershipCount, error: countErr } = await supabase
-        .from("workspace_members")
-        .select("workspace_id", { count: "exact", head: true })
-        .eq("user_id", owner_id);
-      if (countErr) return NextResponse.json({ error: countErr.message }, { status: 500 });
-      if ((membershipCount ?? 0) > 0) {
-        return NextResponse.json(
-          {
-            error:
-              "Select an active workspace before creating receipts. Team/Enterprise receipts must belong to a workspace.",
-          },
-          { status: 409 }
-        );
-      }
     }
 
     const public_id = nanoid(10);
