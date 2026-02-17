@@ -12,6 +12,12 @@ function isMissingColumnError(error: { code?: string; message?: string } | null 
   return String(error.message ?? "").toLowerCase().includes(column.toLowerCase());
 }
 
+type DocumentTagField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+};
+
 function normalizeSlug(v: string) {
   return v
     .trim()
@@ -24,6 +30,40 @@ function normalizeSlug(v: string) {
 
 function isValidSlug(v: string) {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v) && v.length >= 3 && v.length <= 63;
+}
+
+function normalizeTagKey(v: string) {
+  return v
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]/g, "")
+    .replace(/[\s_]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function parseDocumentTagFields(input: unknown): DocumentTagField[] {
+  if (!Array.isArray(input)) return [];
+  const out: DocumentTagField[] = [];
+  const seen = new Set<string>();
+
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const rawLabel = String((item as { label?: unknown }).label ?? "").trim();
+    if (!rawLabel) continue;
+    const rawKey = String((item as { key?: unknown }).key ?? "").trim();
+    const key = normalizeTagKey(rawKey || rawLabel);
+    if (!key || seen.has(key)) continue;
+    const placeholderRaw = String((item as { placeholder?: unknown }).placeholder ?? "").trim();
+    out.push({
+      key,
+      label: rawLabel.slice(0, 64),
+      ...(placeholderRaw ? { placeholder: placeholderRaw.slice(0, 120) } : {}),
+    });
+    seen.add(key);
+    if (out.length >= 12) break;
+  }
+  return out;
 }
 
 export async function GET(
@@ -58,7 +98,7 @@ export async function GET(
 
     const withSlug = await supabase
       .from("workspaces")
-      .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
+      .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields")
       .eq("id", resolved.id)
       .maybeSingle();
 
@@ -73,7 +113,10 @@ export async function GET(
         .maybeSingle();
       workspace = fallback.data as Record<string, unknown> | null;
       wsErr = fallback.error;
-      if (workspace) workspace.slug = null;
+      if (workspace) {
+        workspace.slug = null;
+        workspace.document_tag_fields = [];
+      }
     }
 
     if (wsErr) throw new Error(wsErr.message);
@@ -108,7 +151,10 @@ export async function GET(
     }));
 
     return NextResponse.json({
-      workspace,
+      workspace: {
+        ...workspace,
+        document_tag_fields: parseDocumentTagFields((workspace as { document_tag_fields?: unknown }).document_tag_fields),
+      },
       members: membersWithEmails,
       viewer: {
         user_id: userData.user.id,
@@ -152,7 +198,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = (await req.json().catch(() => null)) as { name?: string; slug?: string | null } | null;
+    const body = (await req.json().catch(() => null)) as {
+      name?: string;
+      slug?: string | null;
+      document_tag_fields?: unknown;
+    } | null;
     const nextName = typeof body?.name === "string" ? body.name.trim() : undefined;
     const slugRaw = typeof body?.slug === "string" ? body.slug : undefined;
 
@@ -162,6 +212,9 @@ export async function PATCH(
 
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (nextName !== undefined) payload.name = nextName;
+    if (body && "document_tag_fields" in body) {
+      payload.document_tag_fields = parseDocumentTagFields(body.document_tag_fields);
+    }
 
     const { data: existingWorkspace, error: existingErr } = await admin
       .from("workspaces")
@@ -204,10 +257,16 @@ export async function PATCH(
       .from("workspaces")
       .update(payload)
       .eq("id", resolved.id)
-      .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
+      .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields")
       .single();
 
-    if (result.error && isMissingColumnError(result.error, "slug")) {
+    if (
+      result.error &&
+      (isMissingColumnError(result.error, "slug") || isMissingColumnError(result.error, "document_tag_fields"))
+    ) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.document_tag_fields;
+
       if (slugRaw !== undefined) {
         return NextResponse.json(
           { error: "Slug support is not configured yet. Run the workspace slug migration first." },
@@ -217,13 +276,13 @@ export async function PATCH(
 
       const fallback = await admin
         .from("workspaces")
-        .update(payload)
+        .update(fallbackPayload)
         .eq("id", resolved.id)
         .select("id,name,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at")
         .single();
 
       if (fallback.error) throw new Error(fallback.error.message);
-      return NextResponse.json({ workspace: { ...(fallback.data ?? {}), slug: null } });
+      return NextResponse.json({ workspace: { ...(fallback.data ?? {}), slug: null, document_tag_fields: [] } });
     }
 
     if (result.error) {
@@ -233,7 +292,14 @@ export async function PATCH(
       throw new Error(result.error.message);
     }
 
-    return NextResponse.json({ workspace: result.data });
+    return NextResponse.json({
+      workspace: {
+        ...(result.data ?? {}),
+        document_tag_fields: parseDocumentTagFields(
+          (result.data as { document_tag_fields?: unknown } | null)?.document_tag_fields
+        ),
+      },
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 500 });
   }

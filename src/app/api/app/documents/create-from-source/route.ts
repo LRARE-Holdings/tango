@@ -17,12 +17,62 @@ type ParsedRecipient = {
   email: string;
 };
 
+type TagField = { key: string; label: string; placeholder?: string };
+
 function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Server error";
 }
 
 function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function normalizeTagKey(v: string) {
+  return v
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]/g, "")
+    .replace(/[\s_]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function parseTagFields(input: unknown): TagField[] {
+  if (!Array.isArray(input)) return [];
+  const out: TagField[] = [];
+  const seen = new Set<string>();
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const label = String((item as { label?: unknown }).label ?? "").trim();
+    if (!label) continue;
+    const key = normalizeTagKey(String((item as { key?: unknown }).key ?? "").trim() || label);
+    if (!key || seen.has(key)) continue;
+    const placeholder = String((item as { placeholder?: unknown }).placeholder ?? "").trim();
+    out.push({ key, label: label.slice(0, 64), ...(placeholder ? { placeholder: placeholder.slice(0, 120) } : {}) });
+    seen.add(key);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+function parseRawTags(raw: FormDataEntryValue | null): Record<string, string> {
+  if (typeof raw !== "string" || !raw.trim()) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    return {};
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+    const key = normalizeTagKey(String(k));
+    if (!key) continue;
+    const val = String(v ?? "").trim();
+    if (!val) continue;
+    out[key] = val.slice(0, 120);
+  }
+  return out;
 }
 
 function isEmail(v: string) {
@@ -172,6 +222,7 @@ export async function POST(req: Request) {
       : null;
     const sendEmailsRaw = String(form.get("send_emails") ?? "false").toLowerCase() === "true";
     const recipients = parseRecipients(form.get("recipients"));
+    const rawTags = parseRawTags(form.get("tags"));
 
     if (passwordEnabledRaw && !isPasswordStrongEnough(passwordRaw)) {
       return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
@@ -252,6 +303,23 @@ export async function POST(req: Request) {
     const public_id = nanoid(10);
     const password_hash = passwordEnabledRaw ? await hashPassword(passwordRaw) : null;
     const sha256 = crypto.createHash("sha256").update(sourceFile.buffer).digest("hex");
+    let tags: Record<string, string> = {};
+
+    if (workspace_id && Object.keys(rawTags).length > 0) {
+      const wsTagFieldsRes = await supabase
+        .from("workspaces")
+        .select("document_tag_fields")
+        .eq("id", workspace_id)
+        .maybeSingle();
+      if (!wsTagFieldsRes.error && wsTagFieldsRes.data) {
+        const allowedKeys = new Set(
+          parseTagFields((wsTagFieldsRes.data as { document_tag_fields?: unknown }).document_tag_fields).map((f) => f.key)
+        );
+        for (const [k, v] of Object.entries(rawTags)) {
+          if (allowedKeys.has(k)) tags[k] = v;
+        }
+      }
+    }
 
     const baseInsert: Record<string, unknown> = {
       owner_id,
@@ -260,6 +328,7 @@ export async function POST(req: Request) {
       title,
       file_path: "pending",
       sha256,
+      tags,
     };
     if (passwordEnabledRaw) {
       baseInsert.password_enabled = true;
@@ -297,6 +366,9 @@ export async function POST(req: Request) {
       if (!withExtended.error && withExtended.data) {
         doc = withExtended.data as { id: string; public_id: string };
       } else {
+        if (withExtended.error?.code === "42703") {
+          delete baseInsert.tags;
+        }
         insertErr = withExtended.error;
       }
     }
@@ -329,6 +401,7 @@ export async function POST(req: Request) {
         .update({
           file_path,
           sha256,
+          tags,
           source_type: sourceType,
           sync_mode: "manual",
           source_file_id: sourceFile.sourceFileId || null,

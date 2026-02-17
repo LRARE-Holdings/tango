@@ -8,6 +8,7 @@ type WorkspaceInfo = {
   id: string;
   name: string;
   slug: string | null;
+  document_tag_fields?: Array<{ key: string; label: string; placeholder?: string }>;
 };
 
 type DocItem = {
@@ -18,6 +19,7 @@ type DocItem = {
   acknowledgements: number;
   latestAcknowledgedAt: string | null;
   status: "Acknowledged" | "Pending";
+  tags?: Record<string, string>;
 };
 
 type ViewerRole = "owner" | "admin" | "member";
@@ -63,6 +65,7 @@ export default function WorkspaceDocumentsPage() {
   const [search, setSearch] = useState("");
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [tagValues, setTagValues] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
   const [ownershipDoc, setOwnershipDoc] = useState<DocItem | null>(null);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
@@ -131,6 +134,7 @@ export default function WorkspaceDocumentsPage() {
       form.append("password_enabled", "false");
       form.append("max_acknowledgers_enabled", "false");
       form.append("max_acknowledgers", "0");
+      form.append("tags", JSON.stringify(tagValues));
       if (file) {
         form.append("file", file);
       }
@@ -141,6 +145,7 @@ export default function WorkspaceDocumentsPage() {
 
       setTitle("");
       setFile(null);
+      setTagValues({});
       const q = search.trim();
       const qs = q ? `?q=${encodeURIComponent(q)}` : "";
       const docsRes = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/documents${qs}`, {
@@ -263,6 +268,20 @@ export default function WorkspaceDocumentsPage() {
           className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
           style={{ borderColor: "var(--border)", borderRadius: 10 }}
         />
+        {Array.isArray(workspace?.document_tag_fields) && workspace.document_tag_fields.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {workspace.document_tag_fields.map((f) => (
+              <input
+                key={f.key}
+                value={tagValues[f.key] ?? ""}
+                onChange={(e) => setTagValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                placeholder={f.placeholder || f.label}
+                className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+                style={{ borderColor: "var(--border)", borderRadius: 10 }}
+              />
+            ))}
+          </div>
+        ) : null}
         <input
           type="file"
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -325,6 +344,17 @@ export default function WorkspaceDocumentsPage() {
                       Created: {formatDate(d.createdAt)} • Acknowledgements: {d.acknowledgements}
                       {d.latestAcknowledgedAt ? ` • Latest: ${formatDate(d.latestAcknowledgedAt)}` : ""}
                     </div>
+                    {d.tags && Object.keys(d.tags).length > 0 ? (
+                      <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                        {Object.entries(d.tags)
+                          .map(([k, v]) => {
+                            const label =
+                              workspace?.document_tag_fields?.find((f) => f.key === k)?.label ?? k;
+                            return `${label}: ${v}`;
+                          })
+                          .join(" • ")}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex gap-2">

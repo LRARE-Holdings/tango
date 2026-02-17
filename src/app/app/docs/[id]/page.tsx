@@ -29,6 +29,9 @@ type Doc = {
   title: string;
   publicId: string;
   createdAt: string;
+  workspaceId?: string | null;
+  tags?: Record<string, string>;
+  workspaceTagFields?: Array<{ key: string; label: string; placeholder?: string }>;
   currentVersionId?: string | null;
   versionCount?: number;
   status: "Acknowledged" | "Pending";
@@ -144,6 +147,9 @@ export default function DocDetailPage({
   const [responsibilityLoading, setResponsibilityLoading] = useState(false);
   const [responsibilitySaving, setResponsibilitySaving] = useState(false);
   const [responsibilityError, setResponsibilityError] = useState<string | null>(null);
+  const [tagValues, setTagValues] = useState<Record<string, string>>({});
+  const [tagsSaving, setTagsSaving] = useState(false);
+  const [tagsError, setTagsError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const copiedTimerRef = useRef<number | null>(null);
 
@@ -156,6 +162,7 @@ export default function DocDetailPage({
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error ?? "Failed to load document");
         setDoc(json.document);
+        setTagValues((json?.document?.tags ?? {}) as Record<string, string>);
         setCompletions(json.completions ?? []);
       } catch (e: any) {
         setError(e?.message ?? "Something went wrong");
@@ -552,6 +559,27 @@ export default function DocDetailPage({
     );
   }
 
+  async function saveDocumentTags() {
+    if (!doc) return;
+    setTagsSaving(true);
+    setTagsError(null);
+    try {
+      const res = await fetch(`/api/app/documents/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tags: tagValues }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save document tags.");
+      setDoc((prev) => (prev ? { ...prev, tags: (json?.tags ?? {}) as Record<string, string> } : prev));
+      toast.success("Saved", "Document tags updated.");
+    } catch (e: unknown) {
+      setTagsError(e instanceof Error ? e.message : "Failed to save document tags.");
+    } finally {
+      setTagsSaving(false);
+    }
+  }
+
   async function saveResponsibilities() {
     setResponsibilityError(null);
     setResponsibilitySaving(true);
@@ -696,6 +724,16 @@ export default function DocDetailPage({
                   <div className="mt-1 text-sm font-medium">{formatDate(doc.latestAcknowledgedAt)}</div>
                 </div>
               </div>
+              {doc.tags && Object.keys(doc.tags).length > 0 ? (
+                <div className="mt-3 text-sm" style={{ color: "var(--muted)" }}>
+                  {Object.entries(doc.tags)
+                    .map(([k, v]) => {
+                      const label = doc.workspaceTagFields?.find((f) => f.key === k)?.label ?? k;
+                      return `${label}: ${v}`;
+                    })
+                    .join(" • ")}
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -939,8 +977,8 @@ export default function DocDetailPage({
                     {responsibilityError}
                   </div>
                 ) : null}
-                {canManageResponsibilities && responsibilityMembers.length > 0 ? (
-                  <button
+              {canManageResponsibilities && responsibilityMembers.length > 0 ? (
+                <button
                     type="button"
                     onClick={() => void saveResponsibilities()}
                     disabled={responsibilitySaving}
@@ -951,6 +989,40 @@ export default function DocDetailPage({
                   </button>
                 ) : null}
               </div>
+
+              {doc.workspaceTagFields && doc.workspaceTagFields.length > 0 ? (
+                <div className="mt-6 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+                  <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                    DOCUMENT TAGS
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {doc.workspaceTagFields.map((f) => (
+                      <input
+                        key={f.key}
+                        value={tagValues[f.key] ?? ""}
+                        onChange={(e) => setTagValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                        placeholder={f.placeholder || f.label}
+                        className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+                        style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                      />
+                    ))}
+                  </div>
+                  {tagsError ? (
+                    <div className="mt-3 text-sm" style={{ color: "#ff3b30" }}>
+                      {tagsError}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void saveDocumentTags()}
+                    disabled={tagsSaving}
+                    className="focus-ring mt-3 rounded-full border px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    {tagsSaving ? "Saving…" : "Save tags"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
 

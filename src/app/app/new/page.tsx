@@ -272,6 +272,8 @@ export default function NewReceipt() {
 
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [workspaceTagFields, setWorkspaceTagFields] = useState<Array<{ key: string; label: string; placeholder?: string }>>([]);
+  const [tagValues, setTagValues] = useState<Record<string, string>>({});
 
   const [maxAcknowledgersEnabled, setMaxAcknowledgersEnabled] = useState(true);
   const [maxAcknowledgers, setMaxAcknowledgers] = useState<number>(1);
@@ -305,6 +307,24 @@ export default function NewReceipt() {
         setMeEmail(json.email ?? null);
         setPrimaryWorkspaceId(json.primary_workspace_id ?? null);
         setWorkspaceCount(Array.isArray(wsJson?.workspaces) ? wsJson.workspaces.length : 0);
+
+        const activeWorkspaceId = String(json.primary_workspace_id ?? "").trim();
+        if (activeWorkspaceId) {
+          const wsRes = await fetch(`/api/app/workspaces/${encodeURIComponent(activeWorkspaceId)}`, { cache: "no-store" });
+          const wsJson2 = wsRes.ok ? await wsRes.json().catch(() => null) : null;
+          const fields = Array.isArray(wsJson2?.workspace?.document_tag_fields)
+            ? (wsJson2.workspace.document_tag_fields as Array<{ key: string; label: string; placeholder?: string }>)
+            : [];
+          setWorkspaceTagFields(fields);
+          setTagValues((prev) => {
+            const next: Record<string, string> = {};
+            for (const f of fields) next[f.key] = prev[f.key] ?? "";
+            return next;
+          });
+        } else {
+          setWorkspaceTagFields([]);
+          setTagValues({});
+        }
 
         const p = String(json.plan ?? json.tier ?? json.subscription_plan ?? "").toLowerCase();
         if (p === "free" || p === "personal" || p === "pro" || p === "team" || p === "enterprise") {
@@ -406,6 +426,7 @@ export default function NewReceipt() {
       form.append("password", passwordEnabled && personalPlus ? password : "");
       form.append("max_acknowledgers_enabled", String(maxAcknowledgersEnabled));
       form.append("max_acknowledgers", String(maxAcknowledgersEnabled ? maxAcknowledgers : 0));
+      form.append("tags", JSON.stringify(tagValues));
       form.append("template_enabled", String(useTemplate && proPlus));
       form.append("template_id", useTemplate && proPlus ? templateId : "");
       form.append("save_default", String(saveAsDefault && proPlus));
@@ -523,6 +544,20 @@ export default function NewReceipt() {
             <div className="text-xs" style={{ color: "var(--muted2)" }}>
               This appears on your dashboard and evidence export.
             </div>
+            {workspaceTagFields.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
+                {workspaceTagFields.map((f) => (
+                  <div key={f.key} className="space-y-1">
+                    <Label>{f.label.toUpperCase()}</Label>
+                    <Input
+                      value={tagValues[f.key] ?? ""}
+                      onChange={(v) => setTagValues((prev) => ({ ...prev, [f.key]: v }))}
+                      placeholder={f.placeholder || f.label}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="lg:col-span-5">

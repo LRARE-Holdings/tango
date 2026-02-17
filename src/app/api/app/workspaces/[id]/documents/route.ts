@@ -9,6 +9,7 @@ type DocRow = {
   public_id: string;
   created_at: string;
   owner_id: string;
+  tags?: unknown;
 };
 
 type CompletionRow = {
@@ -28,6 +29,53 @@ function isMissingTableError(error: { code?: string; message?: string } | null |
   if (!error) return false;
   if (error.code === "42P01") return true;
   return String(error.message ?? "").toLowerCase().includes(table.toLowerCase());
+}
+
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, column: string) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  return String(error.message ?? "").toLowerCase().includes(column.toLowerCase());
+}
+
+function normalizeTagKey(v: string) {
+  return v
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]/g, "")
+    .replace(/[\s_]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function parseTagFields(input: unknown) {
+  if (!Array.isArray(input)) return [] as Array<{ key: string; label: string; placeholder?: string }>;
+  const out: Array<{ key: string; label: string; placeholder?: string }> = [];
+  const seen = new Set<string>();
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const label = String((item as { label?: unknown }).label ?? "").trim();
+    if (!label) continue;
+    const key = normalizeTagKey(String((item as { key?: unknown }).key ?? "").trim() || label);
+    if (!key || seen.has(key)) continue;
+    const placeholder = String((item as { placeholder?: unknown }).placeholder ?? "").trim();
+    out.push({ key, label: label.slice(0, 64), ...(placeholder ? { placeholder: placeholder.slice(0, 120) } : {}) });
+    seen.add(key);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+function parseDocumentTags(input: unknown) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {} as Record<string, string>;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    const key = normalizeTagKey(String(k));
+    if (!key) continue;
+    const val = String(v ?? "").trim();
+    if (!val) continue;
+    out[key] = val.slice(0, 120);
+  }
+  return out;
 }
 
 export async function GET(
@@ -73,22 +121,46 @@ export async function GET(
     if (memberErr) throw new Error(memberErr.message);
     if (!member) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const { data: workspace, error: wsErr } = await supabase
+    const withTagFields = await supabase
       .from("workspaces")
-      .select("id,name,slug")
+      .select("id,name,slug,document_tag_fields")
       .eq("id", resolved.id)
       .maybeSingle();
+    let workspace = withTagFields.data as Record<string, unknown> | null;
+    let wsErr = withTagFields.error;
+    if (wsErr && isMissingColumnError(wsErr, "document_tag_fields")) {
+      const fallback = await supabase
+        .from("workspaces")
+        .select("id,name,slug")
+        .eq("id", resolved.id)
+        .maybeSingle();
+      workspace = fallback.data as Record<string, unknown> | null;
+      wsErr = fallback.error;
+      if (workspace) workspace.document_tag_fields = [];
+    }
     if (wsErr) throw new Error(wsErr.message);
     if (!workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const q = normalizeQuery(new URL(req.url).searchParams.get("q"));
 
-    const { data: docs, error: docsErr } = await supabase
+    const withTags = await supabase
       .from("documents")
-      .select("id,title,public_id,created_at,owner_id")
+      .select("id,title,public_id,created_at,owner_id,tags")
       .eq("workspace_id", resolved.id)
       .order("created_at", { ascending: false })
       .limit(250);
+    let docs = withTags.data;
+    let docsErr = withTags.error;
+    if (docsErr && isMissingColumnError(docsErr, "tags")) {
+      const fallback = await supabase
+        .from("documents")
+        .select("id,title,public_id,created_at,owner_id")
+        .eq("workspace_id", resolved.id)
+        .order("created_at", { ascending: false })
+        .limit(250);
+      docs = fallback.data as any;
+      docsErr = fallback.error;
+    }
     if (docsErr) throw new Error(docsErr.message);
 
     let documents = (docs ?? []) as DocRow[];
@@ -119,9 +191,10 @@ export async function GET(
     if (documents.length === 0) {
       return NextResponse.json({
         workspace: {
-          id: workspace.id,
-          name: workspace.name,
+          id: String(workspace.id),
+          name: String(workspace.name ?? ""),
           slug: (workspace as { slug?: string | null }).slug ?? null,
+          document_tag_fields: parseTagFields((workspace as { document_tag_fields?: unknown }).document_tag_fields),
         },
         viewer: {
           user_id: userId,
@@ -160,14 +233,16 @@ export async function GET(
         acknowledgements,
         latestAcknowledgedAt: a?.latestSubmittedAt ?? null,
         status: acknowledgements > 0 ? ("Acknowledged" as const) : ("Pending" as const),
+        tags: parseDocumentTags(d.tags),
       };
     });
 
     return NextResponse.json({
       workspace: {
-        id: workspace.id,
-        name: workspace.name,
+        id: String(workspace.id),
+        name: String(workspace.name ?? ""),
         slug: (workspace as { slug?: string | null }).slug ?? null,
+        document_tag_fields: parseTagFields((workspace as { document_tag_fields?: unknown }).document_tag_fields),
       },
       viewer: {
         user_id: userId,

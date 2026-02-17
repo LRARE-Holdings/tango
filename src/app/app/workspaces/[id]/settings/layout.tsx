@@ -53,6 +53,28 @@ export default async function WorkspaceSettingsLayout({
         </Link>
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap">
+        {[
+          { href: `/app/workspaces/${id}/settings/general`, label: "General" },
+          { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
+          { href: `/app/workspaces/${id}/settings/domains`, label: "Domains" },
+        ].map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="focus-ring px-3 py-1.5 text-xs font-medium hover:opacity-80"
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: 999,
+              color: "var(--muted)",
+              background: "var(--card)",
+            }}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+
       {children}
     </div>
   );
