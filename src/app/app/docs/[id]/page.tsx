@@ -782,8 +782,8 @@ export default function DocDetailPage({
                     <div>{formatDuration(latestCompletion?.time_on_page_seconds ?? null)}</div>
                   </div>
                   <div>
-                    <div style={{ color: "var(--muted2)" }}>acknowledgement</div>
-                    <div>{latestCompletion?.acknowledged ? "Submitted" : "Not submitted"}</div>
+                    <div style={{ color: "var(--muted2)" }}>acknowledged</div>
+                    <div>{latestCompletion?.acknowledged ? "true" : "false"}</div>
                   </div>
                   <div>
                     <div style={{ color: "var(--muted2)" }}>submitted_at</div>
@@ -1195,8 +1195,8 @@ export default function DocDetailPage({
                             )}
 
                             <div className="mt-2 space-y-1 text-xs" style={{ color: "var(--muted)" }}>
-                              <div>Submitted: {formatDate(c.submitted_at)}</div>
-                              <div>Acknowledged: {c.acknowledged ? "Yes" : "No"}</div>
+                              <div>submitted_at: {formatDate(c.submitted_at)}</div>
+                              <div>acknowledged: {c.acknowledged ? "true" : "false"}</div>
                             </div>
                           </div>
 
@@ -1206,7 +1206,7 @@ export default function DocDetailPage({
                               style={{ borderColor: "var(--border)", background: "var(--card2)" }}
                             >
                               <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                                Scroll
+                                max_scroll_percent
                               </div>
                               <div className="text-sm font-medium">
                                 {c.max_scroll_percent == null ? "—" : `${c.max_scroll_percent}%`}
@@ -1218,7 +1218,7 @@ export default function DocDetailPage({
                               style={{ borderColor: "var(--border)", background: "var(--card2)" }}
                             >
                               <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                                Time
+                                time_on_page_seconds
                               </div>
                               <div className="text-sm font-medium">
                                 {formatDuration(c.time_on_page_seconds)}
@@ -1230,7 +1230,7 @@ export default function DocDetailPage({
                               style={{ borderColor: "var(--border)", background: "var(--card2)" }}
                             >
                               <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                                Active
+                                active_seconds
                               </div>
                               <div className="text-sm font-medium">
                                 {formatDuration(c.active_seconds)}
@@ -1242,7 +1242,7 @@ export default function DocDetailPage({
                               style={{ borderColor: "var(--border)", background: "var(--card2)" }}
                             >
                               <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                                IP
+                                ip_address
                               </div>
                               <div className="text-sm font-medium">
                                 {c.ip ?? "—"}
@@ -1262,10 +1262,10 @@ export default function DocDetailPage({
                             className="mt-2 rounded-2xl border p-4 text-xs leading-relaxed"
                             style={{ borderColor: "var(--border)", background: "transparent", color: "var(--muted)" }}
                           >
-                            <div><span style={{ color: "var(--muted2)" }}>Completion ID:</span> {c.id}</div>
-                            <div><span style={{ color: "var(--muted2)" }}>Active time:</span> {formatDuration(c.active_seconds)}</div>
-                            <div><span style={{ color: "var(--muted2)" }}>IP:</span> {c.ip ?? "—"}</div>
-                            <div><span style={{ color: "var(--muted2)" }}>User agent:</span> {c.user_agent ?? "—"}</div>
+                            <div><span style={{ color: "var(--muted2)" }}>completion_id:</span> {c.id}</div>
+                            <div><span style={{ color: "var(--muted2)" }}>active_seconds:</span> {formatDuration(c.active_seconds)}</div>
+                            <div><span style={{ color: "var(--muted2)" }}>ip_address:</span> {c.ip ?? "—"}</div>
+                            <div><span style={{ color: "var(--muted2)" }}>user_agent:</span> {c.user_agent ?? "—"}</div>
                           </div>
                         </details>
                       </div>
