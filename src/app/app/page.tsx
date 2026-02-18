@@ -169,7 +169,6 @@ export default function AppHome() {
   const proPlus = plan === "pro" || plan === "team" || plan === "enterprise";
   const workspacePlus = plan === "team" || plan === "enterprise";
   const primaryWorkspaceId = String(me?.primary_workspace_id ?? "").trim() || null;
-  const mode = primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE";
 
   useEffect(() => {
     async function load() {
@@ -283,9 +282,6 @@ export default function AppHome() {
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
               {firstName ? `${firstName}'s dashboard` : "Account overview"}
             </h1>
-            <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
-              {mode}
-            </span>
           </div>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
             {workspacePlus
