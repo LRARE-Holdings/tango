@@ -375,6 +375,7 @@ export default function NewReceipt() {
     if (!policyModeEnabled) return;
     setMaxAcknowledgersEnabled(false);
     setSendEmails(true);
+    setRequireRecipientIdentity(true);
   }, [policyModeEnabled]);
 
   function maybeNudgeUpgrade(key: string, title: string, description: string) {

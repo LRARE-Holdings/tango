@@ -143,7 +143,7 @@ export default function WorkspaceDocumentsPage() {
       form.append("title", title.trim() || "Untitled");
       form.append("send_emails", "false");
       form.append("recipients", "[]");
-      form.append("require_recipient_identity", "false");
+      form.append("require_recipient_identity", String(workspace?.policy_mode_enabled === true));
       form.append("password_enabled", "false");
       form.append("max_acknowledgers_enabled", "false");
       form.append("max_acknowledgers", "0");

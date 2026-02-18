@@ -335,6 +335,10 @@ export async function POST(req: Request) {
       policyModeEnabled && !form.has("send_emails")
         ? true
         : sendEmailsRaw;
+    const requireRecipientIdentity =
+      policyModeEnabled && !form.has("require_recipient_identity")
+        ? true
+        : requireRecipientIdentityRaw;
 
     const quota = getDocumentQuota(effectivePlan, seatLimitForQuota);
     if (quota.limit !== null) {
@@ -392,7 +396,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (requireRecipientIdentityRaw && !isPaidPlan) {
+    if (requireRecipientIdentity && !isPaidPlan) {
       return NextResponse.json(
         { error: "Requiring name/email acknowledgement is available on paid plans." },
         { status: 403 }
@@ -448,7 +452,7 @@ export async function POST(req: Request) {
       baseInsert.password_enabled = true;
       baseInsert.password_hash = password_hash;
     }
-    if (requireRecipientIdentityRaw && isPaidPlan) baseInsert.require_recipient_identity = true;
+    if (requireRecipientIdentity && isPaidPlan) baseInsert.require_recipient_identity = true;
     if (maxAcknowledgersEnabled && maxAcknowledgersFinal) {
       baseInsert.max_acknowledgers_enabled = true;
       baseInsert.max_acknowledgers = maxAcknowledgersFinal;
