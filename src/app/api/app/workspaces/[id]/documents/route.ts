@@ -117,7 +117,7 @@ export async function GET(
 
     const withTagFields = await supabase
       .from("workspaces")
-      .select("id,name,slug,document_tag_fields")
+      .select("id,name,slug,document_tag_fields,policy_mode_enabled")
       .eq("id", resolved.id)
       .maybeSingle();
     let workspace = withTagFields.data as Record<string, unknown> | null;
@@ -131,6 +131,7 @@ export async function GET(
       workspace = fallback.data as Record<string, unknown> | null;
       wsErr = fallback.error;
       if (workspace) workspace.document_tag_fields = [];
+      if (workspace) workspace.policy_mode_enabled = false;
     }
     if (wsErr) throw new Error(wsErr.message);
     if (!workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -193,6 +194,7 @@ export async function GET(
           name: String(workspace.name ?? ""),
           slug: (workspace as { slug?: string | null }).slug ?? null,
           document_tag_fields: parseTagFields((workspace as { document_tag_fields?: unknown }).document_tag_fields),
+          policy_mode_enabled: (workspace as { policy_mode_enabled?: unknown }).policy_mode_enabled === true,
         },
         viewer: {
           user_id: userId,
@@ -241,6 +243,7 @@ export async function GET(
         name: String(workspace.name ?? ""),
         slug: (workspace as { slug?: string | null }).slug ?? null,
         document_tag_fields: parseTagFields((workspace as { document_tag_fields?: unknown }).document_tag_fields),
+        policy_mode_enabled: (workspace as { policy_mode_enabled?: unknown }).policy_mode_enabled === true,
       },
       viewer: {
         user_id: userId,

@@ -67,6 +67,10 @@ function parseDocumentTagFields(input: unknown): DocumentTagField[] {
   return out;
 }
 
+function parsePolicyModeEnabled(input: unknown): boolean {
+  return input === true;
+}
+
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> | { id: string } }
@@ -100,7 +104,7 @@ export async function GET(
     const withSlug = await supabase
       .from("workspaces")
       .select(
-        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields,billing_owner_user_id"
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields,billing_owner_user_id,policy_mode_enabled"
       )
       .eq("id", resolved.id)
       .maybeSingle();
@@ -110,7 +114,9 @@ export async function GET(
 
     if (
       wsErr &&
-      (isMissingColumnError(wsErr, "slug") || isMissingColumnError(wsErr, "billing_owner_user_id"))
+      (isMissingColumnError(wsErr, "slug") ||
+        isMissingColumnError(wsErr, "billing_owner_user_id") ||
+        isMissingColumnError(wsErr, "policy_mode_enabled"))
     ) {
       const fallback = await supabase
         .from("workspaces")
@@ -123,6 +129,7 @@ export async function GET(
         workspace.slug = null;
         workspace.document_tag_fields = [];
         workspace.billing_owner_user_id = workspace.created_by;
+        workspace.policy_mode_enabled = false;
       }
     }
 
@@ -153,6 +160,9 @@ export async function GET(
       workspace: {
         ...workspace,
         document_tag_fields: parseDocumentTagFields((workspace as { document_tag_fields?: unknown }).document_tag_fields),
+        policy_mode_enabled: parsePolicyModeEnabled(
+          (workspace as { policy_mode_enabled?: unknown }).policy_mode_enabled
+        ),
       },
       licensing,
       members: membersWithEmails,
@@ -202,6 +212,7 @@ export async function PATCH(
       name?: string;
       slug?: string | null;
       document_tag_fields?: unknown;
+      policy_mode_enabled?: boolean;
     } | null;
     const nextName = typeof body?.name === "string" ? body.name.trim() : undefined;
     const slugRaw = typeof body?.slug === "string" ? body.slug : undefined;
@@ -210,10 +221,21 @@ export async function PATCH(
       return NextResponse.json({ error: "Workspace name is required." }, { status: 400 });
     }
 
+    const { summary: licensing } = await getWorkspaceLicensing(admin, resolved.id);
+
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (nextName !== undefined) payload.name = nextName;
     if (body && "document_tag_fields" in body) {
       payload.document_tag_fields = parseDocumentTagFields(body.document_tag_fields);
+    }
+    if (body && "policy_mode_enabled" in body) {
+      if (licensing.plan !== "team" && licensing.plan !== "enterprise") {
+        return NextResponse.json(
+          { error: "Policy mode is available on Team and Enterprise workspaces only." },
+          { status: 403 }
+        );
+      }
+      payload.policy_mode_enabled = body.policy_mode_enabled === true;
     }
 
     const { data: existingWorkspace, error: existingErr } = await admin
@@ -257,13 +279,23 @@ export async function PATCH(
       .from("workspaces")
       .update(payload)
       .eq("id", resolved.id)
-      .select("id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields")
+      .select(
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields,policy_mode_enabled"
+      )
       .single();
 
     if (
       result.error &&
-      (isMissingColumnError(result.error, "slug") || isMissingColumnError(result.error, "document_tag_fields"))
+      (isMissingColumnError(result.error, "slug") ||
+        isMissingColumnError(result.error, "document_tag_fields") ||
+        isMissingColumnError(result.error, "policy_mode_enabled"))
     ) {
+      if (body && "policy_mode_enabled" in body) {
+        return NextResponse.json(
+          { error: "Policy mode settings are not configured yet. Run the latest SQL migrations first." },
+          { status: 500 }
+        );
+      }
       const fallbackPayload = { ...payload };
       delete fallbackPayload.document_tag_fields;
 
@@ -282,7 +314,9 @@ export async function PATCH(
         .single();
 
       if (fallback.error) throw new Error(fallback.error.message);
-      return NextResponse.json({ workspace: { ...(fallback.data ?? {}), slug: null, document_tag_fields: [] } });
+      return NextResponse.json({
+        workspace: { ...(fallback.data ?? {}), slug: null, document_tag_fields: [], policy_mode_enabled: false },
+      });
     }
 
     if (result.error) {
@@ -297,6 +331,9 @@ export async function PATCH(
         ...(result.data ?? {}),
         document_tag_fields: parseDocumentTagFields(
           (result.data as { document_tag_fields?: unknown } | null)?.document_tag_fields
+        ),
+        policy_mode_enabled: parsePolicyModeEnabled(
+          (result.data as { policy_mode_enabled?: unknown } | null)?.policy_mode_enabled
         ),
       },
     });

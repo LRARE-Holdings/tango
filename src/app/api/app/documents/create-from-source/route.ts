@@ -258,6 +258,7 @@ export async function POST(req: Request) {
     const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
     let seatLimitForQuota = 1;
     let quotaByWorkspace = false;
+    let policyModeEnabled = false;
 
     if (activeWorkspaceId) {
       const { data: membership, error: membershipErr } = await supabase
@@ -289,6 +290,15 @@ export async function POST(req: Request) {
       seatLimitForQuota = workspaceEntitlements.seat_limit;
       workspace_id = activeWorkspaceId;
       quotaByWorkspace = true;
+
+      const policyRes = await supabase
+        .from("workspaces")
+        .select("policy_mode_enabled")
+        .eq("id", activeWorkspaceId)
+        .maybeSingle();
+      if (!policyRes.error) {
+        policyModeEnabled = (policyRes.data as { policy_mode_enabled?: unknown } | null)?.policy_mode_enabled === true;
+      }
     } else if (personalPlan === "team" || personalPlan === "enterprise") {
       const { count: membershipCount, error: countErr } = await supabase
         .from("workspace_members")
@@ -315,6 +325,16 @@ export async function POST(req: Request) {
       const seats = Number((ent as { seats?: unknown } | null)?.seats ?? 1);
       seatLimitForQuota = Number.isFinite(seats) && seats > 0 ? Math.floor(seats) : 1;
     }
+
+    const maxAcknowledgersEnabled =
+      policyModeEnabled && !form.has("max_acknowledgers_enabled")
+        ? false
+        : maxAcknowledgersEnabledRaw;
+    const maxAcknowledgersFinal = maxAcknowledgersEnabled ? maxAcknowledgers : null;
+    const sendEmails =
+      policyModeEnabled && !form.has("send_emails")
+        ? true
+        : sendEmailsRaw;
 
     const quota = getDocumentQuota(effectivePlan, seatLimitForQuota);
     if (quota.limit !== null) {
@@ -378,16 +398,16 @@ export async function POST(req: Request) {
         { status: 403 }
       );
     }
-    if (sendEmailsRaw && !personalPlus) {
+    if (sendEmails && !personalPlus) {
       return NextResponse.json(
         { error: "Email sending is available on Personal plans and above." },
         { status: 403 }
       );
     }
-    if (sendEmailsRaw && recipients.length === 0) {
+    if (sendEmails && recipients.length === 0) {
       return NextResponse.json({ error: "Add at least one valid recipient email." }, { status: 400 });
     }
-    if (sendEmailsRaw && !process.env.RESEND_API_KEY) {
+    if (sendEmails && !process.env.RESEND_API_KEY) {
       return NextResponse.json({ error: "Email sending is not configured yet." }, { status: 500 });
     }
 
@@ -411,6 +431,9 @@ export async function POST(req: Request) {
         }
       }
     }
+    if (policyModeEnabled) {
+      tags.policy = "Policy";
+    }
 
     const baseInsert: Record<string, unknown> = {
       owner_id,
@@ -426,9 +449,9 @@ export async function POST(req: Request) {
       baseInsert.password_hash = password_hash;
     }
     if (requireRecipientIdentityRaw && isPaidPlan) baseInsert.require_recipient_identity = true;
-    if (maxAcknowledgersEnabledRaw && maxAcknowledgers) {
+    if (maxAcknowledgersEnabled && maxAcknowledgersFinal) {
       baseInsert.max_acknowledgers_enabled = true;
-      baseInsert.max_acknowledgers = maxAcknowledgers;
+      baseInsert.max_acknowledgers = maxAcknowledgersFinal;
     }
 
     const insertWithVersionFields = {
@@ -543,7 +566,7 @@ export async function POST(req: Request) {
     const shareUrl = `${appBaseUrl(req)}${sharePath}`;
 
     const emailFailures: Array<{ email: string; error: string }> = [];
-    if (sendEmailsRaw && recipients.length > 0) {
+    if (sendEmails && recipients.length > 0) {
       const workspaceName =
         workspace_id
           ? (
@@ -590,11 +613,12 @@ export async function POST(req: Request) {
       current_version_id: versionId,
       version_number: versionNumber,
       emails: {
-        requested: sendEmailsRaw,
-        attempted: sendEmailsRaw ? recipients.length : 0,
-        sent: sendEmailsRaw ? recipients.length - emailFailures.length : 0,
+        requested: sendEmails,
+        attempted: sendEmails ? recipients.length : 0,
+        sent: sendEmails ? recipients.length - emailFailures.length : 0,
         failed: emailFailures,
       },
+      policy_mode_enabled: policyModeEnabled,
     });
   } catch (e: unknown) {
     const msg = errMessage(e);

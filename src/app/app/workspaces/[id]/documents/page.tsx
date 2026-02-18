@@ -9,6 +9,7 @@ type WorkspaceInfo = {
   name: string;
   slug: string | null;
   document_tag_fields?: Array<{ key: string; label: string; placeholder?: string }>;
+  policy_mode_enabled?: boolean;
 };
 
 type DocItem = {
@@ -74,6 +75,7 @@ export default function WorkspaceDocumentsPage() {
   const [tagFilterValue, setTagFilterValue] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("created_desc");
   const [sortTagKey, setSortTagKey] = useState<string>("");
+  const [policyOnly, setPolicyOnly] = useState(false);
   const [ownershipDoc, setOwnershipDoc] = useState<DocItem | null>(null);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
   const [ownershipSaving, setOwnershipSaving] = useState(false);
@@ -194,6 +196,10 @@ export default function WorkspaceDocumentsPage() {
   const filteredDocuments = useMemo(() => {
     const tagNeedle = tagFilterValue.trim().toLowerCase();
     const out = documents.filter((doc) => {
+      if (policyOnly) {
+        const policyTag = String((doc.tags ?? {}).policy ?? "").trim().toLowerCase();
+        if (policyTag !== "policy") return false;
+      }
       if (statusFilter === "pending" && doc.status !== "Pending") return false;
       if (statusFilter === "acknowledged" && doc.status !== "Acknowledged") return false;
       if (!tagNeedle) return true;
@@ -221,7 +227,7 @@ export default function WorkspaceDocumentsPage() {
     });
 
     return out;
-  }, [documents, statusFilter, tagFilterKey, tagFilterValue, sortMode, sortTagKey]);
+  }, [documents, policyOnly, statusFilter, tagFilterKey, tagFilterValue, sortMode, sortTagKey]);
 
   const filteredCounts = useMemo(() => {
     const acknowledged = filteredDocuments.filter((d) => d.status === "Acknowledged").length;
@@ -358,6 +364,26 @@ export default function WorkspaceDocumentsPage() {
             {filteredCounts.total} shown / {counts.total} total • {filteredCounts.pending} pending • {filteredCounts.acknowledged} acknowledged
           </div>
         </div>
+        {workspace?.policy_mode_enabled ? (
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPolicyOnly((v) => !v)}
+              className="focus-ring px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+              style={{
+                borderRadius: 999,
+                border: "1px solid var(--border)",
+                background: policyOnly ? "var(--fg)" : "transparent",
+                color: policyOnly ? "var(--bg)" : "var(--fg)",
+              }}
+            >
+              {policyOnly ? "Showing Policies" : "Policies"}
+            </button>
+            <div className="text-xs" style={{ color: "var(--muted2)" }}>
+              Policy documents are auto-tagged with <span style={{ color: "var(--muted)" }}>Policy</span>.
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
           <select
             value={statusFilter}
@@ -515,6 +541,21 @@ export default function WorkspaceDocumentsPage() {
                       Created: {formatDate(d.createdAt)} • Acknowledgements: {d.acknowledgements}
                       {d.latestAcknowledgedAt ? ` • Latest: ${formatDate(d.latestAcknowledgedAt)}` : ""}
                     </div>
+                    {String((d.tags ?? {}).policy ?? "").trim().toLowerCase() === "policy" ? (
+                      <div className="mt-1">
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold"
+                          style={{
+                            borderRadius: 999,
+                            border: "1px solid var(--border)",
+                            color: "var(--muted)",
+                            background: "var(--card)",
+                          }}
+                        >
+                          Policy
+                        </span>
+                      </div>
+                    ) : null}
                     {d.tags && Object.keys(d.tags).length > 0 ? (
                       <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
                         {Object.entries(d.tags)

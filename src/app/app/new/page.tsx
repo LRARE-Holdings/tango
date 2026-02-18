@@ -282,6 +282,7 @@ export default function NewReceipt() {
   const [sendEmails, setSendEmails] = useState(false);
   const [recipients, setRecipients] = useState<Recipient[]>([{ id: uid(), name: "", email: "", save: true }]);
   const [requireRecipientIdentity, setRequireRecipientIdentity] = useState(false);
+  const [policyModeEnabled, setPolicyModeEnabled] = useState(false);
 
   const [passwordEnabled, setPasswordEnabled] = useState(false);
   const [password, setPassword] = useState("");
@@ -322,7 +323,10 @@ export default function NewReceipt() {
           const wsJson2 = wsRes.ok
             ? (await wsRes.json().catch(() => null)) as
                 | {
-                    workspace?: { document_tag_fields?: Array<{ key: string; label: string; placeholder?: string }> };
+                    workspace?: {
+                      document_tag_fields?: Array<{ key: string; label: string; placeholder?: string }>;
+                      policy_mode_enabled?: boolean;
+                    };
                     licensing?: { plan?: string };
                     viewer?: { user_id?: string };
                     members?: Array<{ user_id?: string; license_active?: boolean }>;
@@ -338,6 +342,7 @@ export default function NewReceipt() {
             for (const f of fields) next[f.key] = prev[f.key] ?? "";
             return next;
           });
+          setPolicyModeEnabled(wsJson2?.workspace?.policy_mode_enabled === true);
 
           const meId = String(json?.id ?? wsJson2?.viewer?.user_id ?? "").trim();
           const memberRow = Array.isArray(wsJson2?.members)
@@ -352,6 +357,7 @@ export default function NewReceipt() {
         } else {
           setWorkspaceTagFields([]);
           setTagValues({});
+          setPolicyModeEnabled(false);
         }
 
         const p = String(json.plan ?? json.tier ?? json.subscription_plan ?? "").toLowerCase();
@@ -364,6 +370,12 @@ export default function NewReceipt() {
     }
     loadMe();
   }, []);
+
+  useEffect(() => {
+    if (!policyModeEnabled) return;
+    setMaxAcknowledgersEnabled(false);
+    setSendEmails(true);
+  }, [policyModeEnabled]);
 
   function maybeNudgeUpgrade(key: string, title: string, description: string) {
     if (plan !== "free") return;
@@ -557,7 +569,10 @@ export default function NewReceipt() {
     const templateState = useTemplate && proPlus ? templateId : "Off";
     return [
       { k: "Plan", v: plan.toUpperCase() },
-      { k: "Mode", v: primaryWorkspaceId ? "Workspace" : "Personal" },
+      {
+        k: "Mode",
+        v: primaryWorkspaceId ? (policyModeEnabled ? "Workspace (Policy mode)" : "Workspace") : "Personal",
+      },
       { k: "Source", v: "Upload file" },
       { k: "File", v: hasFile ? "Attached" : "Missing" },
       { k: "Email", v: emailState },
@@ -570,6 +585,7 @@ export default function NewReceipt() {
   }, [
     plan,
     primaryWorkspaceId,
+    policyModeEnabled,
     hasFile,
     sendEmails,
     personalPlus,
@@ -841,6 +857,14 @@ export default function NewReceipt() {
               }
             >
               <div className="space-y-5">
+                {policyModeEnabled ? (
+                  <div
+                    className="p-3 text-xs"
+                    style={{ borderRadius: 10, border: "1px solid var(--border)", background: "var(--card)" }}
+                  >
+                    Policy mode default: bulk email + link delivery is enabled.
+                  </div>
+                ) : null}
                 <div
                   className="flex items-start justify-between gap-4 p-4"
                   style={{ borderRadius: 14, border: "1px solid var(--border)", background: "transparent" }}
@@ -971,6 +995,14 @@ export default function NewReceipt() {
                   right={<Pill>{maxAcknowledgersEnabled ? `Max ${maxAcknowledgers}` : "Unlimited"}</Pill>}
                 >
                   <div className="space-y-4">
+                    {policyModeEnabled ? (
+                      <div
+                        className="p-3 text-xs"
+                        style={{ borderRadius: 10, border: "1px solid var(--border)", background: "var(--card)" }}
+                      >
+                        Policy mode default: unlimited acknowledgements.
+                      </div>
+                    ) : null}
                     <div
                       className="flex items-start justify-between gap-4 p-4"
                       style={{ borderRadius: 14, border: "1px solid var(--border)" }}
