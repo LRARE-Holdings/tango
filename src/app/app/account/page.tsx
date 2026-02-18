@@ -391,6 +391,7 @@ export default function AccountPage() {
   const firstName = useMemo(() => firstNameFromDisplayName(me?.display_name ?? null), [me?.display_name]);
 
   const plan = useMemo(() => planLabel(me?.display_plan ?? me?.plan ?? null), [me?.display_plan, me?.plan]);
+  const isLicensedDisplayPlan = String(me?.display_plan ?? "").trim().toLowerCase() === "licensed";
   const interval = useMemo(() => intervalLabel(me?.billing_interval ?? null), [me?.billing_interval]);
   const status = me?.subscription_status ?? null;
 
@@ -657,6 +658,7 @@ export default function AccountPage() {
       </Section>
 
       {/* Usage */}
+      {!isLicensedDisplayPlan ? (
       <Section
         title="Usage"
         subtitle="Your current usage and recent account activity snapshot."
@@ -723,6 +725,7 @@ export default function AccountPage() {
           </div>
         </div>
       </Section>
+      ) : null}
 
       {/* Preferences */}
       <Section

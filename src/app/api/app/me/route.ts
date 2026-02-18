@@ -130,6 +130,7 @@ export async function GET() {
   const primaryWorkspaceId = String(profRow?.primary_workspace_id ?? "").trim() || null;
   let workspaceLicenseActive = false;
   let workspacePlan: string | null = null;
+  let workspaceSeatLimit = 1;
 
   if (primaryWorkspaceId) {
     try {
@@ -138,6 +139,7 @@ export async function GET() {
       if (wsEnt && wsEnt.license_active) {
         workspaceLicenseActive = true;
         workspacePlan = wsEnt.plan;
+        workspaceSeatLimit = wsEnt.seat_limit;
       }
     } catch {
       // Keep /me resilient: if workspace licensing read fails, continue with profile entitlements only.
@@ -145,7 +147,11 @@ export async function GET() {
   }
 
   const displayPlan = workspaceLicenseActive && plan === "free" ? "licensed" : plan;
-  const quota = getDocumentQuota(plan, entRow?.seats ?? 1);
+  const quotaPlan = workspaceLicenseActive
+    ? normalizeEffectivePlan(workspacePlan ?? plan)
+    : plan;
+  const quotaSeatLimit = workspaceLicenseActive ? workspaceSeatLimit : (entRow?.seats ?? 1);
+  const quota = getDocumentQuota(quotaPlan, quotaSeatLimit);
 
   let usageUsed = 0;
   if (quota.limit !== null) {
@@ -155,7 +161,7 @@ export async function GET() {
       countQuery = countQuery.gte("created_at", startIso).lt("created_at", endIso);
     }
 
-    if (plan === "team") {
+    if (quotaPlan === "team") {
       const workspaceId = String(profRow?.primary_workspace_id ?? "").trim();
       if (workspaceId) {
         countQuery = countQuery.eq("workspace_id", workspaceId);
@@ -207,14 +213,17 @@ export async function GET() {
     marketing_opt_in: prefs.marketing_opt_in,
     default_ack_limit: prefs.default_ack_limit,
     default_password_enabled: prefs.default_password_enabled,
-    usage: {
-      used: usageUsed,
-      limit: usageLimit,
-      remaining: usageRemaining,
-      percent: usagePercent,
-      window: quota.window,
-      near_limit: usageNearLimit,
-      at_limit: usageAtLimit,
-    },
+    usage:
+      displayPlan === "licensed"
+        ? null
+        : {
+            used: usageUsed,
+            limit: usageLimit,
+            remaining: usageRemaining,
+            percent: usagePercent,
+            window: quota.window,
+            near_limit: usageNearLimit,
+            at_limit: usageAtLimit,
+          },
   });
 }

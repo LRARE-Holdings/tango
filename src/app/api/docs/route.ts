@@ -204,6 +204,7 @@ export async function POST(req: Request) {
       personalPlan === "personal" || personalPlan === "pro" || personalPlan === "team" || personalPlan === "enterprise";
     const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
     let seatLimitForQuota = 1;
+    let quotaByWorkspace = false;
 
     if (activeWorkspaceId) {
       const { data: membership, error: membershipErr } = await supabase
@@ -238,6 +239,7 @@ export async function POST(req: Request) {
       effectivePlan = workspaceEntitlements.plan;
       seatLimitForQuota = workspaceEntitlements.seat_limit;
       workspace_id = activeWorkspaceId;
+      quotaByWorkspace = true;
     } else if (personalPlan === "team" || personalPlan === "enterprise") {
       const { count: membershipCount, error: countErr } = await supabase
         .from("workspace_members")
@@ -272,10 +274,15 @@ export async function POST(req: Request) {
     const quota = getDocumentQuota(effectivePlan, seatLimitForQuota);
     if (quota.limit !== null) {
       if (quota.window === "total") {
-        const { count, error: countErr } = await supabase
+        let countQuery = supabase
           .from("documents")
-          .select("id", { count: "exact", head: true })
-          .eq("owner_id", owner_id);
+          .select("id", { count: "exact", head: true });
+        if (quotaByWorkspace && workspace_id) {
+          countQuery = countQuery.eq("workspace_id", workspace_id);
+        } else {
+          countQuery = countQuery.eq("owner_id", owner_id);
+        }
+        const { count, error: countErr } = await countQuery;
         if (countErr) {
           return NextResponse.json({ error: countErr.message }, { status: 500 });
         }
@@ -299,7 +306,7 @@ export async function POST(req: Request) {
           .select("id", { count: "exact", head: true })
           .gte("created_at", startIso)
           .lt("created_at", endIso);
-        if (effectivePlan === "team" && workspace_id) {
+        if (quotaByWorkspace && workspace_id) {
           countQuery = countQuery.eq("workspace_id", workspace_id);
         } else {
           countQuery = countQuery.eq("owner_id", owner_id);
