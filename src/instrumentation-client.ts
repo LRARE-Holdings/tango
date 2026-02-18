@@ -26,6 +26,17 @@ Sentry.init({
   // Enable sending user PII (Personally Identifiable Information)
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
+  beforeSend(event, hint) {
+    const original = hint.originalException;
+    if (original instanceof DOMException) {
+      const isAbort = original.name === "AbortError";
+      const isKnownAbortMessage =
+        typeof original.message === "string" &&
+        original.message.toLowerCase().includes("signal is aborted without reason");
+      if (isAbort && isKnownAbortMessage) return null;
+    }
+    return event;
+  },
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
