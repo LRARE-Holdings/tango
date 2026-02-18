@@ -19,6 +19,15 @@ type UsagePayload = {
     documents_total: number;
     documents_pending: number;
     documents_acknowledged: number;
+    members: number;
+    invites_pending: number;
+    completions_total: number;
+    acknowledgements_total: number;
+  };
+  averages?: {
+    max_scroll_percent: number | null;
+    time_on_page_seconds: number | null;
+    active_seconds: number | null;
   };
 };
 
@@ -30,6 +39,14 @@ function planLabel(plan: EffectivePlan) {
   if (plan === "pro") return "Pro";
   if (plan === "team") return "Team";
   return "Enterprise";
+}
+
+function formatDuration(seconds: number | null | undefined) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "—";
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}m ${String(rem).padStart(2, "0")}s`;
 }
 
 export default function WorkspaceUsageSettingsPage() {
@@ -73,6 +90,8 @@ export default function WorkspaceUsageSettingsPage() {
   }, [workspaceIdentifier]);
 
   const usage = data?.usage ?? null;
+  const counts = data?.counts ?? null;
+  const averages = data?.averages ?? null;
   const percent = Math.max(0, Math.min(100, usage?.percent ?? 0));
   const tone = usage?.at_limit ? "#b91c1c" : usage?.near_limit ? "#c2410c" : "var(--fg)";
   const windowLabel = usage?.window === "monthly" ? "this month" : usage?.window === "total" ? "lifetime" : "current cycle";
@@ -140,6 +159,68 @@ export default function WorkspaceUsageSettingsPage() {
                 : usage.remaining === 0
                   ? "No receipts remaining in the current window."
                   : `${usage.remaining} receipts remaining ${windowLabel}.`}
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--bg)" }}>
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  DOCUMENTS
+                </div>
+                <div className="mt-2 text-2xl font-semibold tracking-tight">{counts?.documents_total ?? 0}</div>
+                <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                  {counts?.documents_pending ?? 0} pending
+                </div>
+              </div>
+              <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--bg)" }}>
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  ACKNOWLEDGED
+                </div>
+                <div className="mt-2 text-2xl font-semibold tracking-tight">{counts?.documents_acknowledged ?? 0}</div>
+                <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                  Document-level acknowledgements
+                </div>
+              </div>
+              <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--bg)" }}>
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  TEAM
+                </div>
+                <div className="mt-2 text-2xl font-semibold tracking-tight">{counts?.members ?? 0}</div>
+                <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                  {counts?.invites_pending ?? 0} invites pending
+                </div>
+              </div>
+              <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--bg)" }}>
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  COMPLETIONS
+                </div>
+                <div className="mt-2 text-2xl font-semibold tracking-tight">{counts?.completions_total ?? 0}</div>
+                <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                  {counts?.acknowledgements_total ?? 0} acknowledgements
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--bg)" }}>
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  AVG SCROLL
+                </div>
+                <div className="mt-2 text-2xl font-semibold tracking-tight">
+                  {typeof averages?.max_scroll_percent === "number" ? `${Math.round(averages.max_scroll_percent)}%` : "—"}
+                </div>
+              </div>
+              <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--bg)" }}>
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  AVG TIME ON PAGE
+                </div>
+                <div className="mt-2 text-2xl font-semibold tracking-tight">{formatDuration(averages?.time_on_page_seconds)}</div>
+              </div>
+              <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--bg)" }}>
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  AVG ACTIVE TIME
+                </div>
+                <div className="mt-2 text-2xl font-semibold tracking-tight">{formatDuration(averages?.active_seconds)}</div>
+              </div>
             </div>
           </>
         ) : null}
