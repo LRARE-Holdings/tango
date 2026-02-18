@@ -790,7 +790,9 @@ export default function NewReceipt() {
               right={
                 !personalPlus ? (
                   <div className="flex items-center gap-2">
-                    <Pill>PERSONAL+</Pill>
+                    <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
+                      PERSONAL+
+                    </span>
                     <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
                       Upgrade
                     </Link>
@@ -871,7 +873,11 @@ export default function NewReceipt() {
                               />
                               <span>Save</span>
                             </label>
-                            {!proPlus ? <Pill>PRO+</Pill> : null}
+                            {!proPlus ? (
+                              <span className="text-[11px] font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
+                                PRO+
+                              </span>
+                            ) : null}
                           </div>
                           {recipients.length > 1 ? (
                             <button
@@ -971,7 +977,9 @@ export default function NewReceipt() {
               right={
                 !personalPlus ? (
                   <div className="flex items-center gap-2">
-                    <Pill>PERSONAL+</Pill>
+                    <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
+                      PERSONAL+
+                    </span>
                     <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
                       Upgrade
                     </Link>
@@ -1028,7 +1036,9 @@ export default function NewReceipt() {
               right={
                 !proPlus ? (
                   <div className="flex items-center gap-2">
-                    <Pill>PRO+</Pill>
+                    <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
+                      PRO+
+                    </span>
                     <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
                       Upgrade
                     </Link>
