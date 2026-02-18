@@ -18,7 +18,7 @@ const DOC_LIMITS = DOCUMENT_LIMITS;
 const PRICING = {
   personal: { monthly: 12 },
   pro: { monthly: 29 },
-  team: { monthlyPerSeat: 24 },
+  team: { monthlyPerSeat: 24, annualPerSeat: 20 },
 };
 
 function formatGBP(amount: number) {
@@ -267,18 +267,19 @@ export default function PricingPage() {
   );
 
   const team = useMemo(() => {
-    const perSeat = PRICING.team.monthlyPerSeat;
-    const monthlyTotal = perSeat * seats;
-    if (billing === "monthly") return { total: monthlyTotal, suffix: "/mo" };
-    const annualTotal = monthlyTotal * 12 * (1 - ANNUAL_DISCOUNT);
-    return { total: annualTotal / 12, suffix: "/mo" };
+    const perSeat =
+      billing === "monthly"
+        ? PRICING.team.monthlyPerSeat
+        : PRICING.team.annualPerSeat;
+    return { total: perSeat * seats, suffix: "/mo" };
   }, [billing, seats]);
 
   const teamPerSeat = useMemo(() => {
-    const m = PRICING.team.monthlyPerSeat;
-    if (billing === "monthly") return { amount: m, note: "per seat / month" };
-    const effective = m * (1 - ANNUAL_DISCOUNT);
-    return { amount: effective, note: "per seat / month" };
+    const amount =
+      billing === "monthly"
+        ? PRICING.team.monthlyPerSeat
+        : PRICING.team.annualPerSeat;
+    return { amount, note: "per seat / month" };
   }, [billing]);
 
   const annualNote =

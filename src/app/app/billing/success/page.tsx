@@ -30,6 +30,14 @@ function isEligibleTeamCustomer(me: MeSummary | null) {
   return plan === "team" && (subscriptionStatus === "active" || subscriptionStatus === "trialing");
 }
 
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+      {children}
+    </label>
+  );
+}
+
 export default function BillingSuccessPage() {
   const router = useRouter();
   const params = useSearchParams();
@@ -192,119 +200,144 @@ export default function BillingSuccessPage() {
   }
 
   return (
-    <main className="min-h-[70vh] flex items-center justify-center px-6">
-      <div
-        className="w-full max-w-lg border p-6 md:p-8"
-        style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
+    <main className="mx-auto max-w-3xl space-y-6 px-6 py-8 md:py-10">
+      <section
+        className="border p-6 md:p-7"
+        style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}
       >
         <div className="text-xs tracking-widest" style={{ color: "var(--muted2)" }}>
           BILLING
         </div>
-
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+        <h1 className="mt-2 text-2xl md:text-3xl font-semibold tracking-tight">
           {status === "loading"
-            ? "Finalising…"
+            ? "Finalising subscription"
             : status === "ok"
               ? teamOnboarding
-                ? "Invite your team"
-                : "You’re all set."
-              : "Something went wrong."}
+                ? "Set up your team workspace"
+                : "Subscription confirmed"
+              : "Could not confirm subscription"}
         </h1>
-
-        <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+        <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
           {status === "loading"
-            ? "Just confirming your subscription. One moment."
+            ? "We are confirming your plan and syncing account access."
             : status === "ok" && !teamOnboarding
-              ? "Payment confirmed. Taking you back to your dashboard."
+              ? "Payment is confirmed. You can continue to your dashboard."
               : status === "ok"
-                ? "Your Team plan is active (or trialing). Invite teammates with comma-separated emails."
-                : "We couldn’t confirm your purchase automatically. Your payment may still have gone through."}
+                ? "Create your workspace, then invite your team members. You can skip invites and do that later."
+                : "Please refresh this page or check billing in account settings."}
         </p>
-
         {sessionId ? (
-          <div className="mt-4 text-xs" style={{ color: "var(--muted2)" }}>
+          <div className="mt-3 text-xs break-all" style={{ color: "var(--muted2)" }}>
             Session: <span style={{ color: "var(--fg)" }}>{sessionId}</span>
           </div>
         ) : null}
+      </section>
 
-        {error ? (
-          <div className="mt-4 text-sm" style={{ color: "#ff3b30" }}>
-            {error}
+      {error ? (
+        <section
+          className="border p-4 text-sm"
+          style={{ borderColor: "rgba(255,59,48,0.35)", background: "var(--card)", borderRadius: 12, color: "#ff3b30" }}
+        >
+          {error}
+        </section>
+      ) : null}
+
+      {teamOnboarding && status === "ok" ? (
+        <section
+          className="border p-6 md:p-7 space-y-5"
+          style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+            <div style={{ color: workspaceIdentifier ? "var(--muted2)" : "var(--fg)" }}>
+              1. Create workspace
+            </div>
+            <div style={{ color: workspaceIdentifier ? "var(--fg)" : "var(--muted2)" }}>
+              2. Invite members
+            </div>
           </div>
-        ) : null}
 
-        {teamOnboarding && status === "ok" ? (
-          <div className="mt-6 space-y-4">
-            {!workspaceIdentifier ? (
-              <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 10 }}>
-                <label className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-                  WORKSPACE NAME
-                </label>
-                <input
-                  value={workspaceName}
-                  onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="e.g. Acme Legal"
-                  className="mt-2 w-full border px-3 py-2.5 text-sm bg-transparent focus-ring"
-                  style={{ borderColor: "var(--border)", borderRadius: 10 }}
-                />
-                <button
-                  type="button"
-                  onClick={() => void createWorkspace()}
-                  disabled={creatingWorkspace || !workspaceName.trim()}
-                  className="mt-3 focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-                  style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
-                >
-                  {creatingWorkspace ? "Creating…" : "Create workspace"}
-                </button>
-              </div>
-            ) : (
-              <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                Workspace ready: <span style={{ color: "var(--fg)" }}>{workspaceIdentifier}</span>
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-                TEAM EMAILS (COMMA-SEPARATED)
-              </label>
-              <textarea
-                value={inviteInput}
-                onChange={(e) => setInviteInput(e.target.value)}
-                placeholder="sam@company.com, jordan@company.com"
-                rows={4}
-                className="mt-2 w-full border px-3 py-2.5 text-sm bg-transparent focus-ring resize-y"
+          {!workspaceIdentifier ? (
+            <div
+              className="border p-4 md:p-5"
+              style={{ borderColor: "var(--border)", background: "transparent", borderRadius: 12 }}
+            >
+              <FieldLabel>WORKSPACE NAME</FieldLabel>
+              <input
+                value={workspaceName}
+                onChange={(e) => setWorkspaceName(e.target.value)}
+                placeholder="e.g. Acme Legal"
+                className="mt-2 w-full border px-3 py-2.5 text-sm bg-transparent focus-ring"
                 style={{ borderColor: "var(--border)", borderRadius: 10 }}
               />
-            </div>
-
-            {inviteMsg ? (
-              <div className="text-sm" style={{ color: "var(--muted)" }}>
-                {inviteMsg}
+              <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                This becomes your shared team space for members, documents, and settings.
               </div>
-            ) : null}
-
-            <div className="flex gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => void sendInvites()}
-                disabled={inviting || !workspaceIdentifier}
-                className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                onClick={() => void createWorkspace()}
+                disabled={creatingWorkspace || !workspaceName.trim()}
+                className="mt-4 focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
                 style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
               >
-                {inviting ? "Sending…" : "Send invites"}
-              </button>
-              <button
-                type="button"
-                onClick={continueToApp}
-                className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-                style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-              >
-                Continue
+                {creatingWorkspace ? "Creating…" : "Create workspace"}
               </button>
             </div>
+          ) : (
+            <div
+              className="border p-3 text-sm"
+              style={{ borderColor: "var(--border)", background: "transparent", borderRadius: 10, color: "var(--muted)" }}
+            >
+              Workspace ready: <span style={{ color: "var(--fg)" }}>{workspaceIdentifier}</span>
+            </div>
+          )}
+
+          <div>
+            <FieldLabel>TEAM EMAILS (COMMA-SEPARATED)</FieldLabel>
+            <textarea
+              value={inviteInput}
+              onChange={(e) => setInviteInput(e.target.value)}
+              placeholder="sam@company.com, jordan@company.com"
+              rows={4}
+              className="mt-2 w-full border px-3 py-2.5 text-sm bg-transparent focus-ring resize-y"
+              style={{ borderColor: "var(--border)", borderRadius: 10 }}
+            />
+            <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+              Each invite sends a secure access email. You can add or remove members later.
+            </div>
           </div>
-        ) : (
-          <div className="mt-6 flex gap-2 flex-wrap">
+
+          {inviteMsg ? (
+            <div className="text-sm" style={{ color: "var(--muted)" }}>
+              {inviteMsg}
+            </div>
+          ) : null}
+
+          <div className="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => void sendInvites()}
+              disabled={inviting || !workspaceIdentifier}
+              className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+              style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+            >
+              {inviting ? "Sending…" : "Send invites"}
+            </button>
+            <button
+              type="button"
+              onClick={continueToApp}
+              className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+            >
+              Continue
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section
+          className="border p-6 md:p-7"
+          style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}
+        >
+          <div className="flex gap-2 flex-wrap">
             <Link
               href="/app"
               className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
@@ -320,8 +353,8 @@ export default function BillingSuccessPage() {
               Manage billing
             </Link>
           </div>
-        )}
-      </div>
+        </section>
+      )}
     </main>
   );
 }
