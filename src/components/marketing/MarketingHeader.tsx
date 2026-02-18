@@ -61,7 +61,7 @@ export function MarketingHeader() {
             Login
           </Link>
           <Link
-            href="/app"
+            href="/get-started"
             className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
           >
             Get started

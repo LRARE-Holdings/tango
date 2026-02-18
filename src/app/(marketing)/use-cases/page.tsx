@@ -238,7 +238,7 @@ export default function UseCasesPage() {
                     </p>
                   </div>
                   <Link
-                    href="/app"
+                    href="/get-started"
                     className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-100 dark:hover:bg-zinc-900"
                   >
                     Try this flow
@@ -293,10 +293,10 @@ export default function UseCasesPage() {
                 </div>
                 <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                   <Link
-                    href="/app"
-                    className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
-                  >
-                    Get started
+                    href="/get-started"
+                className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
+              >
+                Get started
                   </Link>
                   <Link
                     href="/pricing"

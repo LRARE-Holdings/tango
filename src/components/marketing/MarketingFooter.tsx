@@ -71,7 +71,7 @@ export function MarketingFooter() {
                   <Link href="/auth" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Login</Link>
                 </li>
                 <li>
-                  <Link href="/app" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Get started</Link>
+                  <Link href="/get-started" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100">Get started</Link>
                 </li>
               </ul>
             </div>

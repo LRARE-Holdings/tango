@@ -20,6 +20,7 @@ export default function CheckEmailPage() {
 
   const [email, setEmail] = useState<string | null>(null);
   const [nextPath, setNextPath] = useState("/app");
+  const [firstName, setFirstName] = useState("");
 
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -33,10 +34,12 @@ export default function CheckEmailPage() {
         const url = new URL(window.location.href);
         const qpEmail = url.searchParams.get("email");
         const qpNext = url.searchParams.get("next");
+        const qpFirstName = url.searchParams.get("first_name");
 
         if (!cancelled) {
           setEmail(qpEmail || null);
           setNextPath(isSafeNext(qpNext) ? (qpNext as string) : "/app");
+          setFirstName((qpFirstName || "").trim());
         }
 
         // Fallback: if no email passed, try authed user (often null for unverified signups)
@@ -67,9 +70,9 @@ export default function CheckEmailPage() {
 
     try {
       const siteUrl = getSiteUrl();
-      const emailRedirectTo = `${siteUrl}/auth/confirm?next=${encodeURIComponent(
-        nextPath
-      )}`;
+      const emailRedirectTo = `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}${
+        firstName ? `&first_name=${encodeURIComponent(firstName)}` : ""
+      }`;
 
       const { error } = await supabase.auth.resend({
         type: "signup",

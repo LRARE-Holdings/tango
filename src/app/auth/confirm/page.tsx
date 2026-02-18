@@ -9,6 +9,16 @@ function hardRedirect(path: string) {
   window.location.replace(path);
 }
 
+async function persistFirstName(firstName: string) {
+  const clean = firstName.trim();
+  if (!clean) return;
+  await fetch("/api/app/account", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ display_name: clean }),
+  }).catch(() => null);
+}
+
 function afterConfirmPath(redirectTo: string, inviteFlow: boolean) {
   if (!inviteFlow) return redirectTo;
   return `/auth/invite-password?next=${encodeURIComponent(redirectTo)}`;
@@ -24,6 +34,7 @@ export default function AuthConfirmPage() {
         const url = new URL(window.location.href);
 
         const next = url.searchParams.get("next") || url.searchParams.get("redirect_to");
+        const firstName = (url.searchParams.get("first_name") || "").trim();
         const redirectTo = next && next.startsWith("/") ? next : "/app";
 
         // 1) New-style links often use token_hash + type (magiclink / recovery / invite)
@@ -38,7 +49,7 @@ export default function AuthConfirmPage() {
           });
 
           if (error) throw error;
-
+          if (firstName) await persistFirstName(firstName);
           hardRedirect(afterConfirmPath(redirectTo, inviteFromQuery));
           return;
         }
@@ -48,6 +59,7 @@ export default function AuthConfirmPage() {
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
+          if (firstName) await persistFirstName(firstName);
           hardRedirect(redirectTo);
           return;
         }
@@ -65,6 +77,7 @@ export default function AuthConfirmPage() {
             refresh_token,
           });
           if (error) throw error;
+          if (firstName) await persistFirstName(firstName);
           hardRedirect(afterConfirmPath(redirectTo, inviteFromHash));
           return;
         }
@@ -73,6 +86,7 @@ export default function AuthConfirmPage() {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         if (data?.session) {
+          if (firstName) await persistFirstName(firstName);
           hardRedirect(redirectTo);
           return;
         }

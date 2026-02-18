@@ -152,7 +152,7 @@ export default function ProductPage() {
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <a
-                href="/app"
+                href="/get-started"
                 className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
               >
                 Get started
@@ -302,7 +302,7 @@ export default function ProductPage() {
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
               <a
-                href="/app"
+                href="/get-started"
                 className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
               >
                 Get started

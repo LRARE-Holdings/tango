@@ -19,6 +19,7 @@ type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 type MeResponse = {
   plan?: string | null;
   display_plan?: string | null;
+  display_name?: string | null;
   workspace_license_active?: boolean | null;
   workspace_plan?: string | null;
   subscription_status?: string | null;
@@ -91,6 +92,12 @@ function planDisplayLabel(input: string | null | undefined) {
   if (p === "team") return "TEAM";
   if (p === "enterprise") return "ENTERPRISE";
   return "FREE";
+}
+
+function firstNameFromDisplayName(input: string | null | undefined) {
+  const clean = String(input ?? "").trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  return clean.split(" ")[0] ?? "";
 }
 
 function formatDate(iso: string | null | undefined) {
@@ -169,6 +176,7 @@ export default function AppHome() {
 
   const plan = normalizePlan(me?.plan);
   const planDisplay = planDisplayLabel(me?.display_plan ?? me?.plan);
+  const firstName = firstNameFromDisplayName(me?.display_name);
   const personalPlus = plan !== "free";
   const proPlus = plan === "pro" || plan === "team" || plan === "enterprise";
   const workspacePlus = plan === "team" || plan === "enterprise";
@@ -316,7 +324,9 @@ export default function AppHome() {
             DASHBOARD
           </div>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Account overview</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+              {firstName ? `${firstName}'s dashboard` : "Account overview"}
+            </h1>
             <span
               className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide"
               style={{ borderColor: "var(--border)", color: "var(--muted)" }}

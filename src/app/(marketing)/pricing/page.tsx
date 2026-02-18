@@ -226,7 +226,7 @@ export default function PricingPage() {
     if (authState === "signed_out") {
       setCheckoutError("Create an account first to choose a paid plan.");
       const next = `/pricing?plan=${encodeURIComponent(plan)}&billing=${encodeURIComponent(billing)}`;
-      window.location.href = `/auth?next=${encodeURIComponent(next)}`;
+      window.location.href = `/get-started?next=${encodeURIComponent(next)}`;
       return;
     }
     setCheckoutLoading(plan);
@@ -249,7 +249,7 @@ export default function PricingPage() {
       if (/unauthorized/i.test(message)) {
         const next = `/pricing?plan=${encodeURIComponent(plan)}&billing=${encodeURIComponent(billing)}`;
         setCheckoutError("Create an account first to choose a paid plan.");
-        window.location.href = `/auth?next=${encodeURIComponent(next)}`;
+        window.location.href = `/get-started?next=${encodeURIComponent(next)}`;
         return;
       }
       setCheckoutError(message);
@@ -330,7 +330,7 @@ export default function PricingPage() {
             <div>{checkoutError}</div>
             {authState === "signed_out" ? (
               <div className="mt-2">
-                <Link href="/auth" className="underline hover:opacity-80">
+                <Link href="/get-started" className="underline hover:opacity-80">
                   Sign up
                 </Link>
               </div>
@@ -354,7 +354,7 @@ export default function PricingPage() {
               </>
             }
             ctaLabel="Start free"
-            ctaHref="/app"
+            ctaHref="/get-started"
             bullets={[
               `${DOC_LIMITS.freeTotalPerUser} documents total per user`,
               "Link sharing",
@@ -539,7 +539,7 @@ export default function PricingPage() {
                 Contact sales
               </a>
               <a
-                href="/app"
+                href="/get-started"
                 className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50"
               >
                 Try the product

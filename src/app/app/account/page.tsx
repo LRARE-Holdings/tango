@@ -12,6 +12,7 @@ type MeResponse = {
 
   plan?: string | null; // "free" | "personal" | "pro" | "team"
   display_plan?: string | null; // e.g. "licensed" for workspace-licensed members
+  display_name?: string | null;
   workspace_license_active?: boolean | null;
   workspace_plan?: string | null;
   billing_interval?: string | null; // "month" | "year" (Stripe interval)
@@ -75,6 +76,12 @@ function planLabel(plan: string | null | undefined) {
   if (p === "team") return "Team";
   if (p === "enterprise") return "Enterprise";
   return p.charAt(0).toUpperCase() + p.slice(1);
+}
+
+function firstNameFromDisplayName(input: string | null | undefined) {
+  const clean = String(input ?? "").trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  return clean.split(" ")[0] ?? "";
 }
 
 function toneForStatus(status: string | null) {
@@ -380,6 +387,7 @@ export default function AccountPage() {
   }, []);
 
   const email = me?.email ?? null;
+  const firstName = useMemo(() => firstNameFromDisplayName(me?.display_name ?? null), [me?.display_name]);
 
   const plan = useMemo(() => planLabel(me?.display_plan ?? me?.plan ?? null), [me?.display_plan, me?.plan]);
   const interval = useMemo(() => intervalLabel(me?.billing_interval ?? null), [me?.billing_interval]);
@@ -490,7 +498,9 @@ export default function AccountPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
         <div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Account</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+            {firstName ? `${firstName}'s account` : "Account"}
+          </h1>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
             Settings, billing, security, and workspace context — in one place.
           </p>
