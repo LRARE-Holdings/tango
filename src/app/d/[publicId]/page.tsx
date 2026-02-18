@@ -3,17 +3,6 @@
 import Link from "next/link";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="inline-flex items-center rounded-full border px-3 py-1 text-xs tracking-wide"
-      style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-    >
-      {children}
-    </span>
-  );
-}
-
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div

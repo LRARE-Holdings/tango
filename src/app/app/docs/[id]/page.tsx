@@ -101,7 +101,7 @@ function StatusPill({ status }: { status: Doc["status"] }) {
 
   return (
     <span
-      className="inline-flex items-center rounded-full border px-3 py-1 text-xs tracking-wide"
+      className="inline-flex items-center rounded-md border px-3 py-1 text-xs tracking-wide"
       style={style as any}
     >
       {status.toUpperCase()}
@@ -752,10 +752,7 @@ export default function DocDetailPage({
                       Manage recipients and send the public document link.
                     </div>
                   </div>
-                  <div
-                    className="rounded-full border px-3 py-1 text-xs"
-                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                  >
+                  <div className="rounded-md border px-3 py-1 text-xs" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
                     {shareEmails.length} recipient{shareEmails.length === 1 ? "" : "s"}
                   </div>
                 </div>
@@ -789,7 +786,7 @@ export default function DocDetailPage({
                           key={email}
                           type="button"
                           onClick={() => removeShareEmail(email)}
-                          className="focus-ring rounded-full border px-3 py-1 text-xs hover:opacity-80"
+                          className="focus-ring rounded-md border px-3 py-1 text-xs hover:opacity-80"
                           style={{ borderColor: "var(--border)", color: "var(--muted)" }}
                           title="Remove email"
                         >

@@ -84,16 +84,6 @@ function normalizePlan(input: string | null | undefined): Plan {
   return "free";
 }
 
-function planDisplayLabel(input: string | null | undefined) {
-  const p = String(input ?? "").trim().toLowerCase();
-  if (p === "licensed") return "LICENSED";
-  if (p === "personal") return "PERSONAL";
-  if (p === "pro") return "PRO";
-  if (p === "team") return "TEAM";
-  if (p === "enterprise") return "ENTERPRISE";
-  return "FREE";
-}
-
 function firstNameFromDisplayName(input: string | null | undefined) {
   const clean = String(input ?? "").trim().replace(/\s+/g, " ");
   if (!clean) return "";
@@ -175,23 +165,11 @@ export default function AppHome() {
   const copiedTimerRef = useRef<number | null>(null);
 
   const plan = normalizePlan(me?.plan);
-  const planDisplay = planDisplayLabel(me?.display_plan ?? me?.plan);
   const firstName = firstNameFromDisplayName(me?.display_name);
-  const personalPlus = plan !== "free";
   const proPlus = plan === "pro" || plan === "team" || plan === "enterprise";
   const workspacePlus = plan === "team" || plan === "enterprise";
   const primaryWorkspaceId = String(me?.primary_workspace_id ?? "").trim() || null;
   const mode = primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE";
-  const isLicensedUser = String(me?.display_plan ?? "").trim().toLowerCase() === "licensed";
-  const usage = me?.usage ?? null;
-  const usagePercent = Math.max(0, Math.min(100, usage?.percent ?? 0));
-  const usageTone = usage?.at_limit ? "#b91c1c" : usage?.near_limit ? "#c2410c" : "var(--fg)";
-  const workspaceViewerRole = workspaceAnalytics?.viewer?.role ?? null;
-  const shouldShowUsageCard =
-    !workspacePlus ||
-    !primaryWorkspaceId ||
-    workspaceViewerRole === "owner" ||
-    workspaceViewerRole === "admin";
 
   useEffect(() => {
     async function load() {
@@ -250,20 +228,6 @@ export default function AppHome() {
     return Math.round((counts.pending / counts.total) * 100);
   }, [counts.pending, counts.total]);
 
-  const recentWindowStats = useMemo(() => {
-    const now = Date.now();
-    const windowMs = 1000 * 60 * 60 * 24 * 30;
-    const recent = documents.filter((d) => {
-      const t = new Date(d.createdAt).getTime();
-      return Number.isFinite(t) && now - t <= windowMs;
-    });
-    const recentAcks = recent.reduce((sum, d) => sum + d.acknowledgements, 0);
-    return {
-      docsLast30Days: recent.length,
-      acknowledgementsLast30Days: recentAcks,
-    };
-  }, [documents]);
-
   const topDocuments = useMemo(() => {
     return [...documents]
       .sort((a, b) => b.acknowledgements - a.acknowledgements)
@@ -302,14 +266,6 @@ export default function AppHome() {
     });
   }, [documents, query, statusFilter, sortKey]);
 
-  const planCapabilities = useMemo(() => {
-    if (plan === "enterprise") return ["Workspace analytics", "Team management", "Advanced governance"];
-    if (plan === "team") return ["Workspace analytics", "Seat management", "Team collaboration"];
-    if (plan === "pro") return ["Templates", "Saved defaults", "Higher automation controls"];
-    if (plan === "personal") return ["Email sending", "Password-protected links", "Identity requirement"];
-    return ["Core document sharing", "Basic acknowledgement tracking", "Personal dashboard"];
-  }, [plan]);
-
   function clear() {
     setQuery("");
     setStatusFilter("All");
@@ -327,25 +283,14 @@ export default function AppHome() {
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
               {firstName ? `${firstName}'s dashboard` : "Account overview"}
             </h1>
-            <span
-              className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide"
-              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-            >
+            <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
               {mode}
             </span>
-            {!isLicensedUser ? (
-              <span
-                className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide"
-                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-              >
-                {planDisplay}
-              </span>
-            ) : null}
           </div>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
             {workspacePlus
               ? "Workspace and account metrics in one place."
-              : "Your account, entitlements, and document performance at a glance."}
+              : "Your document performance at a glance."}
           </p>
         </div>
 
@@ -370,115 +315,10 @@ export default function AppHome() {
       </div>
 
       {!loading && !error ? (
-        isLicensedUser ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <StatCard label="Documents" value={String(counts.total)} hint={`${counts.pending} pending • ${counts.acknowledged} acknowledged`} />
-            <StatCard label="Acknowledgement Rate" value={`${acknowledgementRate}%`} hint="Acknowledged documents / total documents" />
-            <StatCard label="Pending Rate" value={`${pendingRate}%`} hint="Pending documents / total documents" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-            <StatCard label="Plan" value={planDisplay} hint={me?.subscription_status ?? "No active subscription"} />
-            <StatCard label="Documents" value={String(counts.total)} hint={`${counts.pending} pending • ${counts.acknowledged} acknowledged`} />
-            <StatCard label="Acknowledgement Rate" value={`${acknowledgementRate}%`} hint="Acknowledged documents / total documents" />
-            <StatCard
-              label="Period End"
-              value={formatDate(me?.current_period_end)}
-              hint={me?.cancel_at_period_end ? "Cancels at period end" : "Renews automatically"}
-            />
-          </div>
-        )
-      ) : null}
-
-      {!loading && !error && shouldShowUsageCard && !isLicensedUser ? (
-        <div className="border p-5" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-              PLAN USAGE
-            </div>
-              <div className="text-xs font-semibold" style={{ color: usageTone }}>
-              {planDisplay}
-              </div>
-          </div>
-
-          <div className="mt-2 text-sm" style={{ color: usageTone }}>
-            {usage?.limit == null
-              ? "Custom usage limit."
-              : usage.at_limit
-                ? `Limit reached: ${usage.used}/${usage.limit} receipts used.`
-                : usage.near_limit
-                  ? `Near limit: ${usage.used}/${usage.limit} receipts used.`
-                  : `${usage.used}/${usage.limit} receipts used.`}
-          </div>
-
-          <div className="mt-3 h-2.5 w-full overflow-hidden" style={{ background: "var(--card2)", borderRadius: 999 }}>
-            <div
-              style={{
-                width: `${usagePercent}%`,
-                background: usageTone,
-                height: "100%",
-                transition: "width 180ms ease",
-              }}
-            />
-          </div>
-
-          <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-            {usage?.limit == null
-              ? "Usage is governed by your custom plan."
-              : usage.remaining === 0
-                ? "You are at your plan limit."
-                : `${usage?.remaining ?? 0} receipts remaining.`}
-          </div>
-        </div>
-      ) : null}
-
-      {!loading && !error && !isLicensedUser ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="border p-5" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-              ENTITLEMENTS
-            </div>
-            <div className="mt-2 text-sm font-semibold">What your plan includes</div>
-            <div className="mt-3 space-y-2 text-sm" style={{ color: "var(--muted)" }}>
-              {planCapabilities.map((cap) => (
-                <div key={cap}>• {cap}</div>
-              ))}
-            </div>
-            <div className="mt-4 text-xs" style={{ color: "var(--muted2)" }}>
-              Billing interval: {me?.billing_interval ?? "—"} • Seats: {String(me?.seats ?? 1)}
-            </div>
-            {!me?.is_paid ? (
-              <div className="mt-4">
-                <Link
-                  href="/pricing"
-                  className="focus-ring inline-flex items-center justify-center px-3 py-2 text-sm font-semibold"
-                  style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
-                >
-                  Explore upgrades
-                </Link>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="border p-5" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-              PERFORMANCE SNAPSHOT
-            </div>
-            <div className="mt-2 text-sm font-semibold">
-              {personalPlus ? "Recent activity" : "Basic usage"}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-sm" style={{ color: "var(--muted)" }}>
-              <div>Docs (30 days): {recentWindowStats.docsLast30Days}</div>
-              <div>Acks (30 days): {recentWindowStats.acknowledgementsLast30Days}</div>
-              <div>Total pending: {counts.pending}</div>
-              <div>Total acknowledged: {counts.acknowledged}</div>
-            </div>
-            {personalPlus ? (
-              <div className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
-                Personal+ unlocks richer delivery controls and better follow-through tracking.
-              </div>
-            ) : null}
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <StatCard label="Documents" value={String(counts.total)} hint={`${counts.pending} pending • ${counts.acknowledged} acknowledged`} />
+          <StatCard label="Acknowledgement Rate" value={`${acknowledgementRate}%`} hint="Acknowledged documents / total documents" />
+          <StatCard label="Pending Rate" value={`${pendingRate}%`} hint="Pending documents / total documents" />
         </div>
       ) : null}
 

@@ -63,7 +63,7 @@ function BillingToggle({
         ].join(" ")}
       >
         Annual{" "}
-        <span className="ml-1 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+        <span className="ml-1 rounded-md border border-zinc-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
           save {Math.round(ANNUAL_DISCOUNT * 100)}%
         </span>
       </button>

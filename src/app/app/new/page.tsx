@@ -52,10 +52,7 @@ const UPGRADE_NUDGE_COOLDOWN_MS = 1000 * 60 * 60 * 8; // 8 hours per nudge key
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide"
-      style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-    >
+    <span className="inline-flex items-center text-[11px] font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
       {children}
     </span>
   );

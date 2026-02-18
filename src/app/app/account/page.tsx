@@ -30,6 +30,22 @@ type MeResponse = {
   recommended_plan?: string | null;
 
   primary_workspace_id?: string | null;
+  usage?: {
+    used: number;
+    limit: number | null;
+    remaining: number | null;
+    percent: number | null;
+    window: "total" | "monthly" | "custom";
+    near_limit: boolean;
+    at_limit: boolean;
+  } | null;
+};
+
+type UsageDoc = {
+  id: string;
+  createdAt: string;
+  acknowledgements: number;
+  status: "Acknowledged" | "Pending";
 };
 
 type AccountPatch = {
@@ -82,40 +98,6 @@ function firstNameFromDisplayName(input: string | null | undefined) {
   const clean = String(input ?? "").trim().replace(/\s+/g, " ");
   if (!clean) return "";
   return clean.split(" ")[0] ?? "";
-}
-
-function toneForStatus(status: string | null) {
-  const s = (status ?? "").toLowerCase();
-  if (s === "active" || s === "trialing") return "good" as const;
-  if (s === "past_due" || s === "unpaid") return "warn" as const;
-  if (s === "canceled" || s === "incomplete" || s === "incomplete_expired") return "bad" as const;
-  return "neutral" as const;
-}
-
-function Pill({
-  children,
-  tone = "neutral",
-}: {
-  children: React.ReactNode;
-  tone?: "neutral" | "good" | "warn" | "bad";
-}) {
-  const style =
-    tone === "good"
-      ? { background: "var(--fg)", color: "var(--bg)", borderColor: "transparent" }
-      : tone === "warn"
-        ? { background: "transparent", color: "var(--fg)", borderColor: "var(--border)" }
-        : tone === "bad"
-          ? { background: "transparent", color: "#ff3b30", borderColor: "color-mix(in srgb, #ff3b30 35%, var(--border))" }
-          : { background: "transparent", color: "var(--muted)", borderColor: "var(--border)" };
-
-  return (
-    <span
-      className="inline-flex items-center border px-3 py-1 text-xs tracking-wide"
-      style={{ ...style, borderRadius: 9999 }}
-    >
-      {children}
-    </span>
-  );
 }
 
 function Button({
@@ -321,6 +303,7 @@ export default function AccountPage() {
   // If these columns don’t exist yet, the PATCH call will fail; the UI will show a helpful toast.
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [prefsSaving, setPrefsSaving] = useState(false);
+  const [usageDocs, setUsageDocs] = useState<UsageDoc[]>([]);
 
   const [displayName, setDisplayName] = useState("");
   const [marketingOptIn, setMarketingOptIn] = useState(false);
@@ -360,6 +343,24 @@ export default function AccountPage() {
       const m = (json ?? null) as MeResponse & Partial<AccountPatch>;
       setMe(m);
 
+      const docsRes = await fetch("/api/app/documents", { cache: "no-store" });
+      const docsJson = await docsRes.json().catch(() => null);
+      if (docsRes.ok) {
+        setUsageDocs(((docsJson?.documents ?? []) as Array<{
+          id: string;
+          createdAt: string;
+          acknowledgements: number;
+          status: "Acknowledged" | "Pending";
+        }>).map((d) => ({
+          id: d.id,
+          createdAt: d.createdAt,
+          acknowledgements: d.acknowledgements,
+          status: d.status,
+        })));
+      } else {
+        setUsageDocs([]);
+      }
+
       // Hydrate editable fields (best-effort)
       setPrefsLoading(true);
       try {
@@ -392,7 +393,6 @@ export default function AccountPage() {
   const plan = useMemo(() => planLabel(me?.display_plan ?? me?.plan ?? null), [me?.display_plan, me?.plan]);
   const interval = useMemo(() => intervalLabel(me?.billing_interval ?? null), [me?.billing_interval]);
   const status = me?.subscription_status ?? null;
-  const statusTone = useMemo(() => toneForStatus(status), [status]);
 
   const renewal = me?.current_period_end ?? null;
   const cancelAtPeriodEnd = Boolean(me?.cancel_at_period_end);
@@ -492,6 +492,33 @@ export default function AccountPage() {
   }
 
   const workspaceId = me?.primary_workspace_id ?? null;
+  const usage = me?.usage ?? null;
+  const usagePercent = Math.max(0, Math.min(100, usage?.percent ?? 0));
+  const usageTone = usage?.at_limit ? "#b91c1c" : usage?.near_limit ? "#c2410c" : "var(--fg)";
+  const usageWindowLabel =
+    usage?.window === "monthly" ? "this month" : usage?.window === "total" ? "lifetime" : "current cycle";
+
+  const usageSnapshot = useMemo(() => {
+    const now = Date.now();
+    const windowMs = 1000 * 60 * 60 * 24 * 30;
+    const recent = usageDocs.filter((d) => {
+      const t = new Date(d.createdAt).getTime();
+      return Number.isFinite(t) && now - t <= windowMs;
+    });
+    const recentAcks = recent.reduce((sum, d) => sum + Math.max(0, Number(d.acknowledgements || 0)), 0);
+    const total = usageDocs.length;
+    const acknowledged = usageDocs.filter((d) => d.status === "Acknowledged").length;
+    const pending = usageDocs.filter((d) => d.status === "Pending").length;
+    const pendingRate = total === 0 ? 0 : Math.round((pending / total) * 100);
+    return {
+      docsLast30Days: recent.length,
+      acknowledgementsLast30Days: recentAcks,
+      total,
+      acknowledged,
+      pending,
+      pendingRate,
+    };
+  }, [usageDocs]);
 
   return (
     <div className="space-y-6">
@@ -521,18 +548,12 @@ export default function AccountPage() {
       </div>
 
       {/* Quick status row */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Pill tone={statusTone}>
-          {meLoading ? "LOADING…" : status ? statusLabel(status).toUpperCase() : plan.toUpperCase()}
-        </Pill>
-        <Pill>{meLoading ? "—" : plan.toUpperCase()}</Pill>
-        {isPaid ? <Pill>{interval.toUpperCase()}</Pill> : null}
-        {isTeam ? <Pill>{`${seats} SEATS`}</Pill> : null}
-        {renewal ? (
-          <Pill tone={cancelAtPeriodEnd ? "warn" : "neutral"}>
-            {cancelAtPeriodEnd ? "CANCELS" : "RENIEWS"} {formatDate(renewal).toUpperCase()}
-          </Pill>
-        ) : null}
+      <div className="text-xs tracking-wide" style={{ color: "var(--muted)" }}>
+        {meLoading ? "Loading account status…" : `Status: ${status ? statusLabel(status) : plan}`}
+        {!meLoading ? ` · Plan: ${plan}` : ""}
+        {isPaid ? ` · ${interval}` : ""}
+        {isTeam ? ` · ${seats} seats` : ""}
+        {renewal ? ` · ${cancelAtPeriodEnd ? "Cancels" : "Renews"} ${formatDate(renewal)}` : ""}
       </div>
 
       {meError ? (
@@ -632,6 +653,74 @@ export default function AccountPage() {
 
         <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
           Billing is handled via Stripe’s secure customer portal.
+        </div>
+      </Section>
+
+      {/* Usage */}
+      <Section
+        title="Usage"
+        subtitle="Your current usage and recent account activity snapshot."
+      >
+        <div
+          className="border p-5"
+          style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
+        >
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+              PLAN USAGE
+            </div>
+            <div className="text-xs font-semibold" style={{ color: usageTone }}>
+              {plan.toUpperCase()}
+            </div>
+          </div>
+
+          <div className="mt-2 text-sm" style={{ color: usageTone }}>
+            {usage?.limit == null
+              ? "Custom usage policy."
+              : usage.at_limit
+                ? `Limit reached: ${usage.used}/${usage.limit} receipts used ${usageWindowLabel}.`
+                : usage.near_limit
+                  ? `Near limit: ${usage.used}/${usage.limit} receipts used ${usageWindowLabel}.`
+                  : `${usage.used}/${usage.limit} receipts used ${usageWindowLabel}.`}
+          </div>
+
+          <div className="mt-3 h-2.5 w-full overflow-hidden" style={{ background: "var(--card2)", borderRadius: 999 }}>
+            <div
+              style={{
+                width: `${usagePercent}%`,
+                background: usageTone,
+                height: "100%",
+                transition: "width 180ms ease",
+              }}
+            />
+          </div>
+
+          <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+            {usage?.limit == null
+              ? "Usage is governed by your current plan policy."
+              : usage.remaining === 0
+                ? "No receipts remaining in this window."
+                : `${usage.remaining} receipts remaining ${usageWindowLabel}.`}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>DOCS (30 DAYS)</div>
+            <div className="mt-2 text-2xl font-semibold tracking-tight">{usageSnapshot.docsLast30Days}</div>
+          </div>
+          <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>ACKS (30 DAYS)</div>
+            <div className="mt-2 text-2xl font-semibold tracking-tight">{usageSnapshot.acknowledgementsLast30Days}</div>
+          </div>
+          <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>TOTAL DOCUMENTS</div>
+            <div className="mt-2 text-2xl font-semibold tracking-tight">{usageSnapshot.total}</div>
+          </div>
+          <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+            <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>PENDING RATE</div>
+            <div className="mt-2 text-2xl font-semibold tracking-tight">{usageSnapshot.pendingRate}%</div>
+          </div>
         </div>
       </Section>
 
