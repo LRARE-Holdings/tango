@@ -275,13 +275,6 @@ export default function WorkspaceDashboardPage() {
           >
             Create receipt
           </Link>
-          <Link
-            href={`/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/settings/usage`}
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-          >
-            Usage settings
-          </Link>
         </div>
       </div>
 
