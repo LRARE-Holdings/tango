@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
+import { SectionDisclosure, StatusDotLabel } from "@/components/ui/calm-core";
 import { UiModal, UiPanel, UiSectionCaption } from "@/components/ui/system";
 
 type Recipient = {
@@ -71,8 +72,9 @@ type ResponsibilityEntry = {
 };
 
 function formatDate(iso: string | null) {
-  if (!iso) return ",";
+  if (!iso) return "—";
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
   const yyyy = d.getUTCFullYear();
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(d.getUTCDate()).padStart(2, "0");
@@ -82,7 +84,7 @@ function formatDate(iso: string | null) {
 }
 
 function formatDuration(seconds: number | null) {
-  if (seconds == null) return ",";
+  if (seconds == null) return "—";
   const s = Math.max(0, Math.floor(seconds));
   const m = Math.floor(s / 60);
   const r = s % 60;
@@ -93,20 +95,9 @@ function isEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim().toLowerCase());
 }
 
-function StatusPill({ status }: { status: Doc["status"] }) {
-  const style =
-    status === "Acknowledged"
-      ? { background: "var(--fg)", color: "var(--bg)", borderColor: "transparent" }
-      : { background: "transparent", color: "var(--muted)", borderColor: "var(--border)" };
-
-  return (
-    <span
-      className="inline-flex items-center rounded-md border px-3 py-1 text-xs tracking-wide"
-      style={style as any}
-    >
-      {status.toUpperCase()}
-    </span>
-  );
+function statusUi(status: Doc["status"]) {
+  if (status === "Acknowledged") return { tone: "good" as const, label: "Acknowledged" };
+  return { tone: "warn" as const, label: "Opened" };
 }
 
 export default function DocDetailPage({
@@ -256,6 +247,35 @@ export default function DocDetailPage({
     const maxKnown = Math.max(maxFromRows, Number(doc?.versionCount ?? 0));
     return Math.max(1, maxKnown + 1);
   }, [versions, doc?.versionCount]);
+
+  const latestCompletion = useMemo(() => {
+    return [...completions]
+      .sort((a, b) => new Date(b.submitted_at ?? 0).getTime() - new Date(a.submitted_at ?? 0).getTime())[0] ?? null;
+  }, [completions]);
+
+  const firstOpenedAt = useMemo(() => {
+    const times = completions
+      .map((c) => c.submitted_at)
+      .filter((v): v is string => typeof v === "string" && v.length > 0)
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    return times[0] ?? null;
+  }, [completions]);
+
+  const timelineEvents = useMemo(() => {
+    const events: Array<{ key: string; label: string; at: string | null }> = [];
+    events.push({ key: "sent", label: "Sent", at: doc?.createdAt ?? null });
+    if (firstOpenedAt) events.push({ key: "opened", label: "Opened", at: firstOpenedAt });
+    if ((latestCompletion?.max_scroll_percent ?? 0) >= 50) {
+      events.push({ key: "scroll50", label: "Reached 50% scroll", at: latestCompletion?.submitted_at ?? null });
+    }
+    if ((latestCompletion?.max_scroll_percent ?? 0) >= 100) {
+      events.push({ key: "scroll100", label: "Reached 100% scroll", at: latestCompletion?.submitted_at ?? null });
+    }
+    if (latestCompletion?.acknowledged) {
+      events.push({ key: "ack", label: "Acknowledged", at: latestCompletion?.submitted_at ?? null });
+    }
+    return events;
+  }, [doc?.createdAt, firstOpenedAt, latestCompletion]);
 
   useEffect(() => {
     return () => {
@@ -606,20 +626,18 @@ export default function DocDetailPage({
         style={{ borderColor: "var(--border)", background: "var(--card)" }}
       >
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
+          <div className="min-w-0">
             <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-              DOCUMENT
+              RECORD VIEW
             </div>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">
-              {doc?.title ?? ","}
+            <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight md:text-3xl">
+              {doc?.title ?? "Record"}
             </h1>
             {doc ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <StatusPill status={doc.status} />
-                <div className="text-xs" style={{ color: "var(--muted)" }}>
-                  {doc.acknowledgements} acknowledgements
-                  {doc.latestAcknowledgedAt ? ` • latest ${formatDate(doc.latestAcknowledgedAt)}` : ""}
-                </div>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs" style={{ color: "var(--muted)" }}>
+                <StatusDotLabel {...statusUi(doc.status)} />
+                <span>Version v{currentVersionLabel}</span>
+                <span>Record ID {doc.publicId}</span>
               </div>
             ) : null}
           </div>
@@ -632,6 +650,15 @@ export default function DocDetailPage({
             >
               Back
             </Link>
+            <button
+              type="button"
+              onClick={downloadPdfEvidence}
+              disabled={!doc}
+              className="focus-ring rounded-full border px-5 py-2 text-sm hover:opacity-80 disabled:opacity-50"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              Export PDF record
+            </button>
             <button
               type="button"
               onClick={() => setShowVersionModal(true)}
@@ -694,38 +721,100 @@ export default function DocDetailPage({
           </div>
 
           {activeTab === "summary" && (
-            <div className="space-y-3 pt-1">
-              <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-                SUMMARY
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="border p-4" style={{ borderColor: "var(--border)" }}>
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>Created</div>
-                  <div className="mt-1 text-sm font-medium">{formatDate(doc.createdAt)}</div>
+            <div className="space-y-4 pt-1">
+              <div
+                className="border p-4 md:p-5"
+                style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
+              >
+                <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
+                  TIMELINE
                 </div>
-                <div className="border p-4" style={{ borderColor: "var(--border)" }}>
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>Status</div>
-                  <div className="mt-1 text-sm font-medium">{doc.status}</div>
-                </div>
-                <div className="border p-4" style={{ borderColor: "var(--border)" }}>
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>Current version</div>
-                  <div className="mt-1 text-sm font-medium">v{currentVersionLabel}</div>
-                </div>
-                <div className="border p-4" style={{ borderColor: "var(--border)" }}>
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>Total versions</div>
-                  <div className="mt-1 text-sm font-medium">{doc.versionCount ?? Math.max(1, versions.length)}</div>
-                </div>
-                <div className="border p-4" style={{ borderColor: "var(--border)" }}>
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>Acknowledgements</div>
-                  <div className="mt-1 text-sm font-medium">{doc.acknowledgements}</div>
-                </div>
-                <div className="border p-4" style={{ borderColor: "var(--border)" }}>
-                  <div className="text-xs" style={{ color: "var(--muted2)" }}>Latest acknowledgement</div>
-                  <div className="mt-1 text-sm font-medium">{formatDate(doc.latestAcknowledgedAt)}</div>
+                <div className="mt-3 space-y-3">
+                  {timelineEvents.map((event) => (
+                    <div key={event.key} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span
+                          aria-hidden
+                          className="inline-block h-2.5 w-2.5 rounded-full"
+                          style={{ background: "var(--muted2)" }}
+                        />
+                        <span>{event.label}</span>
+                      </div>
+                      <div className="text-xs" style={{ color: "var(--muted)" }}>
+                        {formatDate(event.at)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
+
+              <SectionDisclosure title="Delivery" summary="Delivery and open lifecycle" defaultOpen>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>delivered_at</div>
+                    <div>{formatDate(doc.createdAt)}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>first_opened_at</div>
+                    <div>{formatDate(firstOpenedAt)}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>status</div>
+                    <div>{doc.status}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>acknowledgements</div>
+                    <div>{doc.acknowledgements}</div>
+                  </div>
+                </div>
+              </SectionDisclosure>
+
+              <SectionDisclosure title="Engagement" summary="Reader interaction signals">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>max_scroll_percent</div>
+                    <div>
+                      {latestCompletion?.max_scroll_percent == null ? "—" : `${latestCompletion.max_scroll_percent}%`}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>time_on_page_seconds</div>
+                    <div>{formatDuration(latestCompletion?.time_on_page_seconds ?? null)}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>acknowledgement</div>
+                    <div>{latestCompletion?.acknowledged ? "Submitted" : "Not submitted"}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>submitted_at</div>
+                    <div>{formatDate(latestCompletion?.submitted_at ?? null)}</div>
+                  </div>
+                </div>
+              </SectionDisclosure>
+
+              <SectionDisclosure title="Technical" summary="Version and request metadata">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>ip_address</div>
+                    <div>{latestCompletion?.ip ?? "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>user_agent</div>
+                    <div className="break-all">{latestCompletion?.user_agent ?? "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>document_hash</div>
+                    <div className="break-all">{versions[0]?.sha256 ?? "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "var(--muted2)" }}>version</div>
+                    <div>v{currentVersionLabel}</div>
+                  </div>
+                </div>
+              </SectionDisclosure>
+
               {doc.tags && Object.keys(doc.tags).length > 0 ? (
-                <div className="mt-3 text-sm" style={{ color: "var(--muted)" }}>
+                <div className="text-sm" style={{ color: "var(--muted)" }}>
                   {Object.entries(doc.tags)
                     .map(([k, v]) => {
                       const label = doc.workspaceTagFields?.find((f) => f.key === k)?.label ?? k;
@@ -1120,7 +1209,7 @@ export default function DocDetailPage({
                                 Scroll
                               </div>
                               <div className="text-sm font-medium">
-                                {c.max_scroll_percent == null ? "," : `${c.max_scroll_percent}%`}
+                                {c.max_scroll_percent == null ? "—" : `${c.max_scroll_percent}%`}
                               </div>
                             </div>
 
@@ -1156,7 +1245,7 @@ export default function DocDetailPage({
                                 IP
                               </div>
                               <div className="text-sm font-medium">
-                                {c.ip ?? ","}
+                                {c.ip ?? "—"}
                               </div>
                             </div>
                           </div>
@@ -1175,8 +1264,8 @@ export default function DocDetailPage({
                           >
                             <div><span style={{ color: "var(--muted2)" }}>Completion ID:</span> {c.id}</div>
                             <div><span style={{ color: "var(--muted2)" }}>Active time:</span> {formatDuration(c.active_seconds)}</div>
-                            <div><span style={{ color: "var(--muted2)" }}>IP:</span> {c.ip ?? ","}</div>
-                            <div><span style={{ color: "var(--muted2)" }}>User agent:</span> {c.user_agent ?? ","}</div>
+                            <div><span style={{ color: "var(--muted2)" }}>IP:</span> {c.ip ?? "—"}</div>
+                            <div><span style={{ color: "var(--muted2)" }}>User agent:</span> {c.user_agent ?? "—"}</div>
                           </div>
                         </details>
                       </div>

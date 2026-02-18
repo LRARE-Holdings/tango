@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
+import { InlineNotice, SectionDisclosure } from "@/components/ui/calm-core";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 
@@ -417,6 +418,11 @@ export default function NewReceipt() {
   const hasFile = Boolean(file);
 
   const recipientsCount = useMemo(() => recipients.filter((r) => r.name.trim() || r.email.trim()).length, [recipients]);
+  const flowStep = useMemo(() => {
+    if (shareUrl) return 3;
+    if (hasFile) return 2;
+    return 1;
+  }, [hasFile, shareUrl]);
 
   const recipientsValid = useMemo(() => {
     if (!sendEmails) return true;
@@ -677,6 +683,37 @@ export default function NewReceipt() {
         </div>
       </section>
 
+      <section
+        className="p-4"
+        style={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
+      >
+        <div className="grid grid-cols-3 gap-3 text-xs">
+          {[
+            { id: 1, label: "Upload" },
+            { id: 2, label: "Configure" },
+            { id: 3, label: "Create" },
+          ].map((step) => {
+            const done = flowStep > step.id;
+            const active = flowStep === step.id;
+            return (
+              <div key={step.id} className="flex items-center gap-2">
+                <span
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold"
+                  style={{
+                    background: done || active ? "var(--fg)" : "transparent",
+                    color: done || active ? "var(--bg)" : "var(--muted2)",
+                    border: done || active ? "1px solid transparent" : "1px solid var(--border)",
+                  }}
+                >
+                  {done ? "✓" : step.id}
+                </span>
+                <span style={{ color: active ? "var(--fg)" : "var(--muted)" }}>{step.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {showUpgradeCard ? (
         <section
           className="p-4 md:p-5"
@@ -733,10 +770,11 @@ export default function NewReceipt() {
             background: "color-mix(in srgb, var(--bg) 92%, var(--card))",
           }}
         >
-          <div className="text-sm font-semibold">Upload to unlock configuration</div>
+          <div className="text-sm font-semibold">Start by uploading your document</div>
           <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Recipient controls, password protection, closure rules, and template defaults appear here after your source is added.
+            After upload, you can add recipients and adjust options before sending.
           </div>
+          <InlineNotice>Your first record only takes a minute. You can refine defaults later in settings.</InlineNotice>
         </section>
       ) : null}
 
@@ -921,176 +959,182 @@ export default function NewReceipt() {
                 </div>
               </div>
             </Panel>
-
-            <Panel
-              id="rules"
-              title="Rules"
-              subtitle="Limit acknowledgements and close the link when complete."
-              right={<Pill>{maxAcknowledgersEnabled ? `Max ${maxAcknowledgers}` : "Unlimited"}</Pill>}
+            <SectionDisclosure
+              title="Advanced options"
+              summary="Rules, protection, and templates. Keep collapsed for a faster default flow."
             >
               <div className="space-y-4">
-                <div
-                  className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: "1px solid var(--border)" }}
+                <Panel
+                  id="rules"
+                  title="Rules"
+                  subtitle="Limit acknowledgements and close the link when complete."
+                  right={<Pill>{maxAcknowledgersEnabled ? `Max ${maxAcknowledgers}` : "Unlimited"}</Pill>}
                 >
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold">Close after acknowledgements</div>
-                    <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      Typical flow: set max acknowledgers to 1.
+                  <div className="space-y-4">
+                    <div
+                      className="flex items-start justify-between gap-4 p-4"
+                      style={{ borderRadius: 14, border: "1px solid var(--border)" }}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold">Close after acknowledgements</div>
+                        <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                          Typical flow: set max acknowledgers to 1.
+                        </div>
+                      </div>
+                      <Toggle checked={maxAcknowledgersEnabled} setChecked={setMaxAcknowledgersEnabled} />
                     </div>
-                  </div>
-                  <Toggle checked={maxAcknowledgersEnabled} setChecked={setMaxAcknowledgersEnabled} />
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>MAX ACKNOWLEDGERS</Label>
-                    <Input
-                      type="number"
-                      value={String(maxAcknowledgers)}
-                      onChange={(v) => setMaxAcknowledgers(Math.max(1, Math.min(999, Number(v || 1))))}
-                      disabled={!maxAcknowledgersEnabled}
-                      placeholder="1"
-                    />
-                    <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                      If disabled, the link stays open for unlimited acknowledgements.
-                    </div>
-                  </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>MAX ACKNOWLEDGERS</Label>
+                        <Input
+                          type="number"
+                          value={String(maxAcknowledgers)}
+                          onChange={(v) => setMaxAcknowledgers(Math.max(1, Math.min(999, Number(v || 1))))}
+                          disabled={!maxAcknowledgersEnabled}
+                          placeholder="1"
+                        />
+                        <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                          If disabled, the link stays open for unlimited acknowledgements.
+                        </div>
+                      </div>
 
-                  <div
-                    className="p-4"
-                    style={{ borderRadius: 14, border: "1px solid var(--border)", background: "var(--card)" }}
-                  >
-                    <div className="text-sm font-semibold">Server-side enforcement</div>
-                    <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      When the acknowledgement limit is reached, the link is closed and additional acknowledgements are rejected.
+                      <div
+                        className="p-4"
+                        style={{ borderRadius: 14, border: "1px solid var(--border)", background: "var(--card)" }}
+                      >
+                        <div className="text-sm font-semibold">Server-side enforcement</div>
+                        <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                          When the acknowledgement limit is reached, the link is closed and additional acknowledgements are rejected.
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Panel>
+
+                <Panel
+                  id="protection"
+                  title="Protection"
+                  subtitle="Optionally require a password before the PDF can be opened."
+                  right={
+                    !personalPlus ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
+                          PERSONAL+
+                        </span>
+                        <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
+                          Upgrade
+                        </Link>
+                      </div>
+                    ) : (
+                      <Pill>{passwordEnabled ? "On" : "Off"}</Pill>
+                    )
+                  }
+                >
+                  <div className="space-y-4">
+                    <div
+                      className="flex items-start justify-between gap-4 p-4"
+                      style={{ borderRadius: 14, border: "1px solid var(--border)" }}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold">Require a password</div>
+                        <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                          {personalPlus
+                            ? "Recipients must enter the password before viewing."
+                            : "Upgrade to Personal to enable passwords."}
+                        </div>
+                      </div>
+                      <Toggle
+                        checked={passwordEnabled}
+                        setChecked={(v) => {
+                          setPasswordEnabled(v);
+                          if (!v) setPassword("");
+                        }}
+                        disabled={!personalPlus}
+                      />
+                    </div>
+
+                    {passwordEnabled ? (
+                      <div className="space-y-2">
+                        <Label>PASSWORD</Label>
+                        <Input
+                          value={password}
+                          onChange={setPassword}
+                          placeholder="Minimum 6 characters"
+                          disabled={!personalPlus}
+                        />
+                        <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                          Share this separately. Receipt records access; it does not verify identity.
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </Panel>
+
+                <Panel
+                  id="templates"
+                  title="Templates"
+                  subtitle="Use presets and save defaults (Pro+)."
+                  right={
+                    !proPlus ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
+                          PRO+
+                        </span>
+                        <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
+                          Upgrade
+                        </Link>
+                      </div>
+                    ) : (
+                      <Pill>{useTemplate ? "On" : "Off"}</Pill>
+                    )
+                  }
+                >
+                  <div className="space-y-4">
+                    <div
+                      className="flex items-start justify-between gap-4 p-4"
+                      style={{ borderRadius: 14, border: "1px solid var(--border)" }}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold">Use a template</div>
+                        <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                          {proPlus ? "Pick a preset for this receipt." : "Upgrade to Pro to use templates."}
+                        </div>
+                      </div>
+                      <Toggle checked={useTemplate} setChecked={setUseTemplate} disabled={!proPlus} />
+                    </div>
+
+                    {useTemplate ? (
+                      <div className="space-y-2">
+                        <Label>TEMPLATE</Label>
+                        <Select value={templateId} onChange={setTemplateId} disabled={!proPlus}>
+                          <option value="default">Default</option>
+                          <option value="client-care-letter">Client Care Letter</option>
+                          <option value="terms-of-business">Terms of Business</option>
+                          <option value="completion-statement">Completion Statement</option>
+                        </Select>
+                        <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                          Choose the template that best matches this document.
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div
+                      className="flex items-start justify-between gap-4 p-4"
+                      style={{ borderRadius: 14, border: "1px solid var(--border)" }}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold">Save these settings as default</div>
+                        <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                          {proPlus ? "Prefill next time." : "Upgrade to Pro to save defaults."}
+                        </div>
+                      </div>
+                      <Toggle checked={saveAsDefault} setChecked={setSaveAsDefault} disabled={!proPlus} />
+                    </div>
+                  </div>
+                </Panel>
               </div>
-            </Panel>
-
-            <Panel
-              id="protection"
-              title="Protection"
-              subtitle="Optionally require a password before the PDF can be opened."
-              right={
-                !personalPlus ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
-                      PERSONAL+
-                    </span>
-                    <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
-                      Upgrade
-                    </Link>
-                  </div>
-                ) : (
-                  <Pill>{passwordEnabled ? "On" : "Off"}</Pill>
-                )
-              }
-            >
-              <div className="space-y-4">
-                <div
-                  className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: "1px solid var(--border)" }}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold">Require a password</div>
-                    <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      {personalPlus
-                        ? "Recipients must enter the password before viewing."
-                        : "Upgrade to Personal to enable passwords."}
-                    </div>
-                  </div>
-                  <Toggle
-                    checked={passwordEnabled}
-                    setChecked={(v) => {
-                      setPasswordEnabled(v);
-                      if (!v) setPassword("");
-                    }}
-                    disabled={!personalPlus}
-                  />
-                </div>
-
-                {passwordEnabled ? (
-                  <div className="space-y-2">
-                    <Label>PASSWORD</Label>
-                    <Input
-                      value={password}
-                      onChange={setPassword}
-                      placeholder="Minimum 6 characters"
-                      disabled={!personalPlus}
-                    />
-                    <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                      Share this separately. Receipt records access; it does not verify identity.
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </Panel>
-
-            <Panel
-              id="templates"
-              title="Templates"
-              subtitle="Use presets and save defaults (Pro+)."
-              right={
-                !proPlus ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
-                      PRO+
-                    </span>
-                    <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
-                      Upgrade
-                    </Link>
-                  </div>
-                ) : (
-                  <Pill>{useTemplate ? "On" : "Off"}</Pill>
-                )
-              }
-            >
-              <div className="space-y-4">
-                <div
-                  className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: "1px solid var(--border)" }}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold">Use a template</div>
-                    <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      {proPlus ? "Pick a preset for this receipt." : "Upgrade to Pro to use templates."}
-                    </div>
-                  </div>
-                  <Toggle checked={useTemplate} setChecked={setUseTemplate} disabled={!proPlus} />
-                </div>
-
-                {useTemplate ? (
-                  <div className="space-y-2">
-                    <Label>TEMPLATE</Label>
-                    <Select value={templateId} onChange={setTemplateId} disabled={!proPlus}>
-                      <option value="default">Default</option>
-                      <option value="client-care-letter">Client Care Letter</option>
-                      <option value="terms-of-business">Terms of Business</option>
-                      <option value="completion-statement">Completion Statement</option>
-                    </Select>
-                    <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                      Choose the template that best matches this document.
-                    </div>
-                  </div>
-                ) : null}
-
-                <div
-                  className="flex items-start justify-between gap-4 p-4"
-                  style={{ borderRadius: 14, border: "1px solid var(--border)" }}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold">Save these settings as default</div>
-                    <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      {proPlus ? "Prefill next time." : "Upgrade to Pro to save defaults."}
-                    </div>
-                  </div>
-                  <Toggle checked={saveAsDefault} setChecked={setSaveAsDefault} disabled={!proPlus} />
-                </div>
-              </div>
-            </Panel>
+            </SectionDisclosure>
 
             {error ? (
               <div
