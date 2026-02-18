@@ -174,6 +174,7 @@ export default function AppHome() {
   const workspacePlus = plan === "team" || plan === "enterprise";
   const primaryWorkspaceId = String(me?.primary_workspace_id ?? "").trim() || null;
   const mode = primaryWorkspaceId ? "WORKSPACE MODE" : "PERSONAL MODE";
+  const isLicensedUser = String(me?.display_plan ?? "").trim().toLowerCase() === "licensed";
   const usage = me?.usage ?? null;
   const usagePercent = Math.max(0, Math.min(100, usage?.percent ?? 0));
   const usageTone = usage?.at_limit ? "#b91c1c" : usage?.near_limit ? "#c2410c" : "var(--fg)";
@@ -236,6 +237,10 @@ export default function AppHome() {
     if (counts.total === 0) return 0;
     return Math.round((counts.acknowledged / counts.total) * 100);
   }, [counts.acknowledged, counts.total]);
+  const pendingRate = useMemo(() => {
+    if (counts.total === 0) return 0;
+    return Math.round((counts.pending / counts.total) * 100);
+  }, [counts.pending, counts.total]);
 
   const recentWindowStats = useMemo(() => {
     const now = Date.now();
@@ -318,12 +323,14 @@ export default function AppHome() {
             >
               {mode}
             </span>
-            <span
-              className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide"
-              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-            >
-              {planDisplay}
-            </span>
+            {!isLicensedUser ? (
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide"
+                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+              >
+                {planDisplay}
+              </span>
+            ) : null}
           </div>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
             {workspacePlus
@@ -353,19 +360,27 @@ export default function AppHome() {
       </div>
 
       {!loading && !error ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <StatCard label="Plan" value={planDisplay} hint={me?.subscription_status ?? "No active subscription"} />
-          <StatCard label="Documents" value={String(counts.total)} hint={`${counts.pending} pending • ${counts.acknowledged} acknowledged`} />
-          <StatCard label="Acknowledgement Rate" value={`${acknowledgementRate}%`} hint="Acknowledged documents / total documents" />
-          <StatCard
-            label="Period End"
-            value={formatDate(me?.current_period_end)}
-            hint={me?.cancel_at_period_end ? "Cancels at period end" : "Renews automatically"}
-          />
-        </div>
+        isLicensedUser ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <StatCard label="Documents" value={String(counts.total)} hint={`${counts.pending} pending • ${counts.acknowledged} acknowledged`} />
+            <StatCard label="Acknowledgement Rate" value={`${acknowledgementRate}%`} hint="Acknowledged documents / total documents" />
+            <StatCard label="Pending Rate" value={`${pendingRate}%`} hint="Pending documents / total documents" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <StatCard label="Plan" value={planDisplay} hint={me?.subscription_status ?? "No active subscription"} />
+            <StatCard label="Documents" value={String(counts.total)} hint={`${counts.pending} pending • ${counts.acknowledged} acknowledged`} />
+            <StatCard label="Acknowledgement Rate" value={`${acknowledgementRate}%`} hint="Acknowledged documents / total documents" />
+            <StatCard
+              label="Period End"
+              value={formatDate(me?.current_period_end)}
+              hint={me?.cancel_at_period_end ? "Cancels at period end" : "Renews automatically"}
+            />
+          </div>
+        )
       ) : null}
 
-      {!loading && !error && shouldShowUsageCard ? (
+      {!loading && !error && shouldShowUsageCard && !isLicensedUser ? (
         <div className="border p-5" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
@@ -407,7 +422,7 @@ export default function AppHome() {
         </div>
       ) : null}
 
-      {!loading && !error ? (
+      {!loading && !error && !isLicensedUser ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="border p-5" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
             <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
