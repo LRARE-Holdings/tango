@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Inter, Instrument_Serif } from "next/font/google";
+import { CookieConsent } from "@/components/cookie-consent";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -29,7 +30,10 @@ export default function RootLayout({
       lang="en"
       className={`h-full ${inter.variable} ${instrumentSerif.variable}`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {children}
+        <CookieConsent />
+      </body>
     </html>
   );
 }
