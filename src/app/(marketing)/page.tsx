@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AuthFragmentRedirect } from "@/components/auth-fragment-redirect";
 import { TypewriterText } from "@/components/marketing/TypewriterText";
 
@@ -49,7 +50,7 @@ const FEATURES = [
 ] as const;
 
 const PRIMARY_CTA_CLASS =
-  "inline-flex h-11 items-center justify-center rounded-full marketing-cta-primary px-8 text-sm font-semibold shadow-sm";
+  "focus-ring inline-flex h-11 items-center justify-center rounded-full marketing-cta-primary px-8 text-sm font-semibold shadow-sm";
 
 export default async function Home({
   searchParams,
@@ -100,9 +101,9 @@ export default async function Home({
             overhead.
           </p>
           <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <a href="/get-started" className={PRIMARY_CTA_CLASS}>
+            <Link href="/get-started" className={PRIMARY_CTA_CLASS}>
               Get started
-            </a>
+            </Link>
             <a
               href="/product"
               className="inline-flex h-11 items-center justify-center rounded-full marketing-cta-secondary px-8 text-sm font-semibold shadow-sm"
@@ -223,12 +224,12 @@ export default async function Home({
           Move beyond "it&apos;s on the intranet" to verifiable proof of
           document acknowledgement.
         </p>
-        <a
+        <Link
           href="/get-started"
           className={`mt-8 ${PRIMARY_CTA_CLASS}`}
         >
           Get started
-        </a>
+        </Link>
       </section>
     </main>
   );
