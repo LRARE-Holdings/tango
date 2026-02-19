@@ -276,6 +276,111 @@ body {
   box-shadow: var(--mk-shadow-md);
 }
 
+.usecases-shell {
+  --uc-tab-bg: color-mix(in oklab, var(--mk-surface-soft) 72%, var(--mk-surface));
+}
+
+.usecases-proof-pill {
+  border: 1px solid var(--mk-border);
+  background: var(--mk-surface);
+  color: var(--mk-muted);
+}
+
+.usecases-tablist-wrap {
+  margin-bottom: 1.1rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+
+.usecases-tablist {
+  display: inline-flex;
+  min-width: 100%;
+  gap: 0.45rem;
+  border: 1px solid var(--mk-border);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--mk-surface) 92%, transparent);
+  padding: 0.35rem;
+  box-shadow: var(--mk-shadow-sm);
+}
+
+.usecases-tab {
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--mk-muted);
+  padding: 0.62rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.usecases-tab:hover {
+  color: var(--mk-fg);
+}
+
+.usecases-tab:focus-visible {
+  outline: 2px solid var(--mk-accent);
+  outline-offset: 2px;
+}
+
+.usecases-tab-active {
+  background: var(--uc-tab-bg);
+  border-color: var(--mk-accent-border);
+  color: var(--mk-fg);
+  box-shadow: var(--mk-shadow-sm);
+}
+
+.usecases-spotlight {
+  border: 1px solid var(--mk-border);
+  border-radius: 1.75rem;
+  background: linear-gradient(
+      140deg,
+      color-mix(in oklab, var(--mk-accent-soft) 35%, transparent) 0%,
+      transparent 45%
+    ),
+    var(--mk-surface-alt);
+  padding: 0.9rem;
+  box-shadow: var(--mk-shadow-md);
+  animation: marketing-fade-up 480ms ease both;
+}
+
+.usecases-evidence-panel {
+  background: linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--mk-accent-soft) 24%, transparent) 0%,
+      transparent 45%
+    ),
+    var(--mk-surface);
+}
+
+.usecases-secondary-grid article {
+  transition:
+    transform 240ms ease,
+    box-shadow 240ms ease,
+    border-color 240ms ease;
+}
+
+.usecases-secondary-grid article:hover {
+  transform: translateY(-2px);
+  border-color: var(--mk-border-strong);
+  box-shadow: var(--mk-shadow-md);
+}
+
+.usecases-standard-band {
+  background: linear-gradient(
+      145deg,
+      color-mix(in oklab, var(--mk-accent-soft) 36%, transparent) 0%,
+      transparent 48%
+    ),
+    var(--mk-surface-alt);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marketing-shell section {
     animation: none !important;
@@ -299,8 +404,15 @@ body {
       .rounded-2xl.border,
       .rounded-3xl.border,
       .rounded-\[28px\].border
-    ):hover {
+    ):hover,
+  .usecases-secondary-grid article:hover {
     transform: none !important;
+  }
+
+  .usecases-tab,
+  .usecases-secondary-grid article,
+  .usecases-spotlight {
+    transition: none !important;
   }
 }
 
