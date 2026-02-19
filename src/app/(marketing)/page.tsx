@@ -84,7 +84,7 @@ export default async function Home({
         <div className="mx-auto flex max-w-4xl flex-col items-center gap-10 sm:gap-12">
           <div className="inline-flex items-center gap-2 rounded-full marketing-badge px-4 py-2 text-xs font-semibold">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--mk-accent)]" />
-            Document acknowledgement, simplified
+            Launching Monday, February 23, 2026
           </div>
           <h1 className="marketing-hero max-w-4xl text-5xl sm:text-6xl lg:text-7xl">
             Certainty,{" "}

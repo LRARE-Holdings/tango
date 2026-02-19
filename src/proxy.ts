@@ -1,8 +1,24 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import {
+  RECEIPT_LAUNCH_UNLOCK_COOKIE,
+  isReceiptLaunchLive,
+} from "@/lib/launch-access";
 
 export async function proxy(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
+
+  if (!isReceiptLaunchLive() && (pathname === "/auth" || pathname === "/get-started")) {
+    const hasLaunchAccess = req.cookies.get(RECEIPT_LAUNCH_UNLOCK_COOKIE)?.value === "1";
+    if (!hasLaunchAccess) {
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = "/launch-access";
+      redirectUrl.searchParams.set("next", `${pathname}${req.nextUrl.search}`);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
   const res = NextResponse.next();
 
   const supabase = createServerClient(
@@ -27,7 +43,7 @@ export async function proxy(req: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Protect /app routes
-  if (!user && req.nextUrl.pathname.startsWith("/app")) {
+  if (!user && pathname.startsWith("/app")) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/auth";
     return NextResponse.redirect(redirectUrl);
@@ -37,5 +53,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*"],
+  matcher: ["/app/:path*", "/auth", "/get-started"],
 };
