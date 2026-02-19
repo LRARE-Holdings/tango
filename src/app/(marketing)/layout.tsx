@@ -7,10 +7,10 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <div className="marketing-shell min-h-screen bg-[var(--mk-bg)] text-[var(--mk-fg)]">
       <MarketingHeader />
-      <div className="marketing-shell">{children}</div>
+      <div>{children}</div>
       <MarketingFooter />
-    </>
+    </div>
   );
 }

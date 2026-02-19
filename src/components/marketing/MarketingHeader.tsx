@@ -1,12 +1,62 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
+
+const NAV_ITEMS = [
+  { href: "/product", label: "Product" },
+  { href: "/use-cases", label: "Use cases" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/security", label: "Security" },
+] as const;
 
 export function MarketingHeader() {
+  const pathname = usePathname();
+  const menuRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    if (menuRef.current) {
+      menuRef.current.open = false;
+    }
+  }, [pathname]);
+
   return (
-    <header className="marketing-chrome sticky top-0 z-50 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-        {/* Logo */}
-        <Link href="/" className="flex items-center">
+    <header className="marketing-chrome sticky top-0 z-50 border-b">
+      <div className="mx-auto grid h-16 max-w-6xl grid-cols-[1fr_auto_1fr] items-center px-6">
+        <details ref={menuRef} className="group relative justify-self-start">
+          <summary className="focus-ring inline-flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-[var(--mk-border)] bg-[var(--mk-surface)] text-[var(--mk-muted)]">
+            <span className="sr-only">Open menu</span>
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            >
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
+            </svg>
+          </summary>
+          <nav className="absolute left-0 mt-2 w-64 rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-3 shadow-[var(--mk-shadow-md)]">
+            <div className="space-y-1">
+              {NAV_ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="block rounded-xl px-3 py-2 text-sm text-[var(--mk-muted)] hover:bg-[var(--mk-surface-soft)] hover:text-[var(--mk-fg)]"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        </details>
+
+        <Link href="/" className="mx-auto flex items-center justify-center">
           <div className="relative h-8 w-28 overflow-hidden">
             <Image
               src="/receipt-logo.svg"
@@ -18,53 +68,30 @@ export function MarketingHeader() {
           </div>
         </Link>
 
-        {/* Primary nav */}
-        <nav className="hidden items-center gap-6 md:flex">
-          <Link
-            href="/product"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            Product
-          </Link>
-          <Link
-            href="/use-cases"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            Use cases
-          </Link>
-          <Link
-            href="/how-it-works"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            How it works
-          </Link>
-          <Link
-            href="/pricing"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/security"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            Security
-          </Link>
-        </nav>
-
-        {/* Auth actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-self-end gap-2">
           <Link
             href="/auth"
-            className="hidden rounded-full px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:inline-flex"
+            className="rounded-[10px] px-3 py-2 text-sm font-medium text-[var(--mk-muted)] hover:bg-[var(--mk-surface-soft)] hover:text-[var(--mk-fg)]"
           >
-            Login
+            Log in
           </Link>
           <Link
             href="/get-started"
-            className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
+            className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--mk-border-strong)] bg-[var(--mk-surface)] text-[var(--mk-muted)] hover:border-[var(--mk-accent)] hover:text-[var(--mk-accent)]"
           >
-            Get started
+            <span className="sr-only">Get started</span>
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="m13 6 6 6-6 6" />
+            </svg>
           </Link>
         </div>
       </div>

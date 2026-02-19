@@ -1,42 +1,28 @@
 @import "tailwindcss";
 
-/* Receipt theme: #000000 and #eaeaea */
 :root {
   --bg: #eaeaea;
   --fg: #000000;
-
   --muted: rgba(0, 0, 0, 0.68);
   --muted2: rgba(0, 0, 0, 0.52);
-
   --border: rgba(0, 0, 0, 0.16);
-  --border2: rgba(0, 0, 0, 0.10);
-
+  --border2: rgba(0, 0, 0, 0.1);
   --card: rgba(0, 0, 0, 0.035);
   --card2: rgba(0, 0, 0, 0.06);
-
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.10);
-}
-
-/* Let the browser render native UI in the correct scheme */
-:root {
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
   color-scheme: light dark;
 }
 
-/* System dark mode (automatic) */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #000000;
     --fg: #eaeaea;
-
     --muted: rgba(234, 234, 234, 0.72);
     --muted2: rgba(234, 234, 234, 0.56);
-
     --border: rgba(234, 234, 234, 0.18);
     --border2: rgba(234, 234, 234, 0.12);
-
     --card: rgba(234, 234, 234, 0.06);
     --card2: rgba(234, 234, 234, 0.09);
-
     --shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
   }
 }
@@ -49,25 +35,187 @@ body {
 body {
   background: var(--bg);
   color: var(--fg);
-
-  /* Nicer rendering */
+  font-family: var(--font-sans), "Inter", sans-serif;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle “Receipt” grid (slightly refined) */
 .receipt-grid {
   background: transparent;
 }
 
-/* Consistent focus ring that respects palette */
 .focus-ring:focus-visible {
   outline: 2px solid var(--fg);
   outline-offset: 2px;
 }
 
-/* Marketing motion: subtle, scoped, and accessibility-aware */
+.marketing-shell {
+  --mk-bg: #fafaf8;
+  --mk-fg: #1a1a1a;
+  --mk-muted: #6f6f6b;
+  --mk-muted-2: #878783;
+  --mk-border: rgba(0, 0, 0, 0.09);
+  --mk-border-strong: rgba(0, 0, 0, 0.15);
+  --mk-surface: #ffffff;
+  --mk-surface-soft: #f4f4f1;
+  --mk-surface-alt: #f8f8f5;
+  --mk-shadow-sm: 0 2px 14px rgba(0, 0, 0, 0.04);
+  --mk-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --mk-shadow-lg: 0 24px 52px rgba(0, 0, 0, 0.12);
+  --mk-accent: #6366f1;
+  --mk-accent-soft: rgba(99, 102, 241, 0.1);
+  --mk-accent-border: rgba(99, 102, 241, 0.36);
+  --mk-success-bg: #ebf8f2;
+  --mk-success-border: rgba(16, 185, 129, 0.35);
+  --mk-success-fg: #0f6b49;
+  background: var(--mk-bg);
+  color: var(--mk-fg);
+}
+
+@media (prefers-color-scheme: dark) {
+  .marketing-shell {
+    --mk-bg: #0f0f10;
+    --mk-fg: #efefeb;
+    --mk-muted: #c3c3be;
+    --mk-muted-2: #a2a29c;
+    --mk-border: rgba(239, 239, 235, 0.16);
+    --mk-border-strong: rgba(239, 239, 235, 0.24);
+    --mk-surface: #171718;
+    --mk-surface-soft: #1f1f21;
+    --mk-surface-alt: #232326;
+    --mk-shadow-sm: 0 2px 14px rgba(0, 0, 0, 0.28);
+    --mk-shadow-md: 0 12px 34px rgba(0, 0, 0, 0.35);
+    --mk-shadow-lg: 0 24px 52px rgba(0, 0, 0, 0.45);
+    --mk-accent: #6366f1;
+    --mk-accent-soft: rgba(99, 102, 241, 0.2);
+    --mk-accent-border: rgba(99, 102, 241, 0.5);
+    --mk-success-bg: rgba(16, 185, 129, 0.18);
+    --mk-success-border: rgba(16, 185, 129, 0.45);
+    --mk-success-fg: #7de1b7;
+  }
+}
+
+.marketing-serif {
+  font-family: var(--font-serif), "Instrument Serif", serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.marketing-hero {
+  font-family: var(--font-serif), "Instrument Serif", serif;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.marketing-badge {
+  background: var(--mk-accent-soft);
+  color: var(--mk-accent);
+}
+
+.marketing-surface {
+  background: var(--mk-surface);
+  border-color: var(--mk-border);
+  color: var(--mk-fg);
+}
+
+.marketing-surface-soft {
+  background: var(--mk-surface-soft);
+  border-color: var(--mk-border);
+  color: var(--mk-muted);
+}
+
+.marketing-muted {
+  color: var(--mk-muted);
+}
+
+.marketing-muted-2 {
+  color: var(--mk-muted-2);
+}
+
+.marketing-link {
+  color: var(--mk-muted);
+}
+
+.marketing-link:hover {
+  color: var(--mk-fg);
+}
+
+.marketing-cta-primary {
+  background: transparent;
+  border: 1px solid var(--mk-border-strong);
+  color: var(--mk-muted);
+  border-radius: 999px;
+  font-family: var(--font-serif), "Instrument Serif", serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.marketing-cta-primary:hover {
+  border-color: var(--mk-accent);
+  color: var(--mk-accent);
+  box-shadow: var(--mk-shadow-sm);
+}
+
+.marketing-cta-secondary {
+  background: transparent;
+  border: 1px solid var(--mk-border);
+  color: var(--mk-muted);
+  border-radius: 999px;
+}
+
+.marketing-cta-secondary:hover {
+  border-color: var(--mk-border-strong);
+  color: var(--mk-fg);
+}
+
+.marketing-accent-chip {
+  background: var(--mk-accent-soft);
+  border: 1px solid var(--mk-accent-border);
+  color: var(--mk-accent);
+}
+
+.marketing-glow {
+  background:
+    radial-gradient(
+      900px circle at 20% -12%,
+      rgba(0, 0, 0, 0.08),
+      transparent 58%
+    ),
+    radial-gradient(
+      720px circle at 88% -6%,
+      rgba(0, 0, 0, 0.06),
+      transparent 56%
+    );
+}
+
+@media (prefers-color-scheme: dark) {
+  .marketing-glow {
+    background:
+      radial-gradient(
+        900px circle at 20% -12%,
+        rgba(255, 255, 255, 0.09),
+        transparent 58%
+      ),
+      radial-gradient(
+        720px circle at 88% -6%,
+        rgba(255, 255, 255, 0.06),
+        transparent 56%
+      );
+  }
+}
+
+.marketing-chrome {
+  background: color-mix(in oklab, var(--mk-bg) 86%, transparent);
+  border-color: var(--mk-border);
+  transition:
+    background-color 240ms ease,
+    border-color 240ms ease,
+    backdrop-filter 240ms ease;
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
 .marketing-shell section {
   animation: marketing-fade-up 650ms ease-out both;
 }
@@ -85,45 +233,41 @@ body {
 }
 
 .marketing-shell :is(a, button) {
-  transition: transform 220ms ease, box-shadow 220ms ease, opacity 180ms ease,
-    background-color 220ms ease, border-color 220ms ease, color 220ms ease;
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    opacity 180ms ease,
+    background-color 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease;
 }
 
 .marketing-shell :is(a, button):hover {
   transform: translateY(-1px);
 }
 
-.marketing-shell :is(
+.marketing-shell
+  :is(
+    .rounded-xl.border,
     .rounded-2xl.border,
     .rounded-3xl.border,
     .rounded-\[28px\].border
   ) {
-  transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
+  transition:
+    transform 260ms ease,
+    box-shadow 260ms ease,
+    border-color 260ms ease;
 }
 
-.marketing-shell :is(
+.marketing-shell
+  :is(
+    .rounded-xl.border,
     .rounded-2xl.border,
     .rounded-3xl.border,
     .rounded-\[28px\].border
   ):hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.09);
-}
-
-.marketing-chrome {
-  transition: background-color 240ms ease, border-color 240ms ease,
-    backdrop-filter 240ms ease;
-  backdrop-filter: saturate(130%) blur(6px);
-}
-
-@media (prefers-color-scheme: dark) {
-  .marketing-shell :is(
-      .rounded-2xl.border,
-      .rounded-3xl.border,
-      .rounded-\[28px\].border
-    ):hover {
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.5);
-  }
+  box-shadow: var(--mk-shadow-md);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -132,7 +276,9 @@ body {
   }
 
   .marketing-shell :is(a, button),
-  .marketing-shell :is(
+  .marketing-shell
+    :is(
+      .rounded-xl.border,
       .rounded-2xl.border,
       .rounded-3xl.border,
       .rounded-\[28px\].border
@@ -141,7 +287,9 @@ body {
   }
 
   .marketing-shell :is(a, button):hover,
-  .marketing-shell :is(
+  .marketing-shell
+    :is(
+      .rounded-xl.border,
       .rounded-2xl.border,
       .rounded-3xl.border,
       .rounded-\[28px\].border
@@ -155,6 +303,7 @@ body {
     opacity: 0;
     transform: translate3d(0, 12px, 0);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);

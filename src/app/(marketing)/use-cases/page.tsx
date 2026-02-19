@@ -1,5 +1,4 @@
 import Link from "next/link";
-
 type UseCase = {
   id: string;
   title: string;
@@ -9,7 +8,6 @@ type UseCase = {
   record: string[];
   outcome: string;
 };
-
 const useCases: UseCase[] = [
   {
     id: "legal-client-care",
@@ -126,7 +124,6 @@ const useCases: UseCase[] = [
       "Faster rollout follow-through with less manual chasing and cleaner internal accountability.",
   },
 ];
-
 function SectionHeading({
   eyebrow,
   title,
@@ -139,28 +136,26 @@ function SectionHeading({
   return (
     <div className="max-w-3xl">
       {eyebrow ? (
-        <div className="text-xs font-semibold tracking-widest text-zinc-500 dark:text-zinc-500">
+        <div className="text-xs font-semibold tracking-widest text-[var(--mk-muted)]">
           {eyebrow}
         </div>
       ) : null}
-      <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
+      <h1 className="marketing-hero mt-2 text-4xl sm:text-5xl">{title}</h1>
       {subtitle ? (
-        <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <p className="mt-4 text-base leading-relaxed text-[var(--mk-muted)]">
           {subtitle}
         </p>
       ) : null}
     </div>
   );
 }
-
 export default function UseCasesPage() {
   return (
-    <main className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <main className="min-h-screen bg-[var(--mk-bg)] text-[var(--mk-fg)]">
       <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(0,0,0,0.06),transparent_55%)] dark:bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(255,255,255,0.08),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(900px_circle_at_90%_0%,rgba(0,0,0,0.04),transparent_55%)] dark:bg-[radial-gradient(900px_circle_at_90%_0%,rgba(255,255,255,0.06),transparent_55%)]" />
+        <div className="absolute inset-0 marketing-glow" />
+        <div className="absolute inset-0 " />
       </div>
-
       <section className="mx-auto max-w-6xl px-6 pt-14 pb-10">
         <SectionHeading
           eyebrow="USE CASES"
@@ -168,17 +163,16 @@ export default function UseCasesPage() {
           subtitle="Explore focused playbooks by team. Each section maps specific moments, what gets recorded, and the practical result."
         />
       </section>
-
       <section className="mx-auto max-w-6xl px-6 pb-16">
         <div className="sticky top-[64px] z-20 -mx-2 mb-8 overflow-x-auto px-2 pb-2 md:hidden">
-          <div className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/95 p-2 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--mk-border)] bg-[var(--mk-surface)]/95 p-2 backdrop-blur">
             {useCases.map((item, index) => (
               <a
                 key={item.id}
                 href={`#${item.id}`}
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] px-3 py-1.5 text-xs font-medium text-[var(--mk-muted)] hover:bg-[var(--mk-surface-soft)] "
               >
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-zinc-900 text-[11px] font-semibold text-white dark:bg-white dark:text-zinc-900">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[var(--mk-accent)] text-[11px] font-semibold text-white">
                   {index + 1}
                 </span>
                 {item.title}
@@ -186,11 +180,10 @@ export default function UseCasesPage() {
             ))}
           </div>
         </div>
-
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="hidden lg:block">
-            <div className="sticky top-24 rounded-3xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
-              <div className="text-[11px] font-semibold tracking-widest text-zinc-500 dark:text-zinc-500">
+            <div className="sticky top-24 rounded-3xl border border-[var(--mk-border)] bg-[var(--mk-surface)]/95 p-4 shadow-sm backdrop-blur">
+              <div className="text-[11px] font-semibold tracking-widest text-[var(--mk-muted)]">
                 CASE NAVIGATOR
               </div>
               <div className="mt-4 space-y-2">
@@ -198,16 +191,16 @@ export default function UseCasesPage() {
                   <a
                     key={item.id}
                     href={`#${item.id}`}
-                    className="group flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:bg-zinc-900"
+                    className="group flex items-start gap-3 rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] px-3 py-2.5 transition hover:bg-[var(--mk-surface-soft)] "
                   >
-                    <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-[11px] font-semibold text-white dark:bg-white dark:text-zinc-900">
+                    <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--mk-accent)] text-[11px] font-semibold text-white">
                       {index + 1}
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                      <span className="block text-xs font-semibold text-[var(--mk-fg)]">
                         {item.title}
                       </span>
-                      <span className="mt-0.5 block text-[11px] text-zinc-500 dark:text-zinc-500">
+                      <span className="mt-0.5 block text-[11px] text-[var(--mk-muted)]">
                         {item.team}
                       </span>
                     </span>
@@ -216,91 +209,88 @@ export default function UseCasesPage() {
               </div>
             </div>
           </aside>
-
           <div className="space-y-6">
             {useCases.map((item, index) => (
               <section
                 key={item.id}
                 id={item.id}
-                className="scroll-mt-28 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:p-8"
+                className="scroll-mt-28 rounded-3xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-6 shadow-sm md:p-8"
               >
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div className="max-w-3xl">
-                    <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-semibold tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">
+                    <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] px-3 py-1 text-[11px] font-semibold tracking-wide text-[var(--mk-muted)] ">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[var(--mk-accent)] text-white">
                         {index + 1}
                       </span>
                       {item.team}
                     </div>
-                    <h2 className="mt-3 text-2xl font-semibold tracking-tight">{item.title}</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                    <h2 className="mt-3 text-2xl font-semibold tracking-tight">
+                      {item.title}
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
                       {item.summary}
                     </p>
                   </div>
                   <Link
                     href="/get-started"
-                    className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                    className="inline-flex items-center justify-center rounded-full border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] px-4 py-2 text-sm font-semibold text-[var(--mk-fg)] transition hover:bg-[var(--mk-surface-soft)] "
                   >
                     Try this flow
                   </Link>
                 </div>
-
                 <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
-                    <div className="text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-500">
+                  <div className="rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] p-4 ">
+                    <div className="text-xs font-semibold tracking-wide text-[var(--mk-muted)]">
                       Best Moments
                     </div>
-                    <ul className="mt-3 space-y-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                    <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--mk-muted)]">
                       {item.moments.map((row) => (
                         <li key={row}>• {row}</li>
                       ))}
                     </ul>
                   </div>
-
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
-                    <div className="text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-500">
+                  <div className="rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] p-4 ">
+                    <div className="text-xs font-semibold tracking-wide text-[var(--mk-muted)]">
                       What Gets Recorded
                     </div>
-                    <ul className="mt-3 space-y-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                    <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--mk-muted)]">
                       {item.record.map((row) => (
                         <li key={row}>• {row}</li>
                       ))}
                     </ul>
                   </div>
-
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
-                    <div className="text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-500">
+                  <div className="rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] p-4 ">
+                    <div className="text-xs font-semibold tracking-wide text-[var(--mk-muted)]">
                       Practical Result
                     </div>
-                    <p className="mt-3 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                    <p className="mt-3 text-sm leading-relaxed text-[var(--mk-muted)]">
                       {item.outcome}
                     </p>
                   </div>
                 </div>
               </section>
             ))}
-
-            <section className="rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 p-6 shadow-sm dark:border-zinc-800 dark:from-zinc-950 dark:to-zinc-900/30 md:p-8">
+            <section className="rounded-3xl border border-[var(--mk-border)] bg-linear-to-b bg-[var(--mk-surface-alt)] p-6 shadow-sm md:p-8">
               <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                 <div className="max-w-2xl">
                   <h3 className="text-xl font-semibold tracking-tight">
                     Don’t see your workflow?
                   </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                    Receipt is intentionally narrow. If you send PDFs and need a neutral, exportable record,
-                    this pattern usually fits.
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
+                    Receipt is intentionally narrow. If you send PDFs and need a
+                    neutral, exportable record, this pattern usually fits.
                   </p>
                 </div>
                 <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                   <Link
                     href="/get-started"
-                className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
-              >
-                Get started
+                    className="inline-flex items-center justify-center rounded-full marketing-cta-primary px-6 py-3 text-sm font-semibold shadow-sm "
+                  >
+                    Get started
                   </Link>
                   <Link
                     href="/pricing"
-                    className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50"
+                    className="inline-flex items-center justify-center rounded-full marketing-cta-secondary px-6 py-3 text-sm font-semibold text-[var(--mk-fg)] shadow-sm hover:bg-[var(--mk-surface-soft)] "
                   >
                     View pricing
                   </Link>

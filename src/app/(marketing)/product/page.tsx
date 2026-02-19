@@ -1,8 +1,8 @@
-// src/app/(marketing)/product/page.tsx
+import { ReceiptPreview } from "@/components/marketing/ReceiptPreview";
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+    <span className="inline-flex items-center rounded-md border border-[var(--mk-border)] bg-[var(--mk-surface)] px-3 py-1 text-xs font-medium text-[var(--mk-muted)] shadow-sm">
       {children}
     </span>
   );
@@ -20,96 +20,24 @@ function Card({
   return (
     <div
       className={[
-        "rounded-3xl border p-6 shadow-sm md:p-8",
-        subtle
-          ? "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40"
-          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950",
+        "rounded-3xl border border-[var(--mk-border)] p-6 shadow-sm md:p-8",
+        subtle ? "bg-[var(--mk-surface-soft)]" : "bg-[var(--mk-surface)]",
       ].join(" ")}
     >
       {title ? (
-        <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {title}
-        </div>
+        <div className="text-sm font-semibold text-[var(--mk-fg)]">{title}</div>
       ) : null}
       <div className={title ? "mt-2" : ""}>{children}</div>
     </div>
   );
 }
 
-function Feature({
-  title,
-  body,
-}: {
-  title: string;
-  body: string;
-}) {
+function Feature({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-        {title}
-      </div>
-      <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+    <div className="rounded-3xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-6 shadow-sm">
+      <div className="text-sm font-semibold text-[var(--mk-fg)]">{title}</div>
+      <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
         {body}
-      </div>
-    </div>
-  );
-}
-
-function MiniPreview() {
-  return (
-    <div className="relative">
-      <div className="pointer-events-none absolute -inset-6 rounded-[28px] bg-linear-to-br from-zinc-200/60 via-transparent to-zinc-200/60 blur-2xl dark:from-zinc-800/40 dark:to-zinc-800/40" />
-      <div className="relative overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-          <div className="flex items-baseline gap-3">
-            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Receipt Record
-            </div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-500">sample</div>
-          </div>
-
-          <span className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-            neutral
-          </span>
-        </div>
-
-        <div className="p-6 space-y-5">
-          <div className="space-y-1">
-            <div className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
-              Document
-            </div>
-            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Terms Update, Client Portal
-            </div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-500">
-              Version hash: 1a7c…0d2e
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { k: "First opened", v: "09:17" },
-              { k: "Scroll depth", v: "92%" },
-              { k: "Time on page", v: "3m 08s" },
-            ].map((x) => (
-              <div
-                key={x.k}
-                className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40"
-              >
-                <div className="text-[11px] font-medium tracking-wide text-zinc-500 dark:text-zinc-500">
-                  {x.k}
-                </div>
-                <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {x.v}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
-            A neutral record: delivery, access, review activity, acknowledgement.
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -117,13 +45,11 @@ function MiniPreview() {
 
 export default function ProductPage() {
   return (
-    <main className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <main className="min-h-screen bg-[var(--mk-bg)] text-[var(--mk-fg)]">
       <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(0,0,0,0.06),transparent_55%)] dark:bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(255,255,255,0.08),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(900px_circle_at_90%_0%,rgba(0,0,0,0.04),transparent_55%)] dark:bg-[radial-gradient(900px_circle_at_90%_0%,rgba(255,255,255,0.06),transparent_55%)]" />
+        <div className="absolute inset-0 marketing-glow" />
       </div>
 
-      {/* Hero */}
       <section className="mx-auto max-w-6xl px-6 pt-14 pb-10">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:items-start">
           <div>
@@ -133,91 +59,88 @@ export default function ProductPage() {
               <Badge>Export-ready</Badge>
             </div>
 
-            <div className="mt-6 text-xs font-semibold tracking-widest text-zinc-500 dark:text-zinc-500">
+            <div className="mt-6 text-xs font-semibold tracking-widest text-[var(--mk-muted)]">
               PRODUCT
             </div>
 
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
+            <h1 className="marketing-hero mt-2 text-4xl sm:text-5xl">
               A neutral record for PDFs.
-              <span className="text-zinc-500 dark:text-zinc-400">
+              <span className="text-[var(--mk-accent)]">
                 {" "}
                 Built for real work.
               </span>
             </h1>
 
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Receipt captures what’s observable, delivery, access, review activity, acknowledgement,
-              and turns it into a clean record you can keep on file. No interpretation. No over-claiming.
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--mk-muted)]">
+              Receipt captures what is observable, delivery, access, review
+              activity, and acknowledgement, then turns it into a clean record
+              you can keep on file.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <a
                 href="/get-started"
-                className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-primary px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 Get started
               </a>
               <a
                 href="/pricing"
-                className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-secondary px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 View pricing
               </a>
             </div>
 
-            <div className="mt-8 max-w-xl rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
-              Receipt is <span className="font-medium">not</span> an e-signature tool and does{" "}
-              <span className="font-medium">not</span> verify identity by default. It records activity
-              and acknowledgement, nothing more.
+            <div className="mt-8 max-w-xl rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] p-4 text-[12px] leading-relaxed text-[var(--mk-muted)]">
+              Receipt is <span className="font-medium">not</span> an e-signature
+              tool and does
+              <span className="font-medium"> not</span> verify identity by
+              default.
             </div>
           </div>
 
           <div className="lg:pt-2">
-            <MiniPreview />
+            <ReceiptPreview />
           </div>
         </div>
       </section>
 
-      {/* What it's good at */}
       <section className="mx-auto max-w-6xl px-6 pb-16">
         <div className="max-w-2xl">
-          <div className="text-xs font-semibold tracking-widest text-zinc-500 dark:text-zinc-500">
+          <div className="text-xs font-semibold tracking-widest text-[var(--mk-muted)]">
             WHY IT EXISTS
           </div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">
-            Because “we sent it” isn’t evidence.
+          <h2 className="marketing-serif mt-2 text-2xl text-[var(--mk-fg)] sm:text-3xl">
+            Because "we sent it" is not evidence.
           </h2>
-          <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Receipt is for the moments where you need a clean record, not a debate. It keeps the
-            output consistent, readable, and easy to file.
+          <p className="mt-3 text-sm leading-relaxed text-[var(--mk-muted)]">
+            Receipt is for moments where you need a clean record, not a debate.
           </p>
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
           <Feature
             title="Neutral by design"
-            body="Records what happened, when it happened, and what was viewed, without assumptions, interpretation, or “understanding” claims."
+            body="Records what happened, when it happened, and what was viewed, without assumptions or interpretation."
           />
           <Feature
             title="Frictionless for recipients"
-            body="One link. Open the PDF in the browser. Review it. Acknowledge it (if required). No portals, no accounts."
+            body="One link. Open the PDF in-browser. Review it. Acknowledge it if required."
           />
           <Feature
             title="Clean output for the file"
-            body="Exports a tidy record with timestamps and activity fields, consistent, readable, and audit-friendly."
+            body="Exports a tidy record with timestamps and activity fields, consistent and audit-friendly."
           />
         </div>
 
-        {/* Records + fields */}
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card title="What it records" subtle>
-            <div className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-              Receipt stays neutral: it records timestamps, activity, and acknowledgement, not consent,
-              intent, or comprehension.
+            <div className="text-sm leading-relaxed text-[var(--mk-muted)]">
+              Receipt stays neutral: timestamps, activity, and acknowledgement.
             </div>
-
-            <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-              <div className="font-semibold text-zinc-900 dark:text-zinc-100">Fields</div>
+            <div className="mt-4 rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-4 text-xs leading-relaxed text-[var(--mk-muted)]">
+              <div className="font-semibold text-[var(--mk-fg)]">Fields</div>
               <div className="mt-2 space-y-1">
                 <div>• delivered_at / first_opened_at</div>
                 <div>• max_scroll_percent</div>
@@ -227,29 +150,23 @@ export default function ProductPage() {
                 <div>• document hash / version</div>
               </div>
             </div>
-
-            <div className="mt-4 text-[12px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-              You choose whether optional fields (like IP logging) are enabled.
-            </div>
           </Card>
 
           <Card title="Where teams use it">
-            <div className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Common use cases are boring, which is the point. It’s the practical stuff that needs
-              evidence.
+            <div className="text-sm leading-relaxed text-[var(--mk-muted)]">
+              Practical use cases that need evidence, not opinion.
             </div>
-
             <div className="mt-4 grid grid-cols-1 gap-3">
               {[
                 "Client care letters",
-                "Policy or handbook updates",
-                "Terms changes and notices",
+                "Policy updates",
+                "Terms notices",
                 "Internal rollouts",
-                "Anything you need to file cleanly",
+                "Supplier governance",
               ].map((x) => (
                 <div
                   key={x}
-                  className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300"
+                  className="rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] px-4 py-3 text-sm text-[var(--mk-muted)]"
                 >
                   {x}
                 </div>
@@ -257,16 +174,16 @@ export default function ProductPage() {
             </div>
           </Card>
 
-          <Card title="What it’s not">
+          <Card title="What it is not">
             <div className="grid grid-cols-1 gap-3">
               {[
                 {
                   t: "Not e-signature",
-                  b: "Receipt doesn’t replace signing workflows or identity verification tooling.",
+                  b: "Receipt does not replace signing workflows.",
                 },
                 {
                   t: "Not consent capture",
-                  b: "It doesn’t claim intent, agreement, or comprehension, just observable events.",
+                  b: "It does not claim intent, agreement, or comprehension.",
                 },
                 {
                   t: "Not analysis",
@@ -275,46 +192,18 @@ export default function ProductPage() {
               ].map((x) => (
                 <div
                   key={x.t}
-                  className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                  className="rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-4 shadow-sm"
                 >
-                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  <div className="text-sm font-semibold text-[var(--mk-fg)]">
                     {x.t}
                   </div>
-                  <div className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                  <div className="mt-1 text-sm leading-relaxed text-[var(--mk-muted)]">
                     {x.b}
                   </div>
                 </div>
               ))}
             </div>
           </Card>
-        </div>
-
-        {/* Bottom CTA */}
-        <div className="mt-10 rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 p-6 shadow-sm dark:border-zinc-800 dark:from-zinc-950 dark:to-zinc-900/30 md:p-8">
-          <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-            <div className="max-w-2xl">
-              <div className="text-lg font-semibold tracking-tight">
-                Want a clean record in under a minute?
-              </div>
-              <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                Upload the PDF, share the link, and export the record when you need it.
-              </div>
-            </div>
-            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-              <a
-                href="/get-started"
-                className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
-              >
-                Get started
-              </a>
-              <a
-                href="/how-it-works"
-                className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50"
-              >
-                How it works
-              </a>
-            </div>
-          </div>
         </div>
       </section>
     </main>

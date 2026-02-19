@@ -2,7 +2,7 @@
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+    <span className="inline-flex items-center rounded-md border border-[var(--mk-border)] bg-[var(--mk-surface)] px-3 py-1 text-xs font-medium text-[var(--mk-muted)] shadow-sm  ">
       {children}
     </span>
   );
@@ -22,14 +22,12 @@ function Card({
       className={[
         "rounded-3xl border p-6 shadow-sm md:p-8",
         subtle
-          ? "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40"
-          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950",
+          ? "bg-[var(--mk-border)] bg-[var(--mk-surface-soft)] "
+          : "bg-[var(--mk-border)] bg-[var(--mk-surface)] ",
       ].join(" ")}
     >
       {title ? (
-        <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {title}
-        </div>
+        <div className="text-sm font-semibold text-[var(--mk-fg)]">{title}</div>
       ) : null}
       <div className={title ? "mt-2" : ""}>{children}</div>
     </div>
@@ -38,27 +36,19 @@ function Card({
 
 function IconCircle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-900 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface)] text-[var(--mk-fg)] shadow-sm  ">
       {children}
     </div>
   );
 }
 
-function DotRow({
-  title,
-  body,
-}: {
-  title: string;
-  body: string;
-}) {
+function DotRow({ title, body }: { title: string; body: string }) {
   return (
     <div className="flex gap-3">
-      <span className="mt-2 inline-block h-1.5 w-1.5 flex-none rounded-full bg-zinc-400 dark:bg-zinc-600" />
+      <span className="mt-2 inline-block h-1.5 w-1.5 flex-none rounded-full bg-[var(--mk-muted-2)]" />
       <div>
-        <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {title}
-        </div>
-        <div className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <div className="text-sm font-semibold text-[var(--mk-fg)]">{title}</div>
+        <div className="mt-1 text-sm leading-relaxed text-[var(--mk-muted)]">
           {body}
         </div>
       </div>
@@ -68,11 +58,11 @@ function DotRow({
 
 export default function SecurityPage() {
   return (
-    <main className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <main className="min-h-screen bg-[var(--mk-bg)] text-[var(--mk-fg)]">
       {/* subtle background texture */}
       <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(0,0,0,0.06),transparent_55%)] dark:bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(255,255,255,0.08),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(900px_circle_at_90%_0%,rgba(0,0,0,0.04),transparent_55%)] dark:bg-[radial-gradient(900px_circle_at_90%_0%,rgba(255,255,255,0.06),transparent_55%)]" />
+        <div className="absolute inset-0 marketing-glow" />
+        <div className="absolute inset-0 " />
       </div>
 
       {/* Hero */}
@@ -85,53 +75,55 @@ export default function SecurityPage() {
               <Badge>Version hashing</Badge>
             </div>
 
-            <div className="mt-6 text-xs font-semibold tracking-widest text-zinc-500 dark:text-zinc-500">
+            <div className="mt-6 text-xs font-semibold tracking-widest text-[var(--mk-muted)]">
               SECURITY
             </div>
 
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
+            <h1 className="marketing-hero mt-2 text-4xl sm:text-5xl">
               Calm security.
-              <span className="text-zinc-500 dark:text-zinc-400"> Clear boundaries.</span>
+              <span className="text-[var(--mk-accent)]">{" "}Clear boundaries.</span>
             </h1>
 
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Receipt is built to be a focused utility: it records document access, review activity,
-              and acknowledgement, then produces a file-ready record. No analysis. No inference.
-              No magical claims.
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--mk-muted)]">
+              Receipt is built to be a focused utility: it records document
+              access, review activity, and acknowledgement, then produces a
+              file-ready record. No analysis. No inference. No magical claims.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <a
                 href="/privacy"
-                className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-primary px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 Read privacy
               </a>
               <a
                 href="#details"
-                className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-secondary px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 What we record
               </a>
             </div>
 
-            <div className="mt-8 max-w-xl rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-[12px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
-              Receipt is <span className="font-medium">not</span> an e-signature tool. It does{" "}
-              <span className="font-medium">not</span> verify identity by default, and it does{" "}
-              <span className="font-medium">not</span> assess understanding, consent, or intent.
+            <div className="mt-8 max-w-xl rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] p-4 text-[12px] leading-relaxed text-[var(--mk-muted)]  ">
+              Receipt is <span className="font-medium">not</span> an e-signature
+              tool. It does <span className="font-medium">not</span> verify
+              identity by default, and it does
+              <span className="font-medium">not</span> assess understanding,
+              consent, or intent.
             </div>
           </div>
 
           {/* Right-side: principles panel */}
           <div className="relative">
-            <div className="pointer-events-none absolute -inset-6 rounded-[28px] bg-linear-to-br from-zinc-200/60 via-transparent to-zinc-200/60 blur-2xl dark:from-zinc-800/40 dark:to-zinc-800/40" />
-            <div className="relative rounded-[28px] border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-950 md:p-8">
-              <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            <div className="pointer-events-none absolute -inset-6 rounded-[28px] bg-linear-to-br from-black/10 via-transparent to-black/10 blur-2xl dark:from-white/10 dark:to-white/8" />
+            <div className="relative rounded-[28px] border border-[var(--mk-border)] bg-[var(--mk-surface)] p-6 shadow-xl  md:p-8">
+              <div className="text-sm font-semibold text-[var(--mk-fg)]">
                 Security posture
               </div>
-              <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                Receipt is designed around a simple idea: do less, but do it cleanly, and make the
-                output useful.
+              <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
+                Receipt is designed around a simple idea: do less, but do it
+                cleanly, and make the output useful.
               </div>
 
               <div className="mt-6 space-y-4">
@@ -149,9 +141,10 @@ export default function SecurityPage() {
                 />
               </div>
 
-              <div className="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-xs leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
-                If you need identity verification, signing, or advanced compliance workflows, Receipt
-                should sit alongside those tools, not pretend to replace them.
+              <div className="mt-6 rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] p-4 text-xs leading-relaxed text-[var(--mk-muted)]  ">
+                If you need identity verification, signing, or advanced
+                compliance workflows, Receipt should sit alongside those tools,
+                not pretend to replace them.
               </div>
             </div>
           </div>
@@ -180,12 +173,13 @@ export default function SecurityPage() {
                 </svg>
               </IconCircle>
               <div>
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                <div className="text-sm font-semibold text-[var(--mk-fg)]">
                   Minimal claims
                 </div>
-                <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  Receipt records observable events. It doesn’t assert understanding, intent, or
-                  consent, because those aren’t observable.
+                <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
+                  Receipt records observable events. It doesn’t assert
+                  understanding, intent, or consent, because those aren’t
+                  observable.
                 </div>
               </div>
             </div>
@@ -222,12 +216,13 @@ export default function SecurityPage() {
                 </svg>
               </IconCircle>
               <div>
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                <div className="text-sm font-semibold text-[var(--mk-fg)]">
                   Optional IP logging
                 </div>
-                <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  Where enabled, Receipt can store IP and user-agent data for access events. Leave it
-                  off when it’s not appropriate for your context.
+                <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
+                  Where enabled, Receipt can store IP and user-agent data for
+                  access events. Leave it off when it’s not appropriate for your
+                  context.
                 </div>
               </div>
             </div>
@@ -252,12 +247,12 @@ export default function SecurityPage() {
                 </svg>
               </IconCircle>
               <div>
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                <div className="text-sm font-semibold text-[var(--mk-fg)]">
                   Document integrity
                 </div>
-                <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  Document hashing helps you evidence what was actually sent and reviewed, useful
-                  when versions change.
+                <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
+                  Document hashing helps you evidence what was actually sent and
+                  reviewed, useful when versions change.
                 </div>
               </div>
             </div>
@@ -267,12 +262,13 @@ export default function SecurityPage() {
         {/* What we record / what we don't */}
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card title="What Receipt records" subtle>
-            <div className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-              Receipt is built around a small set of facts. Typical fields include:
+            <div className="text-sm leading-relaxed text-[var(--mk-muted)]">
+              Receipt is built around a small set of facts. Typical fields
+              include:
             </div>
 
-            <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-              <div className="font-semibold text-zinc-900 dark:text-zinc-100">Fields</div>
+            <div className="mt-4 rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-4 text-xs leading-relaxed text-[var(--mk-muted)]  ">
+              <div className="font-semibold text-[var(--mk-fg)]">Fields</div>
               <div className="mt-2 space-y-1">
                 <div>• delivered_at / first_opened_at</div>
                 <div>• max_scroll_percent</div>
@@ -283,9 +279,9 @@ export default function SecurityPage() {
               </div>
             </div>
 
-            <div className="mt-4 text-[12px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-              You control what you store and how long you keep it, align this with your internal
-              policies and your Privacy notice.
+            <div className="mt-4 text-[12px] leading-relaxed text-[var(--mk-muted)]">
+              You control what you store and how long you keep it, align this
+              with your internal policies and your Privacy notice.
             </div>
           </Card>
 
@@ -311,12 +307,12 @@ export default function SecurityPage() {
               ].map((x) => (
                 <div
                   key={x.t}
-                  className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                  className="rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-4 shadow-sm "
                 >
-                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  <div className="text-sm font-semibold text-[var(--mk-fg)]">
                     {x.t}
                   </div>
-                  <div className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                  <div className="mt-1 text-sm leading-relaxed text-[var(--mk-muted)]">
                     {x.b}
                   </div>
                 </div>
@@ -326,27 +322,28 @@ export default function SecurityPage() {
         </div>
 
         {/* Data handling CTA */}
-        <div className="mt-10 rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 p-6 shadow-sm dark:border-zinc-800 dark:from-zinc-950 dark:to-zinc-900/30 md:p-8">
+        <div className="mt-10 rounded-3xl border border-[var(--mk-border)] bg-linear-to-b bg-[var(--mk-surface-alt)] p-6 shadow-sm  md:p-8">
           <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
             <div className="max-w-2xl">
               <div className="text-lg font-semibold tracking-tight">
                 Data handling & retention
               </div>
-              <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                What you store (and for how long) should match your internal policies. Our Privacy
-                page covers personal data and retention at a high level.
+              <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
+                What you store (and for how long) should match your internal
+                policies. Our Privacy page covers personal data and retention at
+                a high level.
               </div>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
               <a
                 href="/privacy"
-                className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 dark:bg-white dark:text-zinc-950"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-primary px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 Read privacy
               </a>
               <a
                 href="/terms"
-                className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900/50"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-secondary px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 Read terms
               </a>
