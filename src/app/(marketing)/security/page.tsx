@@ -1,13 +1,5 @@
 // src/app/(marketing)/security/page.tsx
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-md border border-[var(--mk-border)] bg-[var(--mk-surface)] px-3 py-1 text-xs font-medium text-[var(--mk-muted)] shadow-sm  ">
-      {children}
-    </span>
-  );
-}
-
 function Card({
   title,
   children,
@@ -20,10 +12,10 @@ function Card({
   return (
     <div
       className={[
-        "rounded-3xl border p-6 shadow-sm md:p-8",
+        "rounded-3xl border border-[var(--mk-border)] p-6 shadow-sm md:p-8",
         subtle
-          ? "bg-[var(--mk-border)] bg-[var(--mk-surface-soft)] "
-          : "bg-[var(--mk-border)] bg-[var(--mk-surface)] ",
+          ? "bg-[var(--mk-surface-soft)]"
+          : "bg-[var(--mk-surface)]",
       ].join(" ")}
     >
       {title ? (
@@ -36,7 +28,7 @@ function Card({
 
 function IconCircle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface)] text-[var(--mk-fg)] shadow-sm  ">
+    <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--mk-surface-soft)] text-[var(--mk-accent)]">
       {children}
     </div>
   );
@@ -69,31 +61,26 @@ export default function SecurityPage() {
       <section className="mx-auto max-w-6xl px-6 pt-14 pb-10">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-start">
           <div>
-            <div className="flex flex-wrap gap-2">
-              <Badge>Neutral by design</Badge>
-              <Badge>Optional IP logging</Badge>
-              <Badge>Version hashing</Badge>
-            </div>
 
             <div className="mt-6 text-xs font-semibold tracking-widest text-[var(--mk-muted)]">
               SECURITY
             </div>
 
             <h1 className="marketing-hero mt-2 text-4xl sm:text-5xl">
-              Calm security.
-              <span className="text-[var(--mk-accent)]">{" "}Clear boundaries.</span>
+              Security you can <span className="text-[var(--mk-accent)]">trust.</span>
             </h1>
 
             <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--mk-muted)]">
-              Receipt is built to be a focused utility: it records document
-              access, review activity, and acknowledgement, then produces a
-              file-ready record. No analysis. No inference. No magical claims.
+              Your data is protected with GDPR-compliant infrastructure
+              providers, with encryption in transit and at rest. Receipt
+              records document access, review activity, and acknowledgement in a
+              focused, file-ready format without over-claiming what that means.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <a
                 href="/privacy"
-                className="inline-flex items-center justify-center rounded-full marketing-cta-primary px-6 py-3 text-sm font-semibold shadow-sm"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-primary marketing-cta-primary-sans px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 Read privacy
               </a>
@@ -122,18 +109,22 @@ export default function SecurityPage() {
                 Security posture
               </div>
               <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
-                Receipt is designed around a simple idea: do less, but do it
-                cleanly, and make the output useful.
+                Receipt is designed to protect data by default while keeping a
+                clear, auditable record model for operational use.
               </div>
 
               <div className="mt-6 space-y-4">
                 <DotRow
-                  title="Minimise data"
-                  body="Record only what’s needed to evidence access and acknowledgement."
+                  title="Protect data end to end"
+                  body="Data is encrypted in transit and encrypted at rest across our core infrastructure."
                 />
                 <DotRow
-                  title="Stay neutral"
-                  body="No “read and understood”, no “consented”, no guesswork."
+                  title="Use GDPR-compliant providers"
+                  body="Our infrastructure stack is built on providers aligned with GDPR requirements."
+                />
+                <DotRow
+                  title="Minimise data"
+                  body="Record only what’s needed to evidence access and acknowledgement."
                 />
                 <DotRow
                   title="Make it exportable"
@@ -174,12 +165,12 @@ export default function SecurityPage() {
               </IconCircle>
               <div>
                 <div className="text-sm font-semibold text-[var(--mk-fg)]">
-                  Minimal claims
+                  Encrypted end to end
                 </div>
                 <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
-                  Receipt records observable events. It doesn’t assert
-                  understanding, intent, or consent, because those aren’t
-                  observable.
+                  Data is encrypted in transit and at rest across GDPR-compliant
+                  infrastructure providers. Protection is applied by default,
+                  not as an optional setting.
                 </div>
               </div>
             </div>
@@ -217,12 +208,12 @@ export default function SecurityPage() {
               </IconCircle>
               <div>
                 <div className="text-sm font-semibold text-[var(--mk-fg)]">
-                  Optional IP logging
+                  Mandatory network audit trail
                 </div>
                 <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
-                  Where enabled, Receipt can store IP and user-agent data for
-                  access events. Leave it off when it’s not appropriate for your
-                  context.
+                  IP address and user-agent are recorded for every access and
+                  acknowledgement event, giving your team a consistent forensic
+                  trail for investigations and compliance review.
                 </div>
               </div>
             </div>
@@ -248,11 +239,11 @@ export default function SecurityPage() {
               </IconCircle>
               <div>
                 <div className="text-sm font-semibold text-[var(--mk-fg)]">
-                  Document integrity
+                  Version-locked evidence
                 </div>
                 <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
-                  Document hashing helps you evidence what was actually sent and
-                  reviewed, useful when versions change.
+                  Every event is tied to a document hash and version, so you can
+                  prove exactly what was delivered, reviewed, and acknowledged.
                 </div>
               </div>
             </div>
@@ -270,12 +261,14 @@ export default function SecurityPage() {
             <div className="mt-4 rounded-2xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-4 text-xs leading-relaxed text-[var(--mk-muted)]  ">
               <div className="font-semibold text-[var(--mk-fg)]">Fields</div>
               <div className="mt-2 space-y-1">
-                <div>• delivered_at / first_opened_at</div>
-                <div>• max_scroll_percent</div>
-                <div>• time_on_page_seconds</div>
-                <div>• acknowledgement + submitted_at</div>
-                <div>• (optional) ip + user_agent</div>
-                <div>• document hash / version</div>
+                <div>• Delivery time</div>
+                <div>• First open time</div>
+                <div>• Maximum scroll depth</div>
+                <div>• Time spent on page</div>
+                <div>• Acknowledgement status</div>
+                <div>• Acknowledgement submission time</div>
+                <div>• IP address and user agent</div>
+                <div>• Document hash and version</div>
               </div>
             </div>
 
@@ -337,7 +330,7 @@ export default function SecurityPage() {
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
               <a
                 href="/privacy"
-                className="inline-flex items-center justify-center rounded-full marketing-cta-primary px-6 py-3 text-sm font-semibold shadow-sm"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-primary marketing-cta-primary-sans px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 Read privacy
               </a>
