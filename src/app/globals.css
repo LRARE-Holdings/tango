@@ -152,6 +152,12 @@ body {
   letter-spacing: -0.01em;
 }
 
+.marketing-cta-primary-sans {
+  font-family: var(--font-sans), "Inter", sans-serif;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
 .marketing-cta-primary:hover {
   border-color: var(--mk-accent);
   color: var(--mk-accent);

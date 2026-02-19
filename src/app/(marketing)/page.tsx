@@ -50,7 +50,7 @@ const FEATURES = [
 ] as const;
 
 const PRIMARY_CTA_CLASS =
-  "focus-ring inline-flex h-11 items-center justify-center rounded-full marketing-cta-primary px-8 text-sm font-semibold shadow-sm";
+  "focus-ring inline-flex h-11 items-center justify-center rounded-full marketing-cta-primary marketing-cta-primary-sans px-8 text-sm font-semibold shadow-sm";
 
 export default async function Home({
   searchParams,
@@ -146,25 +146,25 @@ export default async function Home({
             THE PROBLEM
           </div>
           <h2 className="marketing-serif mt-3 text-4xl sm:text-5xl">
-            "It&apos;s on the intranet"
+            &quot;I sent it&quot;
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-[var(--mk-muted)] sm:text-base">
-            Intranets are great for sharing. But when regulators or stakeholders
-            ask whether a document was actually acknowledged, "it was available"
-            is not proof. Receipt bridges that gap with a neutral, verifiable
-            record.
+            Sending the email is only step one. When regulators or stakeholders
+            ask whether a document was actually acknowledged, proof of sending
+            alone is not proof of review. Receipt bridges that gap with a
+            neutral, verifiable record.
           </p>
         </div>
 
         <div className="rounded-3xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-6 shadow-sm">
           <div className="rounded-xl bg-[var(--mk-surface-soft)] px-4 py-3 text-xs text-[var(--mk-muted)]">
-            company-intranet.com/policies
+            Inbox • compliance@company.com
           </div>
           <div className="mt-3 space-y-3">
             {[
               "AML Policy v4.2",
-              "Data Protection Guidelines",
-              "Conduct & Ethics Code",
+              "Employee Handbook",
+              "FCA Regulation Update",
             ].map((item) => (
               <div
                 key={item}
@@ -175,7 +175,7 @@ export default async function Home({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-[#fef4c7] px-2.5 py-1 text-[11px] font-semibold text-[#b4540a]">
-                    Uploaded
+                    Sent
                   </span>
                   <span className="text-sm text-[var(--mk-muted)]">?</span>
                 </div>
@@ -221,7 +221,7 @@ export default async function Home({
           <span className="text-[var(--mk-accent)]">Start knowing.</span>
         </h2>
         <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-[var(--mk-muted)]">
-          Move beyond "it&apos;s on the intranet" to verifiable proof of
+          Move beyond &quot;I sent it&quot; to verifiable proof of
           document acknowledgement.
         </p>
         <Link
