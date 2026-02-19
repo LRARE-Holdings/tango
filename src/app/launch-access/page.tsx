@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 
 function getSafeNextFromHref(href: string) {
   try {
@@ -14,7 +13,6 @@ function getSafeNextFromHref(href: string) {
 }
 
 export default function LaunchAccessPage() {
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +40,7 @@ export default function LaunchAccessPage() {
       });
       const json = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(json?.error || "Could not unlock access.");
-      router.replace(nextPath);
+      window.location.replace(nextPath);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Could not unlock access.");
     } finally {
