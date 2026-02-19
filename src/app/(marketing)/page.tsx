@@ -48,6 +48,9 @@ const FEATURES = [
   },
 ] as const;
 
+const PRIMARY_CTA_CLASS =
+  "inline-flex h-11 items-center justify-center rounded-full marketing-cta-primary px-8 text-sm font-semibold shadow-sm";
+
 export default async function Home({
   searchParams,
 }: {
@@ -77,37 +80,36 @@ export default async function Home({
         <div className="absolute inset-0 marketing-glow" />
       </div>
 
-      <section className="mx-auto max-w-6xl px-6 pt-16 pb-10 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full marketing-badge px-4 py-2 text-xs font-semibold">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--mk-accent)]" />
-          Document acknowledgement, simplified
-        </div>
-        <h1 className="marketing-hero mx-auto mt-6 max-w-4xl text-5xl sm:text-6xl lg:text-7xl">
-          Certainty,{" "}
-          <TypewriterText
-            text="delivered."
-            className="text-[var(--mk-accent)]"
-            loop={false}
-          />
-        </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-[var(--mk-muted)] sm:text-lg">
-          Clear proof of delivery, review activity and acknowledgement for
-          policies, procedures and client documents, without e-signature
-          overhead.
-        </p>
-        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a
-            href="/get-started"
-            className="inline-flex items-center justify-center rounded-full marketing-cta-primary px-7 py-3 text-sm font-semibold shadow-sm"
-          >
-            Get started
-          </a>
-          <a
-            href="/product"
-            className="inline-flex items-center justify-center rounded-full marketing-cta-secondary px-7 py-3 text-sm font-semibold shadow-sm"
-          >
-            See product
-          </a>
+      <section className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-6xl items-center px-6 py-20 text-center">
+        <div className="mx-auto flex max-w-4xl flex-col items-center gap-10 sm:gap-12">
+          <div className="inline-flex items-center gap-2 rounded-full marketing-badge px-4 py-2 text-xs font-semibold">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--mk-accent)]" />
+            Document acknowledgement, simplified
+          </div>
+          <h1 className="marketing-hero max-w-4xl text-5xl sm:text-6xl lg:text-7xl">
+            Certainty,{" "}
+            <TypewriterText
+              text="delivered."
+              className="text-[var(--mk-accent)]"
+              loop={false}
+            />
+          </h1>
+          <p className="max-w-2xl text-base leading-relaxed text-[var(--mk-muted)] sm:text-lg">
+            Clear proof of delivery, review activity and acknowledgement for
+            policies, procedures and client documents, without e-signature
+            overhead.
+          </p>
+          <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <a href="/get-started" className={PRIMARY_CTA_CLASS}>
+              Get started
+            </a>
+            <a
+              href="/product"
+              className="inline-flex h-11 items-center justify-center rounded-full marketing-cta-secondary px-8 text-sm font-semibold shadow-sm"
+            >
+              See product
+            </a>
+          </div>
         </div>
       </section>
 
@@ -215,7 +217,7 @@ export default async function Home({
         <h2 className="marketing-serif text-5xl sm:text-6xl">
           Stop guessing.
           <br />
-          Start knowing.
+          <span className="text-[var(--mk-accent)]">Start knowing.</span>
         </h2>
         <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-[var(--mk-muted)]">
           Move beyond "it&apos;s on the intranet" to verifiable proof of
@@ -223,7 +225,7 @@ export default async function Home({
         </p>
         <a
           href="/get-started"
-          className="mt-8 inline-flex items-center justify-center rounded-full marketing-cta-primary px-7 py-3 text-sm font-semibold shadow-sm"
+          className={`mt-8 ${PRIMARY_CTA_CLASS}`}
         >
           Get started
         </a>
