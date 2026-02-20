@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 type Mode = "signin" | "signup";
 
 function getSafeNextFromHref(href: string) {
   try {
     const url = new URL(href);
-    const next = url.searchParams.get("next") || "/app";
-    return next.startsWith("/") ? next : "/app";
+    return safeInternalPath(url.searchParams.get("next"), "/app");
   } catch {
     return "/app";
   }

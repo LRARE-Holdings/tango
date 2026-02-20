@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { accessCookieName, accessTokenFor, readCookie } from "@/lib/public-access";
+import {
+  accessCookieName,
+  accessTokenFor,
+  constantTimeEquals,
+  readCookie,
+} from "@/lib/public-access";
 import { verifyPassword } from "@/lib/password";
 
 type DocRow = {
@@ -159,7 +164,7 @@ export async function GET(
   return NextResponse.json({
     title: doc.title ?? "Document",
     requires_password: true,
-    access_granted: cookieValue === expected,
+    access_granted: constantTimeEquals(cookieValue, expected),
   });
 }
 

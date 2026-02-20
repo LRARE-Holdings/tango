@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 function getSafeNextFromHref(href: string) {
   try {
     const url = new URL(href);
-    const next = url.searchParams.get("next") || "/onboarding";
-    return next.startsWith("/") ? next : "/onboarding";
+    return safeInternalPath(url.searchParams.get("next"), "/onboarding");
   } catch {
     return "/onboarding";
   }

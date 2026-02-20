@@ -3,10 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-
-function isSafeNext(next: string | null) {
-  return !!next && next.startsWith("/") && !next.startsWith("//");
-}
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 type SupabaseAuthCompat = {
   exchangeCodeForSession?: (code: string) => Promise<{ error: Error | null }>;
@@ -50,8 +47,7 @@ export default function PasswordResetPage() {
       try {
         const url = new URL(window.location.href);
 
-        const nextRaw = url.searchParams.get("next");
-        const redirectTo = isSafeNext(nextRaw) ? nextRaw! : "/app";
+        const redirectTo = safeInternalPath(url.searchParams.get("next"), "/app");
 
         // 1) PKCE flow: /auth/reset?code=...
         const code = url.searchParams.get("code");

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 type VerifyOtpType = "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "email";
 
@@ -35,7 +36,7 @@ export default function AuthConfirmPage() {
 
         const next = url.searchParams.get("next") || url.searchParams.get("redirect_to");
         const firstName = (url.searchParams.get("first_name") || "").trim();
-        const redirectTo = next && next.startsWith("/") ? next : "/app";
+        const redirectTo = safeInternalPath(next, "/app");
 
         // 1) New-style links often use token_hash + type (magiclink / recovery / invite)
         const token_hash = url.searchParams.get("token_hash");

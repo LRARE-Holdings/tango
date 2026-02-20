@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { accessCookieName, accessTokenFor, readCookie } from "@/lib/public-access";
+import {
+  accessCookieName,
+  accessTokenFor,
+  constantTimeEquals,
+  readCookie,
+} from "@/lib/public-access";
 import { sendWithResend } from "@/lib/email/resend";
 
 /**
@@ -242,7 +247,7 @@ export async function POST(
     const cookieName = accessCookieName(publicId);
     const cookieValue = readCookie(req.headers.get("cookie"), cookieName);
     const expected = accessTokenFor(publicId, String(doc?.password_hash));
-    if (!cookieValue || cookieValue !== expected) {
+    if (!constantTimeEquals(cookieValue, expected)) {
       return NextResponse.json({ error: "Password required" }, { status: 403 });
     }
   }

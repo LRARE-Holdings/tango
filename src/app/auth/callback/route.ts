@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") || url.searchParams.get("redirect_to");
   const firstName = (url.searchParams.get("first_name") || "").trim();
-  const redirectTo = next && next.startsWith("/") ? next : "/app";
+  const redirectTo = safeInternalPath(next, "/app");
   const authError = url.searchParams.get("error_description") || url.searchParams.get("error");
 
   if (authError) {

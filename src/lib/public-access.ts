@@ -24,6 +24,14 @@ export function accessTokenFor(publicId: string, passwordHash: string) {
     .digest("base64url");
 }
 
+export function constantTimeEquals(a: string | null | undefined, b: string | null | undefined) {
+  if (!a || !b) return false;
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
 export function readCookie(cookieHeader: string | null, name: string) {
   if (!cookieHeader) return null;
   const entries = cookieHeader.split(";");
