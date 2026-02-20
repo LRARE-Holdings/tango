@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { safeInternalPath } from "@/lib/safe-redirect";
 
@@ -106,9 +107,17 @@ export default function AuthConfirmPage() {
   return (
     <main className="min-h-screen flex items-center justify-center px-6 py-10">
       <div
-        className="w-full max-w-md space-y-3 border p-6 text-center md:p-7"
+        className="relative w-full max-w-md space-y-3 border p-6 text-center md:p-7"
         style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}
       >
+        <Link
+          href="/"
+          aria-label="Exit authentication"
+          className="focus-ring absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border text-lg leading-none transition hover:opacity-85"
+          style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card2)" }}
+        >
+          ×
+        </Link>
         <div className="marketing-serif text-3xl tracking-tight">Signing you in…</div>
         <div className="text-xs" style={{ color: "var(--muted)" }}>
           This should only take a moment.

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AuthFragmentRedirect } from "@/components/auth-fragment-redirect";
-import { TypewriterText } from "@/components/marketing/TypewriterText";
+import { HeroDeliveredWord } from "@/components/marketing/HeroDeliveredWord";
 
 function firstValue(v: string | string[] | undefined) {
   return typeof v === "string" ? v : Array.isArray(v) ? (v[0] ?? null) : null;
@@ -89,11 +89,7 @@ export default async function Home({
           </div>
           <h1 className="marketing-hero max-w-4xl text-5xl sm:text-6xl lg:text-7xl">
             Certainty,{" "}
-            <TypewriterText
-              text="delivered."
-              className="text-[var(--mk-accent)]"
-              loop={false}
-            />
+            <HeroDeliveredWord />
           </h1>
           <p className="max-w-2xl text-base leading-relaxed text-[var(--mk-muted)] sm:text-lg">
             Clear proof of delivery, review activity and acknowledgement for

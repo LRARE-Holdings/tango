@@ -95,7 +95,15 @@ export default function CheckEmailPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6 py-10">
-      <div className="w-full max-w-md border p-6 md:p-7" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}>
+      <div className="relative w-full max-w-md border p-6 md:p-7" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}>
+        <Link
+          href="/"
+          aria-label="Exit authentication"
+          className="focus-ring absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border text-lg leading-none transition hover:opacity-85"
+          style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card2)" }}
+        >
+          ×
+        </Link>
         <div className="space-y-3">
           <div
             className="text-xs font-semibold tracking-widest"
