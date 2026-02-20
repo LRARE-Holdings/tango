@@ -140,7 +140,7 @@ export default function WorkspaceGeneralSettingsPage() {
                 placeholder="acme-legal"
               />
               <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                Public URL preview: {previewSlug ? `getreceipt.xyz/workspaces/${previewSlug}` : "set a slug"}
+                Public URL preview: {previewSlug ? `getreceipt.co/workspaces/${previewSlug}` : "set a slug"}
               </div>
             </div>
           </div>

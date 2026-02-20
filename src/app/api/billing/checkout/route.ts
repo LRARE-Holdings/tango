@@ -103,7 +103,7 @@ export async function POST(req: Request) {
 
     const trialPeriodDays = hasEverSubscribed || hasHadTrial ? undefined : desiredTrialDays;
 
-    const siteUrl = requireEnv("NEXT_PUBLIC_APP_URL"); // should be https://www.getreceipt.xyz
+    const siteUrl = requireEnv("NEXT_PUBLIC_APP_URL"); // should be https://www.getreceipt.co
     const successUrl = `${siteUrl}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${siteUrl}/pricing`;
 

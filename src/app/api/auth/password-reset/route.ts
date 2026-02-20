@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
   // Where the user lands after clicking the reset email
   // (must be allowed in Supabase Auth redirect URLs)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.getreceipt.xyz";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.getreceipt.co";
   const redirectTo = `${baseUrl}/auth/reset`;
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });

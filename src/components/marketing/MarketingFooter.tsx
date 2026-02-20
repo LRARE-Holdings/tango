@@ -87,7 +87,7 @@ export function MarketingFooter() {
               <ul className="space-y-1">
                 <li>
                   <a
-                    href="https://status.getreceipt.xyz"
+                    href="https://status.getreceipt.co"
                     className="marketing-link"
                   >
                     Status

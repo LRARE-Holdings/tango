@@ -4,7 +4,7 @@
  * Smoke tests for critical Receipt endpoints.
  *
  * Usage:
- *   BASE_URL=https://www.getreceipt.xyz node scripts/qa/smoke.mjs
+ *   BASE_URL=https://www.getreceipt.co node scripts/qa/smoke.mjs
  * Optional:
  *   AUTH_COOKIE="sb-access-token=...; sb-refresh-token=..."
  */
@@ -12,7 +12,7 @@
 const baseUrl = (process.env.BASE_URL || "").replace(/\/$/, "");
 
 if (!baseUrl) {
-  console.error("Missing BASE_URL. Example: BASE_URL=https://www.getreceipt.xyz");
+  console.error("Missing BASE_URL. Example: BASE_URL=https://www.getreceipt.co");
   process.exit(1);
 }
 

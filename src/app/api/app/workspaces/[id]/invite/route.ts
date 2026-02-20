@@ -93,7 +93,7 @@ export async function POST(
     // Trigger Supabase invite email (their template)
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL
       ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
-      : "https://www.getreceipt.xyz";
+      : "https://www.getreceipt.co";
     const nextPath = `/app/workspaces/${workspaceId}/dashboard`;
     const redirectTo =
       `${appBaseUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`;

@@ -16,7 +16,7 @@ function getResendApiKey() {
 }
 
 function getFromAddress() {
-  return process.env.RECEIPT_FROM_EMAIL || "Receipt <no-reply@getreceipt.xyz>";
+  return process.env.RECEIPT_FROM_EMAIL || "Receipt <no-reply@getreceipt.co>";
 }
 
 export async function sendWithResend(input: SendEmailInput): Promise<SendEmailResult> {

@@ -75,12 +75,12 @@ function prettyBilling(v: string | null | undefined) {
 
 function appBaseUrl() {
   const raw = (process.env.NEXT_PUBLIC_APP_URL || "").trim();
-  if (!raw) return "https://www.getreceipt.xyz";
+  if (!raw) return "https://www.getreceipt.co";
   try {
     const u = new URL(raw);
     return `${u.protocol}//${u.host}`;
   } catch {
-    return "https://www.getreceipt.xyz";
+    return "https://www.getreceipt.co";
   }
 }
 

@@ -9,10 +9,32 @@ const nextConfig: NextConfig = {
         has: [
           {
             type: "host",
+            value: "getreceipt.co",
+          },
+        ],
+        destination: "https://www.getreceipt.co/:path*",
+        permanent: true,
+      },
+      {
+        source: "/((?!api/).*)",
+        has: [
+          {
+            type: "host",
             value: "getreceipt.xyz",
           },
         ],
-        destination: "https://www.getreceipt.xyz/:path*",
+        destination: "https://www.getreceipt.co/:path*",
+        permanent: true,
+      },
+      {
+        source: "/((?!api/).*)",
+        has: [
+          {
+            type: "host",
+            value: "www.getreceipt.xyz",
+          },
+        ],
+        destination: "https://www.getreceipt.co/:path*",
         permanent: true,
       },
     ];
