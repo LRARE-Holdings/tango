@@ -6,6 +6,7 @@ import {
   constantTimeEquals,
   readCookie,
 } from "@/lib/public-access";
+import { limitPublicSubmit } from "@/lib/rate-limit";
 import { sendWithResend } from "@/lib/email/resend";
 
 /**
@@ -123,6 +124,21 @@ export async function POST(
   ctx: { params: Promise<{ publicId: string }> | { publicId: string } }
 ) {
   const { publicId } = (await ctx.params) as { publicId: string };
+  const rate = await limitPublicSubmit(req, publicId);
+  if (!rate.success) {
+    const retryAfter = rate.reset ? Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000)) : 60;
+    return NextResponse.json(
+      { error: "Too many submissions. Please try again later." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfter),
+          ...(typeof rate.limit === "number" ? { "X-RateLimit-Limit": String(rate.limit) } : {}),
+          ...(typeof rate.remaining === "number" ? { "X-RateLimit-Remaining": String(rate.remaining) } : {}),
+        },
+      }
+    );
+  }
   const admin = supabaseAdmin();
 
   let body: unknown;

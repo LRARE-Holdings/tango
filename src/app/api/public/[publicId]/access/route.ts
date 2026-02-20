@@ -6,6 +6,7 @@ import {
   constantTimeEquals,
   readCookie,
 } from "@/lib/public-access";
+import { limitPublicAccessAttempt } from "@/lib/rate-limit";
 import { verifyPassword } from "@/lib/password";
 
 type DocRow = {
@@ -17,55 +18,6 @@ type DocRow = {
   max_acknowledgers?: number | null;
   closed_at?: string | null;
 };
-
-type AttemptState = {
-  count: number;
-  resetAt: number;
-};
-
-const attemptStore = new Map<string, AttemptState>();
-const WINDOW_MS = 10 * 60 * 1000;
-const MAX_ATTEMPTS = 8;
-
-function getIp(req: Request) {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) {
-    const first = xff.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  return req.headers.get("x-real-ip")?.trim() || req.headers.get("cf-connecting-ip")?.trim() || "unknown";
-}
-
-function attemptKey(req: Request, publicId: string) {
-  return `${publicId}:${getIp(req)}`;
-}
-
-function isBlocked(req: Request, publicId: string) {
-  const key = attemptKey(req, publicId);
-  const state = attemptStore.get(key);
-  if (!state) return false;
-  if (Date.now() > state.resetAt) {
-    attemptStore.delete(key);
-    return false;
-  }
-  return state.count >= MAX_ATTEMPTS;
-}
-
-function markFailed(req: Request, publicId: string) {
-  const key = attemptKey(req, publicId);
-  const now = Date.now();
-  const current = attemptStore.get(key);
-  if (!current || now > current.resetAt) {
-    attemptStore.set(key, { count: 1, resetAt: now + WINDOW_MS });
-    return;
-  }
-  current.count += 1;
-  attemptStore.set(key, current);
-}
-
-function clearAttempts(req: Request, publicId: string) {
-  attemptStore.delete(attemptKey(req, publicId));
-}
 
 function isMissingPasswordColumnError(error: { code?: string; message?: string } | null | undefined) {
   if (!error) return false;
@@ -192,8 +144,20 @@ export async function POST(
     return NextResponse.json({ ok: true, requires_password: false });
   }
 
-  if (isBlocked(req, publicId)) {
-    return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
+  const rate = await limitPublicAccessAttempt(req, publicId);
+  if (!rate.success) {
+    const retryAfter = rate.reset ? Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000)) : 60;
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfter),
+          ...(typeof rate.limit === "number" ? { "X-RateLimit-Limit": String(rate.limit) } : {}),
+          ...(typeof rate.remaining === "number" ? { "X-RateLimit-Remaining": String(rate.remaining) } : {}),
+        },
+      }
+    );
   }
 
   const body = (await req.json().catch(() => null)) as { password?: string } | null;
@@ -201,11 +165,8 @@ export async function POST(
 
   const ok = await verifyPassword(password, String(doc.password_hash));
   if (!ok) {
-    markFailed(req, publicId);
     return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
   }
-
-  clearAttempts(req, publicId);
 
   const token = accessTokenFor(publicId, String(doc.password_hash));
   const res = NextResponse.json({ ok: true, requires_password: true });
