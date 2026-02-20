@@ -183,7 +183,7 @@ export default async function Home({
             ))}
           </div>
           <div className="mt-3 rounded-xl bg-[#fffbeb] px-4 py-3 text-center text-xs font-semibold text-[#b4540a]">
-            Available ≠ Acknowledged
+            Sent ≠ Seen
           </div>
         </div>
       </section>
