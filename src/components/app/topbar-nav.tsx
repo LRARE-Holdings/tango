@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { PlanMenu } from "@/components/app/plan-menu";
 import { SettingsCog } from "@/components/app/settings-cog";
-import { canAccessAdminSettings, canAccessKeySettings, canViewAnalytics } from "@/lib/workspace-permissions";
+import { canAccessAdminSettings, canAccessKeySettings, canUseStackDelivery, canViewAnalytics } from "@/lib/workspace-permissions";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 type WorkspaceRole = "owner" | "admin" | "member";
@@ -96,11 +96,25 @@ export function TopbarNav({
         activePlan
       )
   );
+  const showStacks = Boolean(
+    idForLinks &&
+      canUseStackDelivery(
+        currentMember
+          ? {
+              role: currentMember.role,
+              license_active: currentMember.license_active !== false,
+              can_view_analytics: currentMember.can_view_analytics === true,
+            }
+          : null,
+        activePlan
+      )
+  );
 
   const items = [
     { href: homeHref, label: "Home" },
     { href: sendHref, label: "Send" },
     { href: filesHref, label: "Files" },
+    ...(showStacks && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/stacks`, label: "Stacks" }] : []),
     ...(showAnalytics && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/analytics`, label: "Analytics" }] : []),
   ];
 
