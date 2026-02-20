@@ -36,6 +36,7 @@ export default async function WorkspaceSettingsLayout({
   const navItems = [
     { href: `/app/workspaces/${id}/settings`, label: "Overview" },
     { href: `/app/workspaces/${id}/settings/general`, label: "General" },
+    { href: `/app/workspaces/${id}/settings/branding`, label: "Branding" },
     { href: `/app/workspaces/${id}/settings/members`, label: "Members" },
     { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
     { href: `/app/workspaces/${id}/settings/policy`, label: "Policy mode" },
