@@ -20,9 +20,9 @@ type AnalyticsPayload = {
 function fmtDuration(seconds: number | null) {
   if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "—";
   const s = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}m ${String(r).padStart(2, "0")}s`;
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  return `${days}d ${hours}h`;
 }
 
 export default function WorkspaceAnalyticsPage() {
