@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
 import { useToast } from "@/components/toast";
@@ -14,8 +15,27 @@ import { RouteTransitionOverlay } from "@/components/app/route-transition-overla
 type MeSummary = {
   email?: string | null;
   plan?: string | null;
+  workspace_plan?: string | null;
   primary_workspace_id?: string | null;
 };
+
+type WorkspaceBrandSummary = {
+  name: string | null;
+  hasLogo: boolean;
+  logoUrl: string | null;
+};
+
+function normalizePlan(input: string | null | undefined) {
+  const value = String(input ?? "").trim().toLowerCase();
+  if (value === "team" || value === "enterprise") return value;
+  if (value === "pro" || value === "personal" || value === "free") return value;
+  return "free";
+}
+
+function extractWorkspaceIdentifier(pathname: string) {
+  const match = pathname.match(/^\/app\/workspaces\/([^/]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
 
 function PrimaryCta({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -65,10 +85,12 @@ function InviteReconcileNotifier() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => supabaseBrowser(), []);
+  const pathname = usePathname();
 
   const [me, setMe] = useState<MeSummary | null>(null);
   const [meLoading, setMeLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [workspaceBrand, setWorkspaceBrand] = useState<WorkspaceBrandSummary | null>(null);
 
   useEffect(() => {
     async function loadMe() {
@@ -92,6 +114,62 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     loadMe();
   }, [supabase]);
+
+  const contextWorkspaceIdentifier = useMemo(() => {
+    const fromPath = extractWorkspaceIdentifier(pathname);
+    return fromPath ?? (me?.primary_workspace_id ? String(me.primary_workspace_id) : null);
+  }, [pathname, me?.primary_workspace_id]);
+
+  const activePlan = normalizePlan(me?.workspace_plan ?? me?.plan);
+  const useWorkspaceBrand = Boolean(
+    contextWorkspaceIdentifier && (activePlan === "team" || activePlan === "enterprise")
+  );
+
+  useEffect(() => {
+    let active = true;
+    if (!useWorkspaceBrand || !contextWorkspaceIdentifier) {
+      setWorkspaceBrand(null);
+      return () => {
+        active = false;
+      };
+    }
+    const workspaceIdentifier = contextWorkspaceIdentifier;
+
+    async function loadWorkspaceBrand() {
+      try {
+        const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}`, {
+          cache: "no-store",
+        });
+        const json = (await res.json().catch(() => null)) as
+          | {
+              workspace?: {
+                name?: string | null;
+                brand_logo_path?: string | null;
+                brand_logo_updated_at?: string | null;
+              };
+            }
+          | null;
+        if (!active || !res.ok) return;
+        const name = String(json?.workspace?.name ?? "").trim() || null;
+        const hasLogo = Boolean(json?.workspace?.brand_logo_path);
+        const logoUrl = hasLogo
+          ? `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/branding/logo/view${
+              json?.workspace?.brand_logo_updated_at
+                ? `?v=${encodeURIComponent(String(json.workspace.brand_logo_updated_at))}`
+                : ""
+            }`
+          : null;
+        setWorkspaceBrand({ name, hasLogo, logoUrl });
+      } catch {
+        if (active) setWorkspaceBrand(null);
+      }
+    }
+
+    void loadWorkspaceBrand();
+    return () => {
+      active = false;
+    };
+  }, [contextWorkspaceIdentifier, useWorkspaceBrand]);
 
   useEffect(() => {
     let active = true;
@@ -183,6 +261,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         @media (prefers-color-scheme: dark) {
           .receipt-logo { filter: invert(1) hue-rotate(180deg); }
         }
+        .workspace-brand-logo {
+          height: 28px;
+          width: auto;
+          max-width: 240px;
+          display: block;
+        }
+        .workspace-brand-text {
+          font-size: 20px;
+          line-height: 1;
+          letter-spacing: -0.01em;
+          font-weight: 600;
+        }
       `}</style>
 
       <div className="app-shell min-h-screen">
@@ -194,7 +284,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
                   <Link href={dashboardHref} className="flex items-center">
-                    <Image src="/receipt-logo.svg" alt="Receipt" width={104} height={26} className="receipt-logo" priority />
+                    {useWorkspaceBrand ? (
+                      workspaceBrand?.logoUrl ? (
+                        // Use browser image request to preserve authenticated cookie access for brand endpoint.
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={workspaceBrand.logoUrl}
+                          alt={workspaceBrand.name ? `${workspaceBrand.name} logo` : "Workspace logo"}
+                          className="workspace-brand-logo"
+                          onError={() => setWorkspaceBrand((prev) => (prev ? { ...prev, logoUrl: null } : prev))}
+                        />
+                      ) : (
+                        <span className="workspace-brand-text">{workspaceBrand?.name ?? "Workspace"}</span>
+                      )
+                    ) : (
+                      <Image src="/receipt-logo.svg" alt="Receipt" width={104} height={26} className="receipt-logo" priority />
+                    )}
                   </Link>
                 </div>
 

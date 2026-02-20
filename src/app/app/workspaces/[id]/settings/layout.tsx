@@ -47,13 +47,7 @@ export default async function WorkspaceSettingsLayout({
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <div className="app-section-kicker">
-            WORKSPACE SETTINGS
-          </div>
-          <h1 className="app-hero-title mt-1 text-3xl md:text-4xl">Workspace admin</h1>
-          <div className="text-sm mt-2" style={{ color: "var(--muted)" }}>
-            Core configuration for this workspace.
-          </div>
+          <h1 className="app-hero-title mt-1 text-3xl md:text-4xl">Settings</h1>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -73,23 +67,34 @@ export default async function WorkspaceSettingsLayout({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="focus-ring px-3 py-1.5 text-xs font-medium hover:opacity-80"
-            style={{
-              border: "1px solid var(--border)",
-              borderRadius: 999,
-              color: "var(--muted)",
-              background: "color-mix(in srgb, var(--card2) 45%, #fff)",
-            }}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
+      <details
+        className="rounded-xl border p-3"
+        style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--card) 88%, transparent)" }}
+      >
+        <summary
+          className="focus-ring cursor-pointer list-none select-none text-sm font-medium"
+          style={{ color: "var(--muted)" }}
+        >
+          Workspace sections
+        </summary>
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="focus-ring px-3 py-1.5 text-xs font-medium hover:opacity-90"
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 999,
+                color: "var(--muted)",
+                background: "color-mix(in srgb, var(--bg) 86%, var(--card2))",
+              }}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      </details>
 
       {children}
     </div>
