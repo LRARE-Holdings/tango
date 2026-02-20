@@ -106,7 +106,7 @@ export async function GET(
     .select("id,title,public_id,file_path,created_at,workspace_id,tags,current_version_id,version_count")
     .eq("id", id)
     .maybeSingle();
-  let doc = withTags.data;
+  let doc = withTags.data as DocumentRow | null;
   let docErr = withTags.error;
   if (docErr && isMissingColumnError(docErr, "tags")) {
     const fallback = await supabase
@@ -114,7 +114,7 @@ export async function GET(
       .select("id,title,public_id,file_path,created_at,workspace_id,current_version_id,version_count")
       .eq("id", id)
       .maybeSingle();
-    doc = fallback.data as any;
+    doc = fallback.data as DocumentRow | null;
     docErr = fallback.error;
   }
 

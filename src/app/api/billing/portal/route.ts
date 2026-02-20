@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing STRIPE_SECRET_KEY" }, { status: 500 });
     }
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2024-06-20" as any });
+    const stripe = new Stripe(stripeKey, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion });
 
     const user = userData.user;
     const admin = supabaseAdmin();
@@ -63,10 +63,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ url: session.url }, { status: 200 });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to create billing portal session" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to create billing portal session" }, { status: 500 });
   }
 }

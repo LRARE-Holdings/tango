@@ -100,12 +100,16 @@ function statusUi(status: Doc["status"]) {
   return { tone: "warn" as const, label: "Opened" };
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function DocDetailPage({
   params,
 }: {
   params: Promise<{ id: string }> | { id: string };
 }) {
-  const { id } = use(params as any) as { id: string };
+  const { id } = use(params as Promise<{ id: string }>);
   const toast = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -155,8 +159,8 @@ export default function DocDetailPage({
         setDoc(json.document);
         setTagValues((json?.document?.tags ?? {}) as Record<string, string>);
         setCompletions(json.completions ?? []);
-      } catch (e: any) {
-        setError(e?.message ?? "Something went wrong");
+      } catch (error: unknown) {
+        setError(errorMessage(error, "Something went wrong"));
       } finally {
         setLoading(false);
       }
@@ -327,8 +331,8 @@ export default function DocDetailPage({
       URL.revokeObjectURL(url);
 
       toast.success("Downloaded", "JSON evidence saved.");
-    } catch (e: any) {
-      toast.error("Download failed", e?.message ?? "Could not download JSON evidence");
+    } catch (error: unknown) {
+      toast.error("Download failed", errorMessage(error, "Could not download JSON evidence"));
     }
   }
 
@@ -359,8 +363,8 @@ export default function DocDetailPage({
       URL.revokeObjectURL(url);
 
       toast.success("Downloaded", "PDF evidence pack saved.");
-    } catch (e: any) {
-      toast.error("Download failed", e?.message ?? "Could not download PDF evidence pack");
+    } catch (error: unknown) {
+      toast.error("Download failed", errorMessage(error, "Could not download PDF evidence pack"));
     }
   }
 

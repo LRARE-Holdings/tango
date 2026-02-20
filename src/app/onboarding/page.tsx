@@ -7,6 +7,14 @@ import { useRouter } from "next/navigation";
 type UsageIntent = "personal" | "professional" | "team" | "unsure";
 type Frequency = "occasionally" | "weekly" | "daily" | "unsure";
 type TeamSize = "solo" | "2-5" | "6-20" | "20+" | "unsure";
+type ReferralType =
+  | "colleague"
+  | "workplace"
+  | "linkedin"
+  | "twitter"
+  | "google"
+  | "other"
+  | "unknown";
 
 type NeedKey =
   | "prove_opened"
@@ -26,15 +34,7 @@ type Answers = {
   needs: NeedKey[];
   frequency: Frequency | null;
   teamSize: TeamSize | null;
-  referralType:
-    | "colleague"
-    | "workplace"
-    | "linkedin"
-    | "twitter"
-    | "google"
-    | "other"
-    | "unknown"
-    | null;
+  referralType: ReferralType | null;
   referralDetail: string; // optional free text
 };
 
@@ -135,6 +135,10 @@ async function saveOnboarding(payload: {
   }
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
 
@@ -194,7 +198,7 @@ export default function OnboardingPage() {
       return;
     }
 
-    const body: any = {
+    const body: { plan: RecommendedPlan; billing: Billing; seats?: number } = {
       plan,
       billing,
     };
@@ -229,8 +233,8 @@ export default function OnboardingPage() {
 
       // After onboarding, send them into the correct purchase flow.
       await startCheckout(selectedPlan);
-    } catch (e: any) {
-      setError(e?.message ?? "Something went wrong");
+    } catch (error: unknown) {
+      setError(errorMessage(error, "Something went wrong"));
     } finally {
       setSubmitting(false);
     }
@@ -460,7 +464,8 @@ export default function OnboardingPage() {
                     { k: "other", t: "Other" },
                     { k: "unknown", t: "Prefer not to say" },
                   ].map((x) => {
-                    const active = answers.referralType === (x.k as any);
+                    const referralType = x.k as ReferralType;
+                    const active = answers.referralType === referralType;
                     return (
                       <button
                         key={x.k}
@@ -468,7 +473,7 @@ export default function OnboardingPage() {
                         onClick={() =>
                           setAnswers((a) => ({
                             ...a,
-                            referralType: x.k as any,
+                            referralType,
                             referralDetail: x.k === "other" ? a.referralDetail : "",
                           }))
                         }

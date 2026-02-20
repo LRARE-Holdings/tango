@@ -14,6 +14,10 @@ function getSiteUrl() {
   return raw ? raw.replace(/\/$/, "") : window.location.origin;
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export default function CheckEmailPage() {
   const router = useRouter();
   const supabase = supabaseBrowser();
@@ -82,8 +86,8 @@ export default function CheckEmailPage() {
 
       if (error) throw error;
       setSent(true);
-    } catch (e: any) {
-      setError(e?.message ?? "Could not resend email");
+    } catch (error: unknown) {
+      setError(errorMessage(error, "Could not resend email"));
     } finally {
       setSending(false);
     }

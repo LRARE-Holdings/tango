@@ -51,7 +51,7 @@ export function TypewriterText({
     }, RESET_MS);
 
     return () => window.clearTimeout(restartTimer);
-  }, [nextValue, phase, text, value]);
+  }, [loop, nextValue, phase, text, value]);
 
   const showCursor = loop || value !== text;
 

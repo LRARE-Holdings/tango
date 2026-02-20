@@ -8,9 +8,24 @@ function isSafeNext(next: string | null) {
   return !!next && next.startsWith("/") && !next.startsWith("//");
 }
 
+type SupabaseAuthCompat = {
+  exchangeCodeForSession?: (code: string) => Promise<{ error: Error | null }>;
+  setSession?: (tokens: {
+    access_token: string;
+    refresh_token: string;
+  }) => Promise<{ error: Error | null }>;
+  getSession?: () => Promise<{ data: { session: unknown | null }; error: Error | null }>;
+  updateUser: (attrs: { password: string }) => Promise<{ error: Error | null }>;
+};
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export default function PasswordResetPage() {
   const router = useRouter();
   const supabase = supabaseBrowser();
+  const auth = supabase.auth as unknown as SupabaseAuthCompat;
 
   const [ready, setReady] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -40,8 +55,8 @@ export default function PasswordResetPage() {
 
         // 1) PKCE flow: /auth/reset?code=...
         const code = url.searchParams.get("code");
-        if (code && typeof (supabase.auth as any).exchangeCodeForSession === "function") {
-          const { error } = await (supabase.auth as any).exchangeCodeForSession(code);
+        if (code && typeof auth.exchangeCodeForSession === "function") {
+          const { error } = await auth.exchangeCodeForSession(code);
           if (error) throw error;
           setReady(true);
           return;
@@ -56,9 +71,9 @@ export default function PasswordResetPage() {
         if (
           access_token &&
           refresh_token &&
-          typeof (supabase.auth as any).setSession === "function"
+          typeof auth.setSession === "function"
         ) {
-          const { error } = await (supabase.auth as any).setSession({
+          const { error } = await auth.setSession({
             access_token,
             refresh_token,
           });
@@ -71,8 +86,8 @@ export default function PasswordResetPage() {
         }
 
         // 3) Fallback: if they already have a session, allow reset screen anyway
-        if (typeof (supabase.auth as any).getSession === "function") {
-          const { data, error } = await (supabase.auth as any).getSession();
+        if (typeof auth.getSession === "function") {
+          const { data, error } = await auth.getSession();
           if (error) throw error;
           if (data?.session) {
             setReady(true);
@@ -89,14 +104,14 @@ export default function PasswordResetPage() {
 
         // keep redirectTo referenced so lint doesn’t complain if you later use it
         void redirectTo;
-      } catch (e: any) {
-        setBootError(e?.message ?? "Could not start password reset.");
+      } catch (error: unknown) {
+        setBootError(errorMessage(error, "Could not start password reset."));
         setReady(false);
       }
     }
 
     boot();
-  }, [router, supabase]);
+  }, [auth, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -119,8 +134,8 @@ export default function PasswordResetPage() {
       setTimeout(() => {
         router.replace("/app");
       }, 800);
-    } catch (e: any) {
-      setSaveError(e?.message ?? "Could not update password.");
+    } catch (error: unknown) {
+      setSaveError(errorMessage(error, "Could not update password."));
     } finally {
       setSaving(false);
     }

@@ -144,7 +144,7 @@ export async function GET(
       .eq("workspace_id", resolved.id)
       .order("created_at", { ascending: false })
       .limit(250);
-    let docs = withTags.data;
+    let docs = withTags.data as DocRow[] | null;
     let docsErr = withTags.error;
     if (docsErr && isMissingColumnError(docsErr, "tags")) {
       const fallback = await supabase
@@ -153,7 +153,7 @@ export async function GET(
         .eq("workspace_id", resolved.id)
         .order("created_at", { ascending: false })
         .limit(250);
-      docs = fallback.data as any;
+      docs = fallback.data as DocRow[] | null;
       docsErr = fallback.error;
     }
     if (docsErr) throw new Error(docsErr.message);

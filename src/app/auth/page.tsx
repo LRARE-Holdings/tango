@@ -26,6 +26,10 @@ function hardRedirect(path: string) {
   window.location.replace(path);
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export default function AuthPage() {
   const router = useRouter();
   const supabase = supabaseBrowser();
@@ -101,8 +105,8 @@ export default function AuthPage() {
       router.replace(
         `/auth/check-email?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(email)}`
       );
-    } catch (e: any) {
-      setError(e?.message ?? "Could not continue");
+    } catch (error: unknown) {
+      setError(errorMessage(error, "Could not continue"));
     } finally {
       setLoading(false);
     }
@@ -122,8 +126,8 @@ export default function AuthPage() {
       });
       if (oauthErr) throw oauthErr;
       // browser redirects away
-    } catch (e: any) {
-      setError(e?.message ?? "Could not start Google sign-in");
+    } catch (error: unknown) {
+      setError(errorMessage(error, "Could not start Google sign-in"));
       setLoading(false);
     }
   }
@@ -142,8 +146,8 @@ export default function AuthPage() {
       if (resetErr) throw resetErr;
 
       setSentReset(true);
-    } catch (e: any) {
-      setError(e?.message ?? "Could not send reset email");
+    } catch (error: unknown) {
+      setError(errorMessage(error, "Could not send reset email"));
     } finally {
       setLoading(false);
     }

@@ -112,7 +112,7 @@ export default function ProductPage() {
             WHY IT EXISTS
           </div>
           <h2 className="marketing-serif mt-2 text-2xl text-[var(--mk-fg)] sm:text-3xl">
-            Because "we sent it" is not evidence.
+            Because &quot;we sent it&quot; is not evidence.
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-[var(--mk-muted)]">
             Receipt is for moments where you need a clean record, not a debate.

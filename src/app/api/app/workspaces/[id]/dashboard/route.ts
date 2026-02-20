@@ -36,8 +36,22 @@ function isMissingTableError(error: { code?: string; message?: string } | null |
   return String(error.message ?? "").toLowerCase().includes(table.toLowerCase());
 }
 
-function safeIso(s: any): string | null {
+type DashboardCompletion = {
+  document_id: string;
+  acknowledged: boolean | null;
+  submitted_at: string | null;
+  max_scroll_percent: number | null;
+  time_on_page_seconds: number | null;
+  active_seconds: number | null;
+  recipients?:
+    | { name: string | null; email: string | null }
+    | Array<{ name: string | null; email: string | null }>
+    | null;
+};
+
+function safeIso(s: unknown): string | null {
   if (!s) return null;
+  if (typeof s !== "string" && typeof s !== "number" && !(s instanceof Date)) return null;
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
@@ -176,7 +190,7 @@ export async function GET(
     const docsTotal = documents.length;
 
     // Recent completions for those docs
-    let completions: any[] = [];
+    let completions: DashboardCompletion[] = [];
     if (docIds.length > 0) {
       const { data: comps, error: cErr } = await supabase
         .from("completions")
@@ -188,7 +202,7 @@ export async function GET(
         .limit(80);
 
       if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
-      completions = comps ?? [];
+      completions = (comps ?? []) as DashboardCompletion[];
     }
 
     // Aggregate per document
@@ -224,6 +238,7 @@ export async function GET(
 
     const completionEvents: ActivityItem[] = completions.slice(0, 80).map((c) => {
       const doc = docById.get(c.document_id as string);
+      const recipient = normalizeRecipient(c.recipients);
       return {
         type: "completion_submitted",
         at: safeIso(c.submitted_at) ?? new Date().toISOString(),
@@ -234,8 +249,8 @@ export async function GET(
           public_id: doc?.public_id ?? "",
         },
         recipient: {
-          name: c.recipients?.name ?? null,
-          email: c.recipients?.email ?? null,
+          name: recipient?.name ?? null,
+          email: recipient?.email ?? null,
         },
         metrics: {
           max_scroll_percent: typeof c.max_scroll_percent === "number" ? c.max_scroll_percent : null,
@@ -243,7 +258,7 @@ export async function GET(
             typeof c.time_on_page_seconds === "number" ? c.time_on_page_seconds : null,
           active_seconds: typeof c.active_seconds === "number" ? c.active_seconds : null,
         },
-      } as ActivityItem;
+      };
     });
 
     const activity = [...docCreatedEvents, ...completionEvents]
@@ -332,7 +347,17 @@ export async function GET(
       pending: pendingList,
       activity,
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Dashboard failed" }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Dashboard failed" },
+      { status: 500 }
+    );
   }
+}
+function normalizeRecipient(
+  value: DashboardCompletion["recipients"]
+): { name: string | null; email: string | null } | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value;
 }

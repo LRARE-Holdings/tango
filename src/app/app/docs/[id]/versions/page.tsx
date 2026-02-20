@@ -38,7 +38,7 @@ export default function DocumentVersionsPage({
 }: {
   params: Promise<{ id: string }> | { id: string };
 }) {
-  const { id } = use(params as any) as { id: string };
+  const { id } = use(params as Promise<{ id: string }>);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,4 +176,3 @@ export default function DocumentVersionsPage({
     </div>
   );
 }
-

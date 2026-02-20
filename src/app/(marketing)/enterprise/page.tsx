@@ -8,7 +8,9 @@ async function submitEnterpriseEnquiry(formData: FormData) {
     message: String(formData.get("message") ?? ""),
     source: String(formData.get("source") ?? "enterprise"),
     createdAt: new Date().toISOString(),
-  }; // Enquiry handling can be wired to CRM/email without changing this page copy. void payload;
+  };
+  // Enquiry handling can be wired to CRM/email without changing this page copy.
+  void payload;
 }
 export default function EnterprisePage() {
   return (

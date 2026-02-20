@@ -28,7 +28,7 @@ export default function PublicDocPage({
 }: {
   params: Promise<{ publicId: string }> | { publicId: string };
 }) {
-  const { publicId } = use(params as any) as { publicId: string };
+  const { publicId } = use(params as Promise<{ publicId: string }>);
 
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState<string>("Document");
@@ -62,12 +62,12 @@ export default function PublicDocPage({
   const [submitted, setSubmitted] = useState(false);
 
   // We only reveal the final time-on-page after submission (keeps the UI calm)
-  const timeOnPageFinal = useMemo(() => {
+  const timeOnPageFinal = () => {
     const seconds = Math.floor((Date.now() - startedAtRef.current) / 1000);
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m}m ${String(s).padStart(2, "0")}s`;
-  }, [submitted]);
+  };
 
   // Mark user activity
   function markActivity() {
@@ -150,8 +150,8 @@ export default function PublicDocPage({
         setTitle(json.document?.title ?? "Document");
         setRequireRecipientIdentity(Boolean(json.document?.require_recipient_identity));
         setSignedUrl(json.signedUrl ?? "");
-      } catch (e: any) {
-        setError(e?.message ?? "Something went wrong");
+      } catch (error: unknown) {
+        setError(error instanceof Error ? error.message : "Something went wrong");
       } finally {
         setLoading(false);
       }
@@ -230,7 +230,6 @@ export default function PublicDocPage({
         const pdfjs: PdfjsModule = await import("pdfjs-dist");
 
         // Worker setup (uses bundler-resolved URL)
-        // @ts-ignore - pdfjs-dist typing varies by version
         pdfjs.GlobalWorkerOptions.workerSrc = new URL(
           "pdfjs-dist/build/pdf.worker.min.mjs",
           import.meta.url
@@ -281,7 +280,7 @@ export default function PublicDocPage({
             viewport: viewport.clone({ scale: scale * dpr }),
           };
 
-          await page.render(renderContext as any).promise;
+          await page.render(renderContext as unknown as Parameters<typeof page.render>[0]).promise;
         }
 
         // Trigger an initial scroll compute after render
@@ -291,10 +290,10 @@ export default function PublicDocPage({
           const pct = Math.round(Math.min(1, Math.max(0, el.scrollTop / max)) * 100);
           setMaxScroll((prev) => Math.max(prev, pct));
         }
-      } catch (e: any) {
+      } catch (error: unknown) {
         if (!cancelled) {
           setError(
-            e?.message ??
+            (error instanceof Error ? error.message : null) ??
               "Could not render this PDF. If this persists, ask the sender to re-upload."
           );
         }
@@ -339,8 +338,8 @@ export default function PublicDocPage({
       if (!res.ok) throw new Error(json?.error ?? "Submit failed");
 
       setSubmitted(true);
-    } catch (e: any) {
-      setError(e?.message ?? "Something went wrong");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -539,7 +538,7 @@ export default function PublicDocPage({
 
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
               <Stat label="Scroll depth" value={`${maxScroll}%`} />
-              <Stat label="Time on page" value={timeOnPageFinal} />
+              <Stat label="Time on page" value={timeOnPageFinal()} />
               <Stat label="Active time" value={`${activeSeconds}s`} />
               <Stat label="Acknowledged" value="Yes" />
             </div>

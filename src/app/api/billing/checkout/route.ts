@@ -26,6 +26,10 @@ function assertBilling(x: unknown): asserts x is Billing {
   if (x !== "monthly" && x !== "annual") throw new Error("Invalid billing");
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await supabaseServer();
@@ -137,8 +141,8 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ url: session.url }, { status: 200 });
-  } catch (err: any) {
-    console.error("❌ Checkout error:", err);
-    return NextResponse.json({ error: err?.message ?? "Checkout failed" }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("❌ Checkout error:", error);
+    return NextResponse.json({ error: errorMessage(error, "Checkout failed") }, { status: 500 });
   }
 }

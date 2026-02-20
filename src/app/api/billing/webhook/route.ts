@@ -29,7 +29,7 @@ function priceToPlan(priceId: string | null) {
 }
 
 function numField(sub: Stripe.Subscription, key: "current_period_end" | "trial_end") {
-  const v = (sub as any)?.[key];
+  const v = (sub as unknown as Record<string, unknown>)[key];
   return typeof v === "number" ? v : null;
 }
 
@@ -41,8 +41,12 @@ function sessionUserId(session: Stripe.Checkout.Session) {
 }
 
 function subscriptionUserId(sub: Stripe.Subscription) {
-  const v = (sub.metadata as any)?.supabase_user_id;
+  const v = (sub.metadata as Record<string, unknown>)?.supabase_user_id;
   return typeof v === "string" ? v : null;
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function formatMoney(unitAmount: number | null, currency: string | null, quantity: number) {
@@ -218,10 +222,10 @@ export async function POST(request: Request) {
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-  } catch (err: any) {
-    console.error("❌ Webhook signature verification failed:", err?.message ?? err);
+  } catch (error: unknown) {
+    console.error("❌ Webhook signature verification failed:", errorMessage(error, "Unknown error"));
     return NextResponse.json(
-      { error: "Invalid signature", detail: err?.message ?? String(err) },
+      { error: "Invalid signature", detail: errorMessage(error, "Invalid signature") },
       { status: 400 }
     );
   }
@@ -292,7 +296,7 @@ export async function POST(request: Request) {
       if (error) {
         console.error("🔥 Supabase update failed (checkout.session.completed):", error);
         return NextResponse.json(
-          { error: "Supabase update failed", detail: error.message, hint: (error as any).hint },
+          { error: "Supabase update failed", detail: error.message, hint: error.hint ?? undefined },
           { status: 500 }
         );
       }
@@ -363,7 +367,7 @@ export async function POST(request: Request) {
       if (error) {
         console.error("🔥 Supabase update failed (subscription.*):", error);
         return NextResponse.json(
-          { error: "Supabase update failed", detail: error.message, hint: (error as any).hint },
+          { error: "Supabase update failed", detail: error.message, hint: error.hint ?? undefined },
           { status: 500 }
         );
       }
@@ -388,10 +392,10 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ received: true });
-  } catch (err: any) {
-    console.error("🔥 Webhook handler crash:", err);
+  } catch (error: unknown) {
+    console.error("🔥 Webhook handler crash:", error);
     return NextResponse.json(
-      { error: "Webhook handler failed", detail: err?.message ?? String(err) },
+      { error: "Webhook handler failed", detail: errorMessage(error, "Webhook handler failed") },
       { status: 500 }
     );
   }

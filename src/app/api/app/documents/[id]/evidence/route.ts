@@ -2,6 +2,29 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 
+type EvidenceCompletion = {
+  id: string;
+  acknowledged: boolean | null;
+  max_scroll_percent: number | null;
+  time_on_page_seconds: number | null;
+  active_seconds: number | null;
+  submitted_at: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  recipients?:
+    | { id: string; name: string | null; email: string | null }
+    | Array<{ id: string; name: string | null; email: string | null }>
+    | null;
+};
+
+function normalizeRecipient(
+  value: EvidenceCompletion["recipients"]
+): { id: string; name: string | null; email: string | null } | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value;
+}
+
 function safeFilename(input: string) {
   return input
     .toLowerCase()
@@ -60,7 +83,9 @@ export async function GET(
       sha256: doc.sha256 ?? null, // null is fine for now
     },
 
-    completions: (comps ?? []).map((c: any) => ({
+    completions: ((comps ?? []) as EvidenceCompletion[]).map((c) => {
+      const recipient = normalizeRecipient(c.recipients);
+      return {
       id: c.id,
       submitted_at: c.submitted_at ?? null,
       acknowledged: Boolean(c.acknowledged),
@@ -69,14 +94,15 @@ export async function GET(
       active_seconds: c.active_seconds ?? null,
       ip: c.ip ?? null, // full client IP as observed by the server
       user_agent: c.user_agent ?? null,
-      recipient: c.recipients
+      recipient: recipient
         ? {
-            id: c.recipients.id,
-            name: c.recipients.name ?? null,
-            email: c.recipients.email ?? null,
+            id: recipient.id,
+            name: recipient.name ?? null,
+            email: recipient.email ?? null,
           }
         : null,
-    })),
+    };
+    }),
   };
 
   const filename = `receipt-record-${safeFilename(doc.title || "document")}-${doc.id}.json`;

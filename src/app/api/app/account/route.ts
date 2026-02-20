@@ -29,7 +29,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const update: Record<string, any> = { updated_at: new Date().toISOString() };
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if ("display_name" in body) {
     const v = (body.display_name ?? "").trim();
@@ -54,7 +54,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const { error: upErr } = await (supabase as any)
+  const { error: upErr } = await supabase
     .from("profiles")
     .update(update)
     .eq("id", userRes.user.id);

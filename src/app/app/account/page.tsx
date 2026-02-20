@@ -83,6 +83,10 @@ function intervalLabel(interval: string | null) {
   return "—";
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 function planLabel(plan: string | null | undefined) {
   if (!plan) return "Free";
   const p = String(plan).toLowerCase();
@@ -118,7 +122,7 @@ function Button({
       ? `${base} hover:opacity-90`
       : `${base} border hover:opacity-80`;
 
-  const style =
+  const style: React.CSSProperties =
     variant === "primary"
       ? { background: "var(--fg)", color: "var(--bg)" }
       : variant === "danger"
@@ -131,7 +135,7 @@ function Button({
       onClick={onClick}
       disabled={disabled}
       className={cls}
-      style={{ ...(style as any), borderRadius: 12 }}
+      style={{ ...style, borderRadius: 12 }}
     >
       {children}
     </button>
@@ -366,16 +370,16 @@ export default function AccountPage() {
       try {
         // If /api/app/me already returns these, use them.
         // If not, you can extend /api/app/me later.
-        setDisplayName(String((m as any)?.display_name ?? ""));
-        setMarketingOptIn(Boolean((m as any)?.marketing_opt_in ?? false));
-        setDefaultAckLimit(Number((m as any)?.default_ack_limit ?? 1));
-        setDefaultPasswordEnabled(Boolean((m as any)?.default_password_enabled ?? false));
+        setDisplayName(String(m.display_name ?? ""));
+        setMarketingOptIn(Boolean(m.marketing_opt_in ?? false));
+        setDefaultAckLimit(Number(m.default_ack_limit ?? 1));
+        setDefaultPasswordEnabled(Boolean(m.default_password_enabled ?? false));
       } finally {
         setPrefsLoading(false);
       }
-    } catch (e: any) {
+    } catch (error: unknown) {
       if (!mountedRef.current) return;
-      setMeError(e?.message ?? "Something went wrong");
+      setMeError(errorMessage(error, "Something went wrong"));
     } finally {
       if (!mountedRef.current) return;
       setMeLoading(false);
@@ -383,8 +387,7 @@ export default function AccountPage() {
   }
 
   useEffect(() => {
-    loadMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadMe();
   }, []);
 
   const email = me?.email ?? null;
@@ -419,8 +422,8 @@ export default function AccountPage() {
       if (!res.ok) throw new Error(json?.error ?? "Could not open billing portal");
       if (!json?.url) throw new Error("No portal URL returned");
       window.location.href = json.url;
-    } catch (e: any) {
-      toast.error("Billing", e?.message ?? "Something went wrong");
+    } catch (error: unknown) {
+      toast.error("Billing", errorMessage(error, "Something went wrong"));
       setBillingLoading(false);
     }
   }
@@ -445,8 +448,8 @@ export default function AccountPage() {
 
       toast.success("Saved", "Your account settings have been updated.");
       await loadMe();
-    } catch (e: any) {
-      toast.error("Settings", e?.message ?? "Something went wrong");
+    } catch (error: unknown) {
+      toast.error("Settings", errorMessage(error, "Something went wrong"));
       setPrefsSaving(false);
     } finally {
       setPrefsSaving(false);
@@ -464,8 +467,8 @@ export default function AccountPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? "Could not send reset email");
       toast.success("Email sent", "Check your inbox for the password reset link.");
-    } catch (e: any) {
-      toast.error("Password", e?.message ?? "Something went wrong");
+    } catch (error: unknown) {
+      toast.error("Password", errorMessage(error, "Something went wrong"));
     } finally {
       setPasswordLoading(false);
     }
@@ -485,8 +488,8 @@ export default function AccountPage() {
       toast.success("Deleted", "Your account has been deleted.");
       await supabase.auth.signOut();
       router.replace("/");
-    } catch (e: any) {
-      toast.error("Delete", e?.message ?? "Something went wrong");
+    } catch (error: unknown) {
+      toast.error("Delete", errorMessage(error, "Something went wrong"));
     } finally {
       setDeleteLoading(false);
     }
