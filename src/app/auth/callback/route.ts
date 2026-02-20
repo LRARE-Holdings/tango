@@ -36,9 +36,33 @@ export async function GET(req: Request) {
   if (firstName) {
     const { data: userData } = await supabase.auth.getUser();
     if (userData.user) {
+      const withDisplayName = await supabase
+        .from("profiles")
+        .update({
+          display_name: firstName.slice(0, 80),
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userData.user.id);
+      if (withDisplayName.error && String(withDisplayName.error.message ?? "").toLowerCase().includes("display_name")) {
+        await supabase
+          .from("profiles")
+          .update({
+            last_login_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", userData.user.id);
+      }
+    }
+  } else {
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData.user) {
       await supabase
         .from("profiles")
-        .update({ display_name: firstName.slice(0, 80), updated_at: new Date().toISOString() })
+        .update({
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", userData.user.id);
     }
   }

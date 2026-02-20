@@ -15,6 +15,12 @@ function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.floor(n)));
 }
 
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, column: string) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  return String(error.message ?? "").toLowerCase().includes(column.toLowerCase());
+}
+
 export async function PATCH(req: Request) {
   const supabase = await supabaseServer();
 
@@ -54,10 +60,25 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const { error: upErr } = await supabase
+  const firstAttempt = await supabase
     .from("profiles")
     .update(update)
     .eq("id", userRes.user.id);
+  let upErr = firstAttempt.error;
+  if (upErr && (
+    isMissingColumnError(upErr, "display_name") ||
+    isMissingColumnError(upErr, "marketing_opt_in") ||
+    isMissingColumnError(upErr, "default_ack_limit") ||
+    isMissingColumnError(upErr, "default_password_enabled")
+  )) {
+    const safeUpdate = { ...update };
+    delete safeUpdate.display_name;
+    delete safeUpdate.marketing_opt_in;
+    delete safeUpdate.default_ack_limit;
+    delete safeUpdate.default_password_enabled;
+    const fallback = await supabase.from("profiles").update(safeUpdate).eq("id", userRes.user.id);
+    upErr = fallback.error;
+  }
 
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 

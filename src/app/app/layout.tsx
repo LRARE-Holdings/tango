@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
 import { useToast } from "@/components/toast";
 import { EmailVerificationGate } from "@/components/email-verification-gate";
 import { OnboardingGate } from "@/components/onboarding-gate";
-import { WorkspaceHeaderMenu } from "@/components/workspace-header-menu";
+import { TopbarNav } from "@/components/app/topbar-nav";
+import { RouteTransitionOverlay } from "@/components/app/route-transition-overlay";
 
 type MeSummary = {
   email?: string | null;
@@ -22,7 +22,7 @@ function PrimaryCta({ href, children }: { href: string; children: React.ReactNod
     <Link
       href={href}
       className="focus-ring inline-flex items-center justify-center px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-90"
-      style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+      style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 999 }}
     >
       {children}
     </Link>
@@ -64,7 +64,6 @@ function InviteReconcileNotifier() {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const supabase = useMemo(() => supabaseBrowser(), []);
 
   const [me, setMe] = useState<MeSummary | null>(null);
@@ -94,11 +93,75 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     loadMe();
   }, [supabase]);
 
+  useEffect(() => {
+    let active = true;
+    async function pingSeen() {
+      if (!active) return;
+      try {
+        await fetch("/api/app/session/seen", { method: "POST" });
+      } catch {
+        // noop
+      }
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void pingSeen();
+      }
+    };
+
+    void pingSeen();
+    document.addEventListener("visibilitychange", handleVisibility);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void pingSeen();
+      }
+    }, 60_000);
+
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    async function enforceSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        window.location.replace("/auth");
+      }
+    }
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        void enforceSession();
+      }
+    };
+
+    const { data: authSub } = supabase.auth.onAuthStateChange((event: string, session: unknown) => {
+      if (event === "SIGNED_OUT" || !session) {
+        window.location.replace("/auth");
+      }
+    });
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      authSub.subscription.unsubscribe();
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, [supabase]);
+
   async function signOut() {
     setSigningOut(true);
     try {
+      setMe(null);
+      document.body.style.opacity = "0";
       await supabase.auth.signOut();
-      router.replace("/auth");
+      window.location.replace("/auth");
+      return;
+    } catch {
+      document.body.style.opacity = "";
     } finally {
       setSigningOut(false);
     }
@@ -107,9 +170,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const dashboardHref = me?.primary_workspace_id
     ? `/app/workspaces/${me.primary_workspace_id}/dashboard`
     : "/app";
-  const plan = String(me?.plan ?? "").toLowerCase();
-  const showTopSettings = plan !== "team" && plan !== "enterprise";
-
   return (
     <ToastProvider>
       <InviteReconcileNotifier />
@@ -125,17 +185,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }
       `}</style>
 
-      <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--fg)" }}>
+      <div className="app-shell min-h-screen">
+        <RouteTransitionOverlay />
         {/* Top bar */}
-        <header
-          className="sticky top-0 z-50"
-          style={{
-            background: "color-mix(in srgb, var(--bg) 92%, transparent)",
-            borderBottom: "1px solid var(--border)",
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          <div className="mx-auto max-w-6xl px-6">
+        <header className="app-topbar sticky top-0 z-50">
+          <div className="mx-auto max-w-7xl px-6">
             <div className="py-4">
               <div className="flex items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
@@ -149,51 +203,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {meLoading ? "Loading…" : me?.email ? `Signed in as ${me.email}` : "Session unavailable"}
                   </div>
 
-                  {showTopSettings ? (
-                    <Link
-                      href="/app/account"
-                      className="focus-ring px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
-                      style={{
-                        border: "1px solid var(--border)",
-                        borderRadius: 10,
-                        color: "var(--muted)",
-                        background: "transparent",
-                      }}
-                    >
-                      Settings
-                    </Link>
-                  ) : null}
-
                   <button
                     type="button"
                     onClick={signOut}
                     disabled={signingOut}
-                    className="focus-ring px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                    className="focus-ring px-3 py-2 text-sm font-medium transition disabled:opacity-50"
                     style={{
                       border: "1px solid var(--border)",
-                      borderRadius: 10,
+                      borderRadius: 12,
                       color: "var(--muted)",
-                      background: "transparent",
+                      background: "color-mix(in srgb, var(--card2) 58%, #fff)",
                     }}
                   >
                     {signingOut ? "Signing out…" : "Sign out"}
                   </button>
 
-                  <PrimaryCta href="/app/new">+</PrimaryCta>
+                  <PrimaryCta href="/app/new">New Receipt</PrimaryCta>
                 </div>
               </div>
-              <WorkspaceHeaderMenu />
+              <TopbarNav mePlan={me?.plan ?? null} primaryWorkspaceId={me?.primary_workspace_id ?? null} />
             </div>
           </div>
         </header>
 
         {/* Content */}
-        <main className="mx-auto max-w-6xl px-6 py-10">
+        <main className="mx-auto max-w-7xl px-6 py-10">
           <Suspense fallback={null}>{children}</Suspense>
         </main>
 
         {/* Footer */}
-        <footer className="mx-auto max-w-6xl px-6 pb-10">
+        <footer className="mx-auto max-w-7xl px-6 pb-10">
           <div
             className="pt-6 text-xs flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
             style={{ borderTop: "1px solid var(--border)", color: "var(--muted)" }}

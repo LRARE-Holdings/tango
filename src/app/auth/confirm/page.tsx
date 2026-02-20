@@ -104,9 +104,12 @@ export default function AuthConfirmPage() {
   }, [supabase]);
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-sm space-y-3 text-center">
-        <div className="text-sm font-semibold">Signing you in…</div>
+    <main className="min-h-screen flex items-center justify-center px-6 py-10">
+      <div
+        className="w-full max-w-md space-y-3 border p-6 text-center md:p-7"
+        style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}
+      >
+        <div className="marketing-serif text-3xl tracking-tight">Signing you in…</div>
         <div className="text-xs" style={{ color: "var(--muted)" }}>
           This should only take a moment.
         </div>

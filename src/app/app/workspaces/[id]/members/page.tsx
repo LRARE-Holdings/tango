@@ -9,6 +9,7 @@ type Member = {
   role: "owner" | "admin" | "member";
   joined_at: string;
   license_active?: boolean;
+  can_view_analytics?: boolean;
   license_assigned_at?: string | null;
   license_revoked_at?: string | null;
 };
@@ -188,11 +189,32 @@ export default function WorkspaceMembersPage() {
     }
   }
 
+  async function setAnalyticsPermission(userId: string, canViewAnalytics: boolean) {
+    if (!workspaceIdentifier) return;
+    setInviteMsg(null);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/members/${encodeURIComponent(userId)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ can_view_analytics: canViewAnalytics }),
+        }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Could not update analytics permission.");
+      await refresh();
+      setInviteMsg(canViewAnalytics ? "Analytics access granted." : "Analytics access revoked.");
+    } catch (e: unknown) {
+      setInviteMsg(e instanceof Error ? e.message : "Could not update analytics permission.");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
         <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight truncate">
+          <h1 className="app-hero-title text-4xl md:text-5xl truncate">
             {loading ? "Loading…" : workspace?.name ?? "Members"}
           </h1>
         </div>
@@ -312,14 +334,15 @@ export default function WorkspaceMembersPage() {
                 const canChangeRole =
                   canManageMembers &&
                   !isSelf &&
-                  m.role !== "owner" &&
-                  !(viewer?.role === "admin" && m.role !== "member");
+                  m.role !== "owner";
                 const canRemove =
                   canManageMembers &&
                   !isSelf &&
-                  m.role !== "owner" &&
-                  !(viewer?.role === "admin" && m.role !== "member");
+                  m.role !== "owner";
                 const canManageLicense =
+                  canManageMembers &&
+                  !(viewer?.role === "admin" && m.role === "owner");
+                const canManageAnalytics =
                   canManageMembers &&
                   !(viewer?.role === "admin" && m.role === "owner");
                 const licenseActive = Boolean(m.license_active ?? true);
@@ -338,6 +361,9 @@ export default function WorkspaceMembersPage() {
                     <div className="mt-1 text-xs" style={{ color: licenseActive ? "var(--muted2)" : "#ff3b30" }}>
                       License: {licenseActive ? "Active" : "Inactive"}
                     </div>
+                    <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                      Analytics: {m.can_view_analytics ? "Allowed" : "Not allowed"}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -354,6 +380,16 @@ export default function WorkspaceMembersPage() {
                         />
                         License
                       </label>
+                    ) : null}
+                    {canManageAnalytics && m.role !== "owner" ? (
+                      <button
+                        type="button"
+                        onClick={() => void setAnalyticsPermission(m.user_id, !Boolean(m.can_view_analytics))}
+                        className="focus-ring px-3 py-2 text-xs font-medium hover:opacity-80"
+                        style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
+                      >
+                        {m.can_view_analytics ? "Revoke analytics" : "Allow analytics"}
+                      </button>
                     ) : null}
                     {canChangeRole ? (
                       <select

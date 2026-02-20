@@ -1,461 +1,167 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { WorkspaceDashboardLoading } from "@/components/workspace-dashboard-loading";
 
-type DashboardPayload = {
-  scope?: "workspace" | "personal";
-  workspace: {
-    id: string;
-    name: string;
-    slug: string | null;
-    created_at: string;
-    brand_logo_updated_at: string | null;
-  };
-  viewer: {
-    user_id: string;
-    role: "owner" | "admin" | "member";
-  };
-  counts: {
-    members: number;
-    invites_pending: number;
-    documents_total: number;
-    documents_pending: number;
-    documents_acknowledged: number;
-    completions_total: number;
-    acknowledgements_total: number;
-  };
-  averages: {
-    max_scroll_percent: number | null;
-    time_on_page_seconds: number | null;
-    active_seconds: number | null;
-  };
-  usage: {
-    plan: "free" | "personal" | "pro" | "team" | "enterprise";
-    count_by: "user" | "workspace";
-    used: number;
-    limit: number | null;
-    remaining: number | null;
-    percent: number | null;
-    window: "total" | "monthly" | "custom";
-    near_limit: boolean;
-    at_limit: boolean;
-  };
-  pending: Array<{
+type WorkspaceHomePayload = {
+  workspace: { id: string; name: string; slug: string | null };
+  viewer: { role: "owner" | "admin" | "member"; plan: string; can_view_analytics: boolean };
+  greeting: { text: string; first_name: string };
+  recent_files: Array<{
     id: string;
     title: string;
     public_id: string;
-    created_at: string;
-    acknowledgements: number;
+    at: string;
+    source: "opened" | "created";
+    priority?: string;
+    labels?: string[];
   }>;
-  activity: Array<
-    | {
-        type: "document_created";
-        at: string;
-        document: { id: string; title: string; public_id: string };
-      }
-    | {
-        type: "completion_submitted";
-        at: string;
-        acknowledged: boolean;
-        document: { id: string; title: string; public_id: string };
-        recipient: { name: string | null; email: string | null };
-        metrics: {
-          max_scroll_percent: number | null;
-          time_on_page_seconds: number | null;
-          active_seconds: number | null;
-        };
-      }
-  >;
+  while_away: { acknowledged_count: number; documents_affected: number; latest_at: string | null; since: string | null };
 };
 
-function fmtUtc(iso: string) {
+function formatDate(iso: string | null) {
+  if (!iso) return "—";
   const d = new Date(iso);
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mi = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
-}
-
-function fmtDur(seconds: number | null) {
-  if (seconds == null) return "—";
-  const s = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}m ${String(r).padStart(2, "0")}s`;
-}
-
-function Stat({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
-  return (
-    <div
-      className="border p-4"
-      style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
-    >
-      <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-        {label}
-      </div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight">{value}</div>
-      {hint ? (
-        <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-          {hint}
-        </div>
-      ) : null}
-    </div>
-  );
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
 }
 
 export default function WorkspaceDashboardPage() {
   const params = useParams<{ id?: string }>();
-  const router = useRouter();
-  const workspaceId = typeof params?.id === "string" ? params.id : "";
-  const workspaceIdentifier = useMemo(() => workspaceId.trim(), [workspaceId]);
-
+  const workspaceIdentifier = typeof params?.id === "string" ? params.id.trim() : "";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<DashboardPayload | null>(null);
-  const [scope, setScope] = useState<"workspace" | "personal">("workspace");
+  const [data, setData] = useState<WorkspaceHomePayload | null>(null);
 
   useEffect(() => {
-    let alive = true;
-
+    let active = true;
     if (!workspaceIdentifier) {
-      setData(null);
       setLoading(false);
-      setError(workspaceId ? "Invalid workspace." : null);
+      setError("Invalid workspace.");
       return () => {
-        alive = false;
+        active = false;
       };
     }
-
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/dashboard?scope=${scope}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/home`, {
+          cache: "no-store",
+        });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed to load dashboard");
-        if (!alive) return;
-        const payload = json as DashboardPayload;
-        if (
-          payload?.viewer?.role === "member" &&
-          (payload?.usage?.plan === "team" || payload?.usage?.plan === "enterprise")
-        ) {
-          router.replace(`/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/documents`);
-          return;
-        }
-        setData(payload);
-        if (payload?.scope === "personal" && scope !== "personal") {
-          setScope("personal");
-        }
+        if (!active) return;
+        setData(json as WorkspaceHomePayload);
       } catch (e: unknown) {
-        if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
+        if (!active) return;
+        setError(e instanceof Error ? e.message : "Failed to load dashboard");
       } finally {
-        if (alive) setLoading(false);
+        if (active) setLoading(false);
       }
     }
-
-    load();
+    void load();
     return () => {
-      alive = false;
+      active = false;
     };
-  }, [workspaceIdentifier, workspaceId, scope, router]);
+  }, [workspaceIdentifier]);
 
-  const logoSrc = useMemo(() => {
-    const w = data?.workspace;
-    if (!w) return null;
-    return `/api/app/workspaces/${w.id}/branding/logo/view${
-      w.brand_logo_updated_at ? `?v=${encodeURIComponent(w.brand_logo_updated_at)}` : ""
-    }`;
-  }, [data?.workspace]);
+  if (loading && !data && !error) return <WorkspaceDashboardLoading />;
 
-  const healthHint = useMemo(() => {
-    if (!data) return "—";
-    const total = data.counts.documents_total || 0;
-    const pending = data.counts.documents_pending || 0;
-    if (total === 0) {
-      return data?.scope === "personal"
-        ? "No assigned documents yet."
-        : "Create your first receipt to start tracking activity.";
-    }
-    const ratio = total > 0 ? 1 - pending / total : 0;
-    if (ratio >= 0.8) return "Healthy: most documents have been acknowledged.";
-    if (ratio >= 0.5) return "Mixed: a fair number are still pending.";
-    return "Attention: many documents are pending acknowledgement.";
-  }, [data]);
-
-  const isPersonalScope = data?.scope === "personal";
-  const canToggleScope = data?.viewer?.role === "owner" || data?.viewer?.role === "admin";
-  if (loading && !data && !error) {
-    return <WorkspaceDashboardLoading />;
-  }
+  const linkId = data?.workspace?.slug ?? workspaceIdentifier;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            {logoSrc ? (
-              <div
-                className="shrink-0 border p-2"
-                style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
-              >
-                <Image
-                  src={logoSrc}
-                  alt={`${data?.workspace?.name ?? "Workspace"} logo`}
-                  width={64}
-                  height={64}
-                  unoptimized
-                  className="h-12 w-12 md:h-16 md:w-16"
-                  style={{ objectFit: "contain" }}
-                />
-              </div>
-            ) : null}
-            <div className="min-w-0">
-              <h1 className={`font-semibold tracking-tight truncate ${logoSrc ? "text-lg md:text-xl" : "text-2xl md:text-3xl"}`}>
-                {loading
-                  ? "Loading…"
-                  : isPersonalScope
-                    ? `${data?.workspace?.name ?? "Workspace"} · My dashboard`
-                    : data?.workspace?.name ?? "Workspace"}
-              </h1>
-              {logoSrc ? (
-                <p className="mt-1 text-xs uppercase tracking-wide" style={{ color: "var(--muted2)" }}>
-                  Workspace
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-2 flex-wrap">
-          {canToggleScope ? (
-            <div
-              className="flex items-center gap-1 border p-1"
-              style={{ borderColor: "var(--border)", borderRadius: 999 }}
-            >
-              <button
-                type="button"
-                onClick={() => setScope("workspace")}
-                className="focus-ring px-3 py-1.5 text-xs hover:opacity-90"
-                style={{
-                  borderRadius: 999,
-                  background: scope === "workspace" ? "var(--fg)" : "transparent",
-                  color: scope === "workspace" ? "var(--bg)" : "var(--muted)",
-                }}
-              >
-                Admin workspace
-              </button>
-              <button
-                type="button"
-                onClick={() => setScope("personal")}
-                className="focus-ring px-3 py-1.5 text-xs hover:opacity-90"
-                style={{
-                  borderRadius: 999,
-                  background: scope === "personal" ? "var(--fg)" : "transparent",
-                  color: scope === "personal" ? "var(--bg)" : "var(--muted)",
-                }}
-              >
-                My dashboard
-              </button>
-            </div>
-          ) : null}
+      <div className="app-content-card p-7">
+        <div className="app-section-kicker">{data?.workspace?.name ?? "Workspace"}</div>
+        <h1 className="app-hero-title mt-3 text-4xl tracking-tight">
+          {data?.greeting?.text ?? "Hello"}, {data?.greeting?.first_name ?? "there"}
+        </h1>
+        <div className="mt-4 flex gap-2 flex-wrap">
           <Link
             href="/app/new"
             className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
-            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 999 }}
           >
-            Create receipt
+            Create new Receipt
           </Link>
+          <Link
+            href={`/app/workspaces/${linkId}/documents`}
+            className="focus-ring px-4 py-2 text-sm hover:opacity-90"
+            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
+          >
+            Open Files
+          </Link>
+          {data?.viewer?.can_view_analytics ? (
+            <Link
+              href={`/app/workspaces/${linkId}/analytics`}
+              className="focus-ring px-4 py-2 text-sm hover:opacity-90"
+              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
+            >
+              Analytics
+            </Link>
+          ) : null}
         </div>
       </div>
 
-      {loading && data && (
-        <div className="text-sm" style={{ color: "var(--muted)" }}>
-          Refreshing dashboard data…
+      {error ? (
+        <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--border)", color: "#b91c1c" }}>
+          {error}
         </div>
-      )}
+      ) : null}
 
-      {error && (
-        <div
-          className="border p-6"
-          style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
-        >
-          <div className="text-sm font-semibold">Couldn’t load workspace dashboard</div>
-          <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            {error}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <section className="app-content-card p-5 lg:col-span-2">
+          <div className="app-section-kicker">
+            RECENT FILES
           </div>
-        </div>
-      )}
-
-      {!loading && !error && data && (
-        <>
-          {isPersonalScope ? (
-            <div className="text-sm" style={{ color: "var(--muted)" }}>
-              Personal view: showing only documents you are responsible for.
-            </div>
-          ) : null}
-
-          <>
-              {/* KPI row */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Stat
-                  label={isPersonalScope ? "MY DOCUMENTS" : "DOCUMENTS"}
-                  value={data.counts.documents_total}
-                  hint={`${data.counts.documents_pending} pending`}
-                />
-                <Stat label={isPersonalScope ? "MY ACKNOWLEDGED" : "ACKNOWLEDGED"} value={data.counts.documents_acknowledged} hint={healthHint} />
-                <Stat label={isPersonalScope ? "WORKSPACE TEAM" : "TEAM"} value={data.counts.members} hint={`${data.counts.invites_pending} invites pending`} />
-                <Stat
-                  label={isPersonalScope ? "MY COMPLETIONS" : "COMPLETIONS"}
-                  value={data.counts.completions_total}
-                  hint={`${data.counts.acknowledgements_total} acknowledgements`}
-                />
-              </div>
-
-              {/* Signal row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Stat
-                  label="AVG SCROLL"
-                  value={data.averages.max_scroll_percent == null ? "—" : `${Math.round(data.averages.max_scroll_percent)}%`}
-                  hint="Across recent completions"
-                />
-                <Stat label="AVG TIME ON PAGE" value={fmtDur(data.averages.time_on_page_seconds)} hint="Across recent completions" />
-                <Stat label="AVG ACTIVE TIME" value={fmtDur(data.averages.active_seconds)} hint="Across recent completions" />
-              </div>
-
-              {/* Two-column: Pending + Activity */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Pending */}
-                <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
-              <div className="px-5 py-3 text-xs tracking-wide" style={{ background: "var(--card2)", color: "var(--muted2)" }}>
-                PENDING ACKNOWLEDGEMENTS
-              </div>
-
-              {data.pending.length === 0 ? (
-                <div className="px-5 py-5 text-sm" style={{ color: "var(--muted)" }}>
-                  Nothing pending. That’s what we like to see.
+          <div className="mt-3 space-y-2">
+            {(data?.recent_files ?? []).map((file) => (
+                <Link
+                  key={file.id}
+                  href={`/app/docs/${file.id}`}
+                  className="block rounded-xl border p-3 transition hover:-translate-y-0.5"
+                  style={{ borderColor: "var(--border2)", background: "var(--card)", color: "var(--fg)" }}
+                >
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-semibold">{file.title}</div>
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 text-[11px]"
+                    style={{ borderRadius: 999, background: "var(--card2)", color: "var(--muted)" }}
+                  >
+                    {String(file.priority ?? "normal")}
+                  </span>
                 </div>
-              ) : (
-                <div>
-                  {data.pending.map((d) => (
-                    <div
-                      key={d.id}
-                      className="px-5 py-4 flex items-start justify-between gap-4"
-                      style={{ borderTop: "1px solid var(--border2)" }}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold truncate">{d.title}</div>
-                        <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                          Created {fmtUtc(d.created_at)}
-                        </div>
-                        <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                          Link: /d/{d.public_id}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 flex-wrap">
-                        <Link
-                          href={`/app/docs/${d.id}`}
-                          className="focus-ring px-3 py-2 text-sm hover:opacity-80"
-                          style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-                        >
-                          View
-                        </Link>
-                        <Link
-                          href={`/d/${d.public_id}`}
-                          className="focus-ring px-3 py-2 text-sm hover:opacity-80"
-                          style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-                        >
-                          Open link
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
+                <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                  {file.source === "opened" ? "Last opened" : "Last created"} · {formatDate(file.at)}
                 </div>
-              )}
-            </div>
-
-            {/* Activity */}
-            <div className="border" style={{ borderColor: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
-              <div className="px-5 py-3 text-xs tracking-wide" style={{ background: "var(--card2)", color: "var(--muted2)" }}>
-                RECENT ACTIVITY
+              </Link>
+            ))}
+            {(data?.recent_files ?? []).length === 0 ? (
+              <div className="text-sm" style={{ color: "var(--muted)" }}>
+                No files yet.
               </div>
+            ) : null}
+          </div>
+        </section>
 
-              {data.activity.length === 0 ? (
-                <div className="px-5 py-5 text-sm" style={{ color: "var(--muted)" }}>
-                  No activity yet. Create a receipt to start tracking.
-                </div>
-              ) : (
-                <div>
-                  {data.activity.map((a, idx) => {
-                    if (a.type === "document_created") {
-                      return (
-                        <div key={`${a.type}-${idx}`} className="px-5 py-4" style={{ borderTop: "1px solid var(--border2)" }}>
-                          <div className="text-sm font-semibold">Document created</div>
-                          <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-                            {a.document.title}
-                          </div>
-                          <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                            {fmtUtc(a.at)} • /d/{a.document.public_id}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    const who = a.recipient.name?.trim() || a.recipient.email?.trim() || "Recipient";
-                    return (
-                      <div key={`${a.type}-${idx}`} className="px-5 py-4" style={{ borderTop: "1px solid var(--border2)" }}>
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="text-sm font-semibold">{a.acknowledged ? "Acknowledged" : "Submitted"}</div>
-                          <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                            {fmtUtc(a.at)}
-                          </div>
-                        </div>
-
-                        <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-                          {who} • {a.document.title}
-                        </div>
-
-                        <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                          Scroll {a.metrics.max_scroll_percent == null ? "—" : `${a.metrics.max_scroll_percent}%`} • Time{" "}
-                          {fmtDur(a.metrics.time_on_page_seconds)} • Active {fmtDur(a.metrics.active_seconds)}
-                        </div>
-
-                        <div className="mt-3 flex gap-2 flex-wrap">
-                          <Link
-                            href={`/app/docs/${a.document.id}`}
-                            className="focus-ring px-3 py-2 text-sm hover:opacity-80"
-                            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-                          >
-                            View
-                          </Link>
-                          <Link
-                            href={`/d/${a.document.public_id}`}
-                            className="focus-ring px-3 py-2 text-sm hover:opacity-80"
-                            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-                          >
-                            Open link
-                          </Link>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-                </div>
-              </div>
-          </>
-        </>
-      )}
+        <section className="app-content-card p-5">
+          <div className="app-section-kicker">
+            WHILE YOU WERE AWAY
+          </div>
+          <div className="mt-3 text-2xl font-semibold tracking-tight">
+            {data?.while_away?.acknowledged_count ?? 0}
+          </div>
+          <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+            acknowledgements on {data?.while_away?.documents_affected ?? 0} documents
+          </div>
+          <div className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
+            Since {formatDate(data?.while_away?.since ?? null)}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

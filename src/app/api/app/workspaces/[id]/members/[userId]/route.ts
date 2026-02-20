@@ -40,12 +40,18 @@ export async function PATCH(
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const actorUserId = userData.user.id;
-    const body = (await req.json().catch(() => null)) as { role?: string } | null;
+    const body = (await req.json().catch(() => null)) as { role?: string; can_view_analytics?: unknown } | null;
     const requestedRole = String(body?.role ?? "").trim().toLowerCase();
-    if (!isManageableRole(requestedRole)) {
+    const hasRoleUpdate = typeof body?.role === "string";
+    const hasAnalyticsUpdate = typeof body?.can_view_analytics === "boolean";
+
+    if (!hasRoleUpdate && !hasAnalyticsUpdate) {
+      return NextResponse.json({ error: "No updates provided." }, { status: 400 });
+    }
+    if (hasRoleUpdate && !isManageableRole(requestedRole)) {
       return NextResponse.json({ error: "Role must be member or admin." }, { status: 400 });
     }
-    if (targetUserId === actorUserId) {
+    if (hasRoleUpdate && targetUserId === actorUserId) {
       return NextResponse.json({ error: "You cannot change your own role." }, { status: 400 });
     }
 
@@ -73,24 +79,28 @@ export async function PATCH(
 
     const targetRole = targetMember.role as WorkspaceRole;
 
-    if (actorRole === "admin" && targetRole !== "member") {
-      return NextResponse.json({ error: "Admins can only manage members." }, { status: 403 });
+    if (actorRole === "admin" && targetRole === "owner") {
+      return NextResponse.json({ error: "Admins cannot manage owners." }, { status: 403 });
     }
 
     if (targetRole === "owner" && actorRole !== "owner") {
       return NextResponse.json({ error: "Only owners can manage owners." }, { status: 403 });
     }
 
-    if (targetRole === "owner") {
+    if (hasRoleUpdate && targetRole === "owner") {
       const ownerCount = await getOwnerCount(admin, resolved.id);
       if (ownerCount <= 1) {
         return NextResponse.json({ error: "Workspace must keep at least one owner." }, { status: 400 });
       }
     }
 
+    const updates: Record<string, unknown> = {};
+    if (hasRoleUpdate) updates.role = requestedRole;
+    if (hasAnalyticsUpdate) updates.can_view_analytics = body?.can_view_analytics === true;
+
     const { error: updErr } = await admin
       .from("workspace_members")
-      .update({ role: requestedRole })
+      .update(updates)
       .eq("workspace_id", resolved.id)
       .eq("user_id", targetUserId);
     if (updErr) throw new Error(updErr.message);
@@ -150,8 +160,8 @@ export async function DELETE(
 
     const targetRole = targetMember.role as WorkspaceRole;
 
-    if (actorRole === "admin" && targetRole !== "member") {
-      return NextResponse.json({ error: "Admins can only remove members." }, { status: 403 });
+    if (actorRole === "admin" && targetRole === "owner") {
+      return NextResponse.json({ error: "Admins cannot remove owners." }, { status: 403 });
     }
 
     if (targetRole === "owner") {

@@ -200,9 +200,9 @@ export default function BillingSuccessPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-6 py-8 md:py-10">
+    <main className="space-y-6 py-2 md:py-4">
       <section
-        className="border p-6 md:p-7"
+        className="mx-auto max-w-3xl border p-6 md:p-7"
         style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}
       >
         <div className="text-xs tracking-widest" style={{ color: "var(--muted2)" }}>
@@ -235,7 +235,7 @@ export default function BillingSuccessPage() {
 
       {error ? (
         <section
-          className="border p-4 text-sm"
+          className="mx-auto max-w-3xl border p-4 text-sm"
           style={{ borderColor: "rgba(255,59,48,0.35)", background: "var(--card)", borderRadius: 12, color: "#ff3b30" }}
         >
           {error}
@@ -244,7 +244,7 @@ export default function BillingSuccessPage() {
 
       {teamOnboarding && status === "ok" ? (
         <section
-          className="border p-6 md:p-7 space-y-5"
+          className="mx-auto max-w-3xl border p-6 md:p-7 space-y-5"
           style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">

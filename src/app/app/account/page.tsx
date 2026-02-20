@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { useToast } from "@/components/toast";
 
@@ -296,7 +295,6 @@ function Divider() {
 
 export default function AccountPage() {
   const toast = useToast();
-  const router = useRouter();
   const supabase = supabaseBrowser();
 
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -407,7 +405,7 @@ export default function AccountPage() {
 
   async function signOut() {
     await supabase.auth.signOut();
-    router.replace("/auth");
+    window.location.replace("/auth");
   }
 
   async function openBillingPortal() {
@@ -487,7 +485,7 @@ export default function AccountPage() {
       if (!res.ok) throw new Error(json?.error ?? "Could not delete account");
       toast.success("Deleted", "Your account has been deleted.");
       await supabase.auth.signOut();
-      router.replace("/");
+      window.location.replace("/");
     } catch (error: unknown) {
       toast.error("Delete", errorMessage(error, "Something went wrong"));
     } finally {

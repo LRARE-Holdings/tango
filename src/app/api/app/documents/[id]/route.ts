@@ -30,6 +30,8 @@ type DocumentRow = {
   created_at: string;
   workspace_id?: string | null;
   tags?: unknown;
+  priority?: string | null;
+  labels?: unknown;
   current_version_id?: string | null;
   version_count?: number | null;
 };
@@ -103,12 +105,17 @@ export async function GET(
   // Document
   const withTags = await supabase
     .from("documents")
-    .select("id,title,public_id,file_path,created_at,workspace_id,tags,current_version_id,version_count")
+    .select("id,title,public_id,file_path,created_at,workspace_id,tags,priority,labels,current_version_id,version_count")
     .eq("id", id)
     .maybeSingle();
   let doc = withTags.data as DocumentRow | null;
   let docErr = withTags.error;
-  if (docErr && isMissingColumnError(docErr, "tags")) {
+  if (
+    docErr &&
+    (isMissingColumnError(docErr, "tags") ||
+      isMissingColumnError(docErr, "priority") ||
+      isMissingColumnError(docErr, "labels"))
+  ) {
     const fallback = await supabase
       .from("documents")
       .select("id,title,public_id,file_path,created_at,workspace_id,current_version_id,version_count")
@@ -202,6 +209,8 @@ export async function GET(
       versionCount: Number((document as { version_count?: number | null }).version_count ?? 1),
       workspaceId: document.workspace_id ?? null,
       tags: parseDocumentTags(document.tags),
+      priority: String(document.priority ?? "normal").toLowerCase(),
+      labels: Array.isArray(document.labels) ? document.labels.map((x) => String(x)) : [],
       workspaceTagFields,
       status: acknowledgements > 0 ? "Acknowledged" : "Pending",
       acknowledgements,

@@ -272,6 +272,8 @@ export default function NewReceipt() {
   const proPlus = can(plan, "pro");
 
   const [title, setTitle] = useState("");
+  const [priority, setPriority] = useState<"low" | "normal" | "high">("normal");
+  const [labelsInput, setLabelsInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [workspaceTagFields, setWorkspaceTagFields] = useState<Array<{ key: string; label: string; placeholder?: string }>>([]);
   const [tagValues, setTagValues] = useState<Record<string, string>>({});
@@ -295,6 +297,7 @@ export default function NewReceipt() {
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [showUpgradeCard, setShowUpgradeCard] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
 
   useEffect(() => {
     async function loadMe() {
@@ -437,6 +440,19 @@ export default function NewReceipt() {
     return 1;
   }, [hasFile, shareUrl]);
 
+  useEffect(() => {
+    if (shareUrl) {
+      setWizardStep(3);
+      return;
+    }
+    if (hasFile && wizardStep === 1) {
+      setWizardStep(2);
+    }
+    if (!hasFile && wizardStep > 1) {
+      setWizardStep(1);
+    }
+  }, [hasFile, shareUrl, wizardStep]);
+
   const recipientsValid = useMemo(() => {
     if (!sendEmails) return true;
     const filled = recipients.filter((r) => r.name.trim() || r.email.trim());
@@ -517,6 +533,8 @@ export default function NewReceipt() {
       form.append("max_acknowledgers_enabled", String(maxAcknowledgersEnabled));
       form.append("max_acknowledgers", String(maxAcknowledgersEnabled ? maxAcknowledgers : 0));
       form.append("tags", JSON.stringify(tagValues));
+      form.append("priority", priority);
+      form.append("labels", labelsInput);
       form.append("template_enabled", String(useTemplate && proPlus));
       form.append("template_id", useTemplate && proPlus ? templateId : "");
       form.append("save_default", String(saveAsDefault && proPlus));
@@ -563,6 +581,24 @@ export default function NewReceipt() {
     }
   }
 
+  function goNext() {
+    if (wizardStep === 1) {
+      if (!hasFile) {
+        setError("Please choose a PDF or DOCX file.");
+        return;
+      }
+      setWizardStep(2);
+      return;
+    }
+    if (wizardStep === 2) {
+      setWizardStep(3);
+    }
+  }
+
+  function goBack() {
+    setWizardStep((s) => (s === 3 ? 2 : 1));
+  }
+
   const summary = useMemo(() => {
     const emailState = sendEmails && personalPlus ? "On" : "Off";
     const passState = passwordEnabled && personalPlus ? "On" : "Off";
@@ -575,6 +611,7 @@ export default function NewReceipt() {
         v: primaryWorkspaceId ? (policyModeEnabled ? "Workspace (Policy mode)" : "Workspace") : "Personal",
       },
       { k: "Source", v: "Upload file" },
+      { k: "Priority", v: priority.toUpperCase() },
       { k: "File", v: hasFile ? "Attached" : "Missing" },
       { k: "Email", v: emailState },
       { k: "Recipients", v: String(recipientsCount) },
@@ -588,6 +625,7 @@ export default function NewReceipt() {
     primaryWorkspaceId,
     policyModeEnabled,
     hasFile,
+    priority,
     sendEmails,
     personalPlus,
     recipientsCount,
@@ -614,7 +652,7 @@ export default function NewReceipt() {
         <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
           <div className="min-w-0">
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Create New Receipt</h1>
+              <h1 className="app-hero-title text-4xl md:text-5xl">Create New Receipt</h1>
             </div>
           </div>
 
@@ -626,37 +664,66 @@ export default function NewReceipt() {
             >
               Back
             </Link>
-            <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasFile}>
-              {loading ? "Creating…" : "Create"}
-            </PrimaryButton>
+            {wizardStep > 1 ? <SecondaryButton onClick={goBack} disabled={loading}>Previous</SecondaryButton> : null}
+            {wizardStep < 3 ? (
+              <PrimaryButton onClick={goNext} disabled={loading || (wizardStep === 1 && !hasFile)}>
+                Next
+              </PrimaryButton>
+            ) : (
+              <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasFile}>
+                {loading ? "Creating…" : "Create"}
+              </PrimaryButton>
+            )}
           </div>
         </div>
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
           <div className="lg:col-span-7 space-y-2">
-            <Label>TITLE (OPTIONAL)</Label>
-            <Input
-              value={title}
-              onChange={setTitle}
-              placeholder="e.g. Client Care Letter, Residential Conveyancing"
-            />
-            <div className="text-xs" style={{ color: "var(--muted2)" }}>
-              This appears on your dashboard and evidence export.
-            </div>
-            {workspaceTagFields.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
-                {workspaceTagFields.map((f) => (
-                  <div key={f.key} className="space-y-1">
-                    <Label>{f.label.toUpperCase()}</Label>
-                    <Input
-                      value={tagValues[f.key] ?? ""}
-                      onChange={(v) => setTagValues((prev) => ({ ...prev, [f.key]: v }))}
-                      placeholder={f.placeholder || f.label}
-                    />
+            {wizardStep >= 2 ? (
+              <>
+                <Label>TITLE (OPTIONAL)</Label>
+                <Input
+                  value={title}
+                  onChange={setTitle}
+                  placeholder="e.g. Client Care Letter, Residential Conveyancing"
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
+                  <div className="space-y-1">
+                    <Label>PRIORITY</Label>
+                    <Select value={priority} onChange={(v) => setPriority(v as "low" | "normal" | "high")}>
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                    </Select>
                   </div>
-                ))}
+                  <div className="space-y-1">
+                    <Label>LABELS (COMMA SEPARATED)</Label>
+                    <Input value={labelsInput} onChange={setLabelsInput} placeholder="HR, onboarding, policy" />
+                  </div>
+                </div>
+                <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                  This appears on your dashboard and evidence export.
+                </div>
+                {workspaceTagFields.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
+                    {workspaceTagFields.map((f) => (
+                      <div key={f.key} className="space-y-1">
+                        <Label>{f.label.toUpperCase()}</Label>
+                        <Input
+                          value={tagValues[f.key] ?? ""}
+                          onChange={(v) => setTagValues((prev) => ({ ...prev, [f.key]: v }))}
+                          placeholder={f.placeholder || f.label}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                Step 1: upload your file. Step 2 will collect title, labels, and metadata.
               </div>
-            ) : null}
+            )}
           </div>
 
           <div className="lg:col-span-5">
@@ -729,6 +796,9 @@ export default function NewReceipt() {
             );
           })}
         </div>
+        <div className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
+          Current step: {wizardStep === 1 ? "Upload document" : wizardStep === 2 ? "Name and metadata" : "Receipt settings"}
+        </div>
       </section>
 
       {showUpgradeCard ? (
@@ -778,7 +848,7 @@ export default function NewReceipt() {
         </div>
       ) : null}
 
-      {!hasFile ? (
+      {wizardStep === 1 ? (
         <section
           className="p-6"
           style={{
@@ -797,11 +867,11 @@ export default function NewReceipt() {
 
       <div
         style={{
-          opacity: hasFile ? 1 : 0,
-          transform: hasFile ? "translateY(0)" : "translateY(8px)",
-          maxHeight: hasFile ? "6000px" : "0px",
+          opacity: hasFile && wizardStep >= 3 ? 1 : 0,
+          transform: hasFile && wizardStep >= 3 ? "translateY(0)" : "translateY(8px)",
+          maxHeight: hasFile && wizardStep >= 3 ? "6000px" : "0px",
           overflow: "hidden",
-          pointerEvents: hasFile ? "auto" : "none",
+          pointerEvents: hasFile && wizardStep >= 3 ? "auto" : "none",
           transition: "opacity 280ms ease, transform 280ms ease, max-height 560ms ease",
         }}
       >

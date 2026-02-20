@@ -21,11 +21,35 @@ type DocItem = {
   latestAcknowledgedAt: string | null;
   status: "Acknowledged" | "Pending";
   tags?: Record<string, string>;
+  priority?: "low" | "normal" | "high" | string;
+  labels?: string[];
 };
 
 type ViewerRole = "owner" | "admin" | "member";
 
 type ResponsibilityMember = {
+  user_id: string;
+  email: string | null;
+  role: ViewerRole;
+};
+
+type StackSummary = {
+  id: string;
+  name: string;
+  description?: string | null;
+  owner_user_id: string;
+  item_count: number;
+  shared_user_ids?: string[];
+};
+
+type StackDetail = {
+  stack: StackSummary;
+  items: Array<{ document_id: string; added_at: string | null }>;
+  shares: Array<{ user_id: string; granted_at?: string | null }>;
+  can_manage: boolean;
+};
+
+type WorkspaceMemberLite = {
   user_id: string;
   email: string | null;
   role: ViewerRole;
@@ -56,6 +80,22 @@ function StatusBadge({ status }: { status: DocItem["status"] }) {
   );
 }
 
+function PriorityBadge({ priority }: { priority: DocItem["priority"] }) {
+  const normalized = String(priority ?? "normal").toLowerCase();
+  const tone =
+    normalized === "high"
+      ? { background: "#7f1d1d", color: "#fecaca" }
+      : normalized === "low"
+        ? { background: "#1f2937", color: "#bfdbfe" }
+        : { background: "var(--card2)", color: "var(--fg)" };
+  const label = normalized === "high" ? "High" : normalized === "low" ? "Low" : "Normal";
+  return (
+    <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold" style={{ borderRadius: 10, ...tone }}>
+      {label}
+    </span>
+  );
+}
+
 export default function WorkspaceDocumentsPage() {
   const params = useParams<{ id?: string }>();
   const workspaceIdentifier = typeof params?.id === "string" ? params.id.trim() : "";
@@ -71,6 +111,7 @@ export default function WorkspaceDocumentsPage() {
   const [tagValues, setTagValues] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "acknowledged">("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | "low" | "normal" | "high">("all");
   const [tagFilterKey, setTagFilterKey] = useState<string>("__all");
   const [tagFilterValue, setTagFilterValue] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("created_desc");
@@ -88,6 +129,16 @@ export default function WorkspaceDocumentsPage() {
   const [tagEditorValues, setTagEditorValues] = useState<Record<string, string>>({});
   const [tagEditorSaving, setTagEditorSaving] = useState(false);
   const [tagEditorError, setTagEditorError] = useState<string | null>(null);
+  const [stacks, setStacks] = useState<StackSummary[]>([]);
+  const [stacksLoading, setStacksLoading] = useState(false);
+  const [stacksError, setStacksError] = useState<string | null>(null);
+  const [newStackName, setNewStackName] = useState("");
+  const [selectedStackByDoc, setSelectedStackByDoc] = useState<Record<string, string>>({});
+  const [stackDetail, setStackDetail] = useState<StackDetail | null>(null);
+  const [stackDetailLoading, setStackDetailLoading] = useState(false);
+  const [stackActionBusy, setStackActionBusy] = useState(false);
+  const [stackShareUserId, setStackShareUserId] = useState("");
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberLite[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -128,6 +179,55 @@ export default function WorkspaceDocumentsPage() {
     };
   }, [workspaceIdentifier, search]);
 
+  useEffect(() => {
+    let active = true;
+    if (!workspaceIdentifier) return () => { active = false; };
+    async function loadStacks() {
+      setStacksLoading(true);
+      setStacksError(null);
+      try {
+        const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks`, {
+          cache: "no-store",
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error ?? "Failed to load stacks");
+        if (!active) return;
+        setStacks((json?.stacks ?? []) as StackSummary[]);
+      } catch (e: unknown) {
+        if (!active) return;
+        setStacksError(e instanceof Error ? e.message : "Failed to load stacks");
+      } finally {
+        if (active) setStacksLoading(false);
+      }
+    }
+    void loadStacks();
+    return () => {
+      active = false;
+    };
+  }, [workspaceIdentifier]);
+
+  useEffect(() => {
+    let active = true;
+    if (!workspaceIdentifier) return () => { active = false; };
+    async function loadMembers() {
+      try {
+        const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}`, {
+          cache: "no-store",
+        });
+        const json = await res.json().catch(() => null);
+        if (!active || !res.ok) return;
+        setWorkspaceMembers((json?.members ?? []) as WorkspaceMemberLite[]);
+      } catch {
+        if (!active) return;
+        setWorkspaceMembers([]);
+      }
+    }
+    void loadMembers();
+    return () => {
+      active = false;
+    };
+  }, [workspaceIdentifier]);
+
   async function createDocument() {
     if (creating) return;
     setError(null);
@@ -148,6 +248,8 @@ export default function WorkspaceDocumentsPage() {
       form.append("max_acknowledgers_enabled", "false");
       form.append("max_acknowledgers", "0");
       form.append("tags", JSON.stringify(tagValues));
+      form.append("priority", "normal");
+      form.append("labels", "");
       if (file) {
         form.append("file", file);
       }
@@ -202,6 +304,7 @@ export default function WorkspaceDocumentsPage() {
       }
       if (statusFilter === "pending" && doc.status !== "Pending") return false;
       if (statusFilter === "acknowledged" && doc.status !== "Acknowledged") return false;
+      if (priorityFilter !== "all" && String(doc.priority ?? "normal").toLowerCase() !== priorityFilter) return false;
       if (!tagNeedle) return true;
 
       const entries = Object.entries(doc.tags ?? {});
@@ -227,12 +330,31 @@ export default function WorkspaceDocumentsPage() {
     });
 
     return out;
-  }, [documents, policyOnly, statusFilter, tagFilterKey, tagFilterValue, sortMode, sortTagKey]);
+  }, [documents, policyOnly, statusFilter, priorityFilter, tagFilterKey, tagFilterValue, sortMode, sortTagKey]);
 
   const filteredCounts = useMemo(() => {
     const acknowledged = filteredDocuments.filter((d) => d.status === "Acknowledged").length;
     return { total: filteredDocuments.length, acknowledged, pending: filteredDocuments.length - acknowledged };
   }, [filteredDocuments]);
+
+  const suggestedStackGroups = useMemo(() => {
+    const groups = new Map<string, number>();
+    for (const doc of documents) {
+      for (const label of Array.isArray(doc.labels) ? doc.labels : []) {
+        const key = `Label: ${label}`;
+        groups.set(key, (groups.get(key) ?? 0) + 1);
+      }
+      for (const [k, v] of Object.entries(doc.tags ?? {})) {
+        const key = `${k}: ${v}`;
+        groups.set(key, (groups.get(key) ?? 0) + 1);
+      }
+    }
+    return Array.from(groups.entries())
+      .map(([name, count]) => ({ name, count }))
+      .filter((x) => x.count >= 2)
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .slice(0, 8);
+  }, [documents]);
 
   async function openOwnership(doc: DocItem) {
     setOwnershipDoc(doc);
@@ -338,20 +460,194 @@ export default function WorkspaceDocumentsPage() {
     }
   }
 
+  async function createStack() {
+    if (!workspaceIdentifier || !newStackName.trim()) return;
+    setStacksError(null);
+    try {
+      const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: newStackName.trim() }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to create stack");
+      setNewStackName("");
+      const refresh = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks`, {
+        cache: "no-store",
+      });
+      const refreshJson = await refresh.json().catch(() => null);
+      if (refresh.ok) setStacks((refreshJson?.stacks ?? []) as StackSummary[]);
+    } catch (e: unknown) {
+      setStacksError(e instanceof Error ? e.message : "Failed to create stack");
+    }
+  }
+
+  async function addToStack(stackId: string, documentId: string) {
+    if (!workspaceIdentifier) return;
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks/${encodeURIComponent(stackId)}/items`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ document_id: documentId }),
+        }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to add to stack");
+      setStacks((list) => list.map((s) => (s.id === stackId ? { ...s, item_count: s.item_count + 1 } : s)));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to add to stack");
+    }
+  }
+
+  async function openStack(stackId: string) {
+    if (!workspaceIdentifier) return;
+    setStackDetailLoading(true);
+    setStacksError(null);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks/${encodeURIComponent(stackId)}`,
+        { cache: "no-store" }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to load stack");
+      setStackDetail(json as StackDetail);
+    } catch (e: unknown) {
+      setStacksError(e instanceof Error ? e.message : "Failed to load stack");
+    } finally {
+      setStackDetailLoading(false);
+    }
+  }
+
+  async function removeFromStack(stackId: string, documentId: string) {
+    if (!workspaceIdentifier) return;
+    setStackActionBusy(true);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks/${encodeURIComponent(stackId)}/items/${encodeURIComponent(documentId)}`,
+        { method: "DELETE" }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to remove document from stack");
+      await openStack(stackId);
+    } catch (e: unknown) {
+      setStacksError(e instanceof Error ? e.message : "Failed to remove document from stack");
+    } finally {
+      setStackActionBusy(false);
+    }
+  }
+
+  async function addStackShare() {
+    if (!workspaceIdentifier || !stackDetail?.stack.id || !stackShareUserId) return;
+    setStackActionBusy(true);
+    setStacksError(null);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks/${encodeURIComponent(stackDetail.stack.id)}/shares`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ user_id: stackShareUserId }),
+        }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to share stack");
+      setStackShareUserId("");
+      await openStack(stackDetail.stack.id);
+    } catch (e: unknown) {
+      setStacksError(e instanceof Error ? e.message : "Failed to share stack");
+    } finally {
+      setStackActionBusy(false);
+    }
+  }
+
+  async function removeStackShare(userId: string) {
+    if (!workspaceIdentifier || !stackDetail?.stack.id) return;
+    setStackActionBusy(true);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks/${encodeURIComponent(stackDetail.stack.id)}/shares/${encodeURIComponent(userId)}`,
+        { method: "DELETE" }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to remove share");
+      await openStack(stackDetail.stack.id);
+    } catch (e: unknown) {
+      setStacksError(e instanceof Error ? e.message : "Failed to remove share");
+    } finally {
+      setStackActionBusy(false);
+    }
+  }
+
+  async function deleteStack(stackId: string) {
+    if (!workspaceIdentifier) return;
+    setStackActionBusy(true);
+    setStacksError(null);
+    try {
+      const res = await fetch(
+        `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks/${encodeURIComponent(stackId)}`,
+        { method: "DELETE" }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to delete stack");
+      setStackDetail(null);
+      const refresh = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks`, {
+        cache: "no-store",
+      });
+      const refreshJson = await refresh.json().catch(() => null);
+      if (refresh.ok) setStacks((refreshJson?.stacks ?? []) as StackSummary[]);
+    } catch (e: unknown) {
+      setStacksError(e instanceof Error ? e.message : "Failed to delete stack");
+    } finally {
+      setStackActionBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-            {workspace?.name ?? "Workspace documents"}
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Team document catalogue with search across titles and public IDs.
-          </p>
+      <section className="app-content-card p-6 md:p-7">
+        <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
+          <div>
+            <div className="app-section-kicker">FILES</div>
+            <h1 className="app-hero-title mt-2 text-4xl md:text-5xl">
+              {workspace?.name ?? "Workspace"} documents
+            </h1>
+            <p className="mt-3 text-sm" style={{ color: "var(--muted)" }}>
+              Search, triage by priority, and organise documents into private or shared stacks.
+            </p>
+          </div>
+          <Link
+            href="/app/new"
+            className="focus-ring inline-flex items-center px-4 py-2 text-sm font-semibold"
+            style={{ borderRadius: 999, background: "var(--fg)", color: "var(--bg)" }}
+          >
+            New Receipt
+          </Link>
         </div>
-      </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <span className="app-chip inline-flex items-center px-3 py-1 text-xs">{counts.total} total</span>
+          <span className="app-chip inline-flex items-center px-3 py-1 text-xs">{counts.pending} pending</span>
+          <span className="app-chip inline-flex items-center px-3 py-1 text-xs">{counts.acknowledged} acknowledged</span>
+          {workspace?.policy_mode_enabled ? (
+            <button
+              type="button"
+              onClick={() => setPolicyOnly((v) => !v)}
+              className="focus-ring inline-flex items-center px-3 py-1 text-xs font-semibold transition"
+              style={{
+                borderRadius: 999,
+                border: "1px solid var(--border)",
+                background: policyOnly ? "var(--fg)" : "color-mix(in srgb, var(--card2) 50%, #fff)",
+                color: policyOnly ? "var(--bg)" : "var(--muted)",
+              }}
+            >
+              {policyOnly ? "Policy filter on" : "Policy filter off"}
+            </button>
+          ) : null}
+        </div>
+      </section>
 
-      <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
+      <section className="app-content-card p-4">
         <div className="flex items-center justify-between gap-3 flex-col sm:flex-row">
           <input
             value={search}
@@ -364,27 +660,7 @@ export default function WorkspaceDocumentsPage() {
             {filteredCounts.total} shown / {counts.total} total • {filteredCounts.pending} pending • {filteredCounts.acknowledged} acknowledged
           </div>
         </div>
-        {workspace?.policy_mode_enabled ? (
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPolicyOnly((v) => !v)}
-              className="focus-ring px-3 py-1.5 text-xs font-semibold hover:opacity-90"
-              style={{
-                borderRadius: 999,
-                border: "1px solid var(--border)",
-                background: policyOnly ? "var(--fg)" : "transparent",
-                color: policyOnly ? "var(--bg)" : "var(--fg)",
-              }}
-            >
-              {policyOnly ? "Showing Policies" : "Policies"}
-            </button>
-            <div className="text-xs" style={{ color: "var(--muted2)" }}>
-              Policy documents are auto-tagged with <span style={{ color: "var(--muted)" }}>Policy</span>.
-            </div>
-          </div>
-        ) : null}
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-2">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as "all" | "pending" | "acknowledged")}
@@ -394,6 +670,17 @@ export default function WorkspaceDocumentsPage() {
             <option value="all">All statuses</option>
             <option value="pending">Pending (Open)</option>
             <option value="acknowledged">Acknowledged</option>
+          </select>
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value as "all" | "low" | "normal" | "high")}
+            className="focus-ring border px-3 py-2 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          >
+            <option value="all">All priorities</option>
+            <option value="high">High</option>
+            <option value="normal">Normal</option>
+            <option value="low">Low</option>
           </select>
           <select
             value={tagFilterKey}
@@ -452,52 +739,227 @@ export default function WorkspaceDocumentsPage() {
             </select>
           </div>
         ) : null}
-      </div>
+      </section>
 
-      <div className="border p-4 space-y-3" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-        <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-          ADD DOCUMENT
-        </div>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Employee onboarding pack"
-          className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-          style={{ borderColor: "var(--border)", borderRadius: 10 }}
-        />
-        {Array.isArray(workspace?.document_tag_fields) && workspace.document_tag_fields.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {workspace.document_tag_fields.map((f) => (
-              <input
-                key={f.key}
-                value={tagValues[f.key] ?? ""}
-                onChange={(e) => setTagValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                placeholder={f.placeholder || f.label}
-                className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)", borderRadius: 10 }}
-              />
-            ))}
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="app-content-card p-4 space-y-3">
+          <div className="app-section-kicker">QUICK UPLOAD</div>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Employee onboarding pack"
+            className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          />
+          {Array.isArray(workspace?.document_tag_fields) && workspace.document_tag_fields.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {workspace.document_tag_fields.map((f) => (
+                <input
+                  key={f.key}
+                  value={tagValues[f.key] ?? ""}
+                  onChange={(e) => setTagValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder || f.label}
+                  className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+                  style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                />
+              ))}
+            </div>
+          ) : null}
+          <input
+            type="file"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+            style={{ borderColor: "var(--border)", borderRadius: 10 }}
+          />
+          <div>
+            <button
+              type="button"
+              onClick={() => void createDocument()}
+              disabled={creating}
+              className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+              style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 999 }}
+            >
+              {creating ? "Creating…" : "Create document"}
+            </button>
           </div>
-        ) : null}
-        <input
-          type="file"
-          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
-          style={{ borderColor: "var(--border)", borderRadius: 10 }}
-        />
-        <div>
-          <button
-            type="button"
-            onClick={() => void createDocument()}
-            disabled={creating}
-            className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
-          >
-            {creating ? "Creating…" : "Create document"}
-          </button>
         </div>
-      </div>
+        <div className="app-content-card p-4 space-y-3">
+          <div className="app-section-kicker">STACKS</div>
+          <div className="flex gap-2 flex-col sm:flex-row">
+            <input
+              value={newStackName}
+              onChange={(e) => setNewStackName(e.target.value)}
+              placeholder="Create stack (e.g. Quarterly policy rollout)"
+              className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+              style={{ borderColor: "var(--border)", borderRadius: 10 }}
+            />
+            <button
+              type="button"
+              onClick={() => void createStack()}
+              className="focus-ring px-3 py-2 text-sm font-semibold hover:opacity-90"
+              style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 999 }}
+            >
+              Create
+            </button>
+          </div>
+          {stacksLoading ? <div className="text-xs" style={{ color: "var(--muted2)" }}>Loading stacks…</div> : null}
+          {stacksError ? <div className="text-xs" style={{ color: "#b91c1c" }}>{stacksError}</div> : null}
+          {!stacksLoading && stacks.length > 0 ? (
+            <div className="grid grid-cols-1 gap-2">
+              {stacks.map((stack) => (
+                <button
+                  type="button"
+                  key={stack.id}
+                  onClick={() => void openStack(stack.id)}
+                  className="focus-ring border p-3 text-left"
+                  style={{
+                    borderColor: stackDetail?.stack.id === stack.id ? "var(--fg)" : "var(--border)",
+                    borderRadius: 10,
+                    background: stackDetail?.stack.id === stack.id ? "color-mix(in srgb, var(--card2) 65%, #fff)" : "transparent",
+                  }}
+                >
+                  <div className="text-sm font-semibold">{stack.name}</div>
+                  <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                    {stack.item_count} documents
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {suggestedStackGroups.length > 0 ? (
+            <div className="pt-2">
+              <div className="text-xs font-semibold" style={{ color: "var(--muted2)" }}>
+                Suggested groups
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {suggestedStackGroups.map((group) => (
+                  <span
+                    key={group.name}
+                    className="inline-flex items-center px-2 py-1 text-xs"
+                    style={{ borderRadius: 999, background: "var(--card2)", color: "var(--muted)" }}
+                  >
+                    {group.name} ({group.count})
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+      </section>
+
+      {stackDetail ? (
+        <section className="app-content-card p-4 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="app-section-kicker">ACTIVE STACK</div>
+              <div className="mt-1 text-lg font-semibold">{stackDetail.stack.name}</div>
+              <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                {stackDetail.items.length} documents • {stackDetail.shares.length} shared users
+              </div>
+            </div>
+            {stackDetail.can_manage ? (
+              <button
+                type="button"
+                onClick={() => void deleteStack(stackDetail.stack.id)}
+                disabled={stackActionBusy}
+                className="focus-ring px-3 py-2 text-xs font-semibold"
+                style={{ borderRadius: 999, border: "1px solid var(--border)", color: "#991b1b" }}
+              >
+                Delete stack
+              </button>
+            ) : null}
+          </div>
+          {stackDetailLoading ? <div className="text-sm" style={{ color: "var(--muted)" }}>Loading stack…</div> : null}
+          {!stackDetailLoading ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <div className="text-xs font-semibold" style={{ color: "var(--muted2)" }}>DOCUMENTS</div>
+                {stackDetail.items.map((item) => {
+                  const doc = documents.find((d) => d.id === item.document_id);
+                  return (
+                    <div key={item.document_id} className="border rounded-xl px-3 py-2" style={{ borderColor: "var(--border2)" }}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium truncate">{doc?.title ?? item.document_id}</div>
+                        {stackDetail.can_manage ? (
+                          <button
+                            type="button"
+                            onClick={() => void removeFromStack(stackDetail.stack.id, item.document_id)}
+                            disabled={stackActionBusy}
+                            className="focus-ring text-xs"
+                            style={{ color: "var(--muted)" }}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+                {stackDetail.items.length === 0 ? (
+                  <div className="text-sm" style={{ color: "var(--muted)" }}>No documents yet in this stack.</div>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs font-semibold" style={{ color: "var(--muted2)" }}>SHARING</div>
+                {stackDetail.can_manage ? (
+                  <div className="flex gap-2">
+                    <select
+                      value={stackShareUserId}
+                      onChange={(e) => setStackShareUserId(e.target.value)}
+                      className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+                      style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                    >
+                      <option value="">Select member…</option>
+                      {workspaceMembers
+                        .filter((m) => m.user_id !== stackDetail.stack.owner_user_id)
+                        .map((m) => (
+                          <option key={m.user_id} value={m.user_id}>
+                            {m.email ?? m.user_id}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void addStackShare()}
+                      disabled={!stackShareUserId || stackActionBusy}
+                      className="focus-ring px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                      style={{ borderRadius: 999, border: "1px solid var(--border)" }}
+                    >
+                      Share
+                    </button>
+                  </div>
+                ) : null}
+                {stackDetail.shares.map((share) => {
+                  const member = workspaceMembers.find((m) => m.user_id === share.user_id);
+                  return (
+                    <div key={share.user_id} className="border rounded-xl px-3 py-2" style={{ borderColor: "var(--border2)" }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm">{member?.email ?? share.user_id}</div>
+                        {stackDetail.can_manage ? (
+                          <button
+                            type="button"
+                            onClick={() => void removeStackShare(share.user_id)}
+                            disabled={stackActionBusy}
+                            className="focus-ring text-xs"
+                            style={{ color: "var(--muted)" }}
+                          >
+                            Unshare
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+                {stackDetail.shares.length === 0 ? (
+                  <div className="text-sm" style={{ color: "var(--muted)" }}>Private stack. No shared members.</div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {loading && <div className="text-sm" style={{ color: "var(--muted)" }}>Loading…</div>}
 
@@ -531,6 +993,7 @@ export default function WorkspaceDocumentsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
                       <div className="text-sm font-semibold truncate">{d.title}</div>
+                      <PriorityBadge priority={d.priority} />
                       <StatusBadge status={d.status} />
                       <div className="text-xs" style={{ color: "var(--muted2)" }}>
                         {d.publicId}
@@ -567,9 +1030,53 @@ export default function WorkspaceDocumentsPage() {
                           .join(" • ")}
                       </div>
                     ) : null}
+                    {Array.isArray(d.labels) && d.labels.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {d.labels.map((label) => (
+                          <span
+                            key={label}
+                            className="inline-flex items-center px-2 py-0.5 text-[11px]"
+                            style={{ borderRadius: 999, background: "var(--card2)", color: "var(--muted)" }}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex gap-2">
+                    {stacks.length > 0 ? (
+                      <>
+                        <select
+                          value={selectedStackByDoc[d.id] ?? ""}
+                          onChange={(e) =>
+                            setSelectedStackByDoc((prev) => ({ ...prev, [d.id]: e.target.value }))
+                          }
+                          className="focus-ring px-2 py-2 text-xs bg-transparent border"
+                          style={{ borderColor: "var(--border)", borderRadius: 10, color: "var(--muted)" }}
+                        >
+                          <option value="">Stack…</option>
+                          {stacks.map((stack) => (
+                            <option key={stack.id} value={stack.id}>
+                              {stack.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!selectedStackByDoc[d.id]}
+                          onClick={() => {
+                            const stackId = selectedStackByDoc[d.id];
+                            if (stackId) void addToStack(stackId, d.id);
+                          }}
+                          className="focus-ring px-3 py-2 text-sm hover:opacity-80 disabled:opacity-50"
+                          style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
+                        >
+                          Add to stack
+                        </button>
+                      </>
+                    ) : null}
                     {tagFieldOptions.length > 0 ? (
                       <button
                         type="button"

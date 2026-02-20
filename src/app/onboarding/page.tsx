@@ -291,7 +291,7 @@ export default function OnboardingPage() {
             <div className="text-xs tracking-widest" style={{ color: "var(--muted2)" }}>
               ONBOARDING
             </div>
-            <h1 className="mt-2 text-2xl md:text-3xl font-semibold tracking-tight">
+            <h1 className="marketing-serif mt-2 text-4xl md:text-5xl tracking-tight">
               Let’s set you up properly.
             </h1>
             <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
@@ -322,10 +322,10 @@ export default function OnboardingPage() {
         {/* Card */}
         <div
           className="mt-8 border p-6 md:p-8"
-          style={{ borderColor: "var(--border)", background: "var(--card)" }}
+          style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}
         >
           <div className="flex items-start justify-between gap-6">
-            <h2 className="text-lg font-semibold tracking-tight">{STEPS[step].title}</h2>
+            <h2 className="marketing-serif text-3xl tracking-tight">{STEPS[step].title}</h2>
             <div className="text-xs" style={{ color: "var(--muted2)" }}>
               {STEPS[step].key !== "result" ? "In Progress" : "Done"}
             </div>

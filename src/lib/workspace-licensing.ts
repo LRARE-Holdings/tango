@@ -6,6 +6,7 @@ export type WorkspaceLicenseMember = {
   user_id: string;
   role: WorkspaceRole;
   license_active: boolean;
+  can_view_analytics: boolean;
   license_assigned_at: string | null;
   license_assigned_by: string | null;
   license_revoked_at: string | null;
@@ -113,14 +114,18 @@ export async function getWorkspaceLicensing(
   const memberWithLicense = await admin
     .from("workspace_members")
     .select(
-      "user_id,role,joined_at,license_active,license_assigned_at,license_assigned_by,license_revoked_at,license_revoked_by"
+      "user_id,role,joined_at,license_active,can_view_analytics,license_assigned_at,license_assigned_by,license_revoked_at,license_revoked_by"
     )
     .eq("workspace_id", workspaceId)
     .order("joined_at", { ascending: true });
 
   let members: WorkspaceLicenseMember[] = [];
 
-  if (memberWithLicense.error && isMissingColumnError(memberWithLicense.error, "license_active")) {
+  if (
+    memberWithLicense.error &&
+    (isMissingColumnError(memberWithLicense.error, "license_active") ||
+      isMissingColumnError(memberWithLicense.error, "can_view_analytics"))
+  ) {
     const fallback = await admin
       .from("workspace_members")
       .select("user_id,role,joined_at")
@@ -135,6 +140,7 @@ export async function getWorkspaceLicensing(
         role: m.role,
         joined_at: m.joined_at ?? null,
         license_active: true,
+        can_view_analytics: false,
         license_assigned_at: m.joined_at ?? null,
         license_assigned_by: null,
         license_revoked_at: null,
@@ -149,6 +155,7 @@ export async function getWorkspaceLicensing(
         role: WorkspaceRole;
         joined_at?: string | null;
         license_active?: boolean;
+        can_view_analytics?: boolean;
         license_assigned_at?: string | null;
         license_assigned_by?: string | null;
         license_revoked_at?: string | null;
@@ -159,6 +166,7 @@ export async function getWorkspaceLicensing(
       role: m.role,
       joined_at: m.joined_at ?? null,
       license_active: Boolean(m.license_active ?? true),
+      can_view_analytics: Boolean(m.can_view_analytics ?? false),
       license_assigned_at: m.license_assigned_at ?? null,
       license_assigned_by: m.license_assigned_by ?? null,
       license_revoked_at: m.license_revoked_at ?? null,

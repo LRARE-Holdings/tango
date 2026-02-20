@@ -169,6 +169,22 @@ export default function DocDetailPage({
   }, [id]);
 
   useEffect(() => {
+    let active = true;
+    async function markOpened() {
+      if (!active) return;
+      try {
+        await fetch(`/api/app/documents/${encodeURIComponent(id)}/opened`, { method: "POST" });
+      } catch {
+        // noop
+      }
+    }
+    void markOpened();
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  useEffect(() => {
     async function loadVersions() {
       try {
         const res = await fetch(`/api/app/documents/${id}/versions`, { cache: "no-store" });
@@ -624,7 +640,7 @@ export default function DocDetailPage({
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-10">
+    <div className="space-y-6 pb-10">
       <div
         className="rounded-3xl border px-6 py-6 md:px-7 md:py-7"
         style={{ borderColor: "var(--border)", background: "var(--card)" }}
@@ -634,8 +650,8 @@ export default function DocDetailPage({
             <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
               RECORD VIEW
             </div>
-            <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight md:text-3xl">
-              {doc?.title ?? "Record"}
+            <h1 className="app-hero-title mt-1 truncate text-4xl md:text-5xl">
+              {doc?.title ?? "Receipt"}
             </h1>
             {doc ? (
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs" style={{ color: "var(--muted)" }}>

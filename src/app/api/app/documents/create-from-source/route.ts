@@ -20,6 +20,7 @@ type ParsedRecipient = {
 };
 
 type TagField = { key: string; label: string; placeholder?: string };
+type Priority = "low" | "normal" | "high";
 
 function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Server error";
@@ -75,6 +76,23 @@ function parseRawTags(raw: FormDataEntryValue | null): Record<string, string> {
     out[key] = val.slice(0, 120);
   }
   return out;
+}
+
+function parsePriority(raw: FormDataEntryValue | null): Priority {
+  const value = String(raw ?? "normal").trim().toLowerCase();
+  if (value === "low" || value === "high") return value;
+  return "normal";
+}
+
+function parseLabels(raw: FormDataEntryValue | null): string[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  const split = raw
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, 20)
+    .map((x) => x.slice(0, 48));
+  return Array.from(new Set(split));
 }
 
 function isEmail(v: string) {
@@ -225,6 +243,8 @@ export async function POST(req: Request) {
     const sendEmailsRaw = String(form.get("send_emails") ?? "false").toLowerCase() === "true";
     const recipients = parseRecipients(form.get("recipients"));
     const rawTags = parseRawTags(form.get("tags"));
+    const priority = parsePriority(form.get("priority"));
+    const labels = parseLabels(form.get("labels"));
 
     if (passwordEnabledRaw && !isPasswordStrongEnough(passwordRaw)) {
       return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
@@ -447,6 +467,8 @@ export async function POST(req: Request) {
       file_path: "pending",
       sha256,
       tags,
+      priority,
+      labels,
     };
     if (passwordEnabledRaw) {
       baseInsert.password_enabled = true;
@@ -486,6 +508,8 @@ export async function POST(req: Request) {
       } else {
         if (withExtended.error?.code === "42703") {
           delete baseInsert.tags;
+          delete baseInsert.priority;
+          delete baseInsert.labels;
         }
         insertErr = withExtended.error;
       }
@@ -525,6 +549,8 @@ export async function POST(req: Request) {
           source_file_id: sourceFile.sourceFileId || null,
           source_revision_id: sourceFile.sourceRevisionId || null,
           source_url: sourceFile.sourceUrl || null,
+          priority,
+          labels,
         })
         .eq("id", doc.id);
       if (updWithExtended.error && updWithExtended.error.code !== "42703") {

@@ -11,6 +11,8 @@ type DocRow = {
   created_at: string;
   owner_id: string;
   tags?: unknown;
+  priority?: string | null;
+  labels?: unknown;
 };
 
 type CompletionRow = {
@@ -136,17 +138,25 @@ export async function GET(
     if (wsErr) throw new Error(wsErr.message);
     if (!workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const q = normalizeQuery(new URL(req.url).searchParams.get("q"));
+    const reqUrl = new URL(req.url);
+    const q = normalizeQuery(reqUrl.searchParams.get("q"));
+    const priorityFilter = normalizeQuery(reqUrl.searchParams.get("priority"));
+    const labelFilter = normalizeQuery(reqUrl.searchParams.get("label"));
 
     const withTags = await supabase
       .from("documents")
-      .select("id,title,public_id,created_at,owner_id,tags")
+      .select("id,title,public_id,created_at,owner_id,tags,priority,labels")
       .eq("workspace_id", resolved.id)
       .order("created_at", { ascending: false })
       .limit(250);
     let docs = withTags.data as DocRow[] | null;
     let docsErr = withTags.error;
-    if (docsErr && isMissingColumnError(docsErr, "tags")) {
+    if (
+      docsErr &&
+      (isMissingColumnError(docsErr, "tags") ||
+        isMissingColumnError(docsErr, "priority") ||
+        isMissingColumnError(docsErr, "labels"))
+    ) {
       const fallback = await supabase
         .from("documents")
         .select("id,title,public_id,created_at,owner_id")
@@ -179,12 +189,23 @@ export async function GET(
     if (q) {
       documents = documents.filter((d) => {
         const tags = parseDocumentTags(d.tags);
+        const labels = Array.isArray(d.labels) ? d.labels.map((x) => String(x)) : [];
         const tagHay = Object.entries(tags)
           .map(([k, v]) => `${k} ${v}`)
           .join(" ");
-        const hay = `${d.title ?? ""} ${d.public_id ?? ""} ${tagHay}`.toLowerCase();
+        const hay = `${d.title ?? ""} ${d.public_id ?? ""} ${tagHay} ${labels.join(" ")}`.toLowerCase();
         return hay.includes(q);
       });
+    }
+    if (priorityFilter) {
+      documents = documents.filter((d) => String(d.priority ?? "normal").toLowerCase() === priorityFilter);
+    }
+    if (labelFilter) {
+      documents = documents.filter((d) =>
+        Array.isArray(d.labels)
+          ? d.labels.some((label) => String(label).toLowerCase().includes(labelFilter))
+          : false
+      );
     }
 
     if (documents.length === 0) {
@@ -234,6 +255,8 @@ export async function GET(
         latestAcknowledgedAt: a?.latestSubmittedAt ?? null,
         status: acknowledgements > 0 ? ("Acknowledged" as const) : ("Pending" as const),
         tags: parseDocumentTags(d.tags),
+        priority: String(d.priority ?? "normal").toLowerCase(),
+        labels: Array.isArray(d.labels) ? d.labels.map((x) => String(x)) : [],
       };
     });
 

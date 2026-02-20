@@ -21,6 +21,13 @@ export async function proxy(req: NextRequest) {
 
   const res = NextResponse.next();
 
+  if (pathname.startsWith("/app")) {
+    // Prevent browser/proxy caches from serving authenticated app shells after logout.
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    res.headers.set("Pragma", "no-cache");
+    res.headers.set("Expires", "0");
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -46,7 +53,11 @@ export async function proxy(req: NextRequest) {
   if (!user && pathname.startsWith("/app")) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/auth";
-    return NextResponse.redirect(redirectUrl);
+    const redirect = NextResponse.redirect(redirectUrl);
+    redirect.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    redirect.headers.set("Pragma", "no-cache");
+    redirect.headers.set("Expires", "0");
+    return redirect;
   }
 
   return res;

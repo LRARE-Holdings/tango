@@ -94,8 +94,8 @@ export default function CheckEmailPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-md">
+    <main className="min-h-screen flex items-center justify-center px-6 py-10">
+      <div className="w-full max-w-md border p-6 md:p-7" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}>
         <div className="space-y-3">
           <div
             className="text-xs font-semibold tracking-widest"
@@ -103,7 +103,7 @@ export default function CheckEmailPage() {
           >
             VERIFY YOUR EMAIL
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="marketing-serif text-4xl tracking-tight">
             Check your inbox
           </h1>
           <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
@@ -111,10 +111,7 @@ export default function CheckEmailPage() {
           </p>
         </div>
 
-        <div
-          className="mt-6 border p-5"
-          style={{ borderColor: "var(--border)", background: "var(--card)" }}
-        >
+        <div className="mt-6 border p-5" style={{ borderColor: "var(--border)", background: "var(--bg)", borderRadius: 14 }}>
           <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
             EMAIL
           </div>

@@ -13,6 +13,7 @@
     "release:verify-env": "node scripts/release/verify-env.mjs"
   },
   "dependencies": {
+    "@openai/codex": "^0.104.0",
     "@opentelemetry/core": "^2.5.1",
     "@resvg/resvg-js": "^2.6.2",
     "@sentry/nextjs": "^10.39.0",

@@ -33,34 +33,48 @@ export default async function WorkspaceSettingsLayout({
     redirect(`/app/workspaces/${id}/dashboard`);
   }
 
+  const navItems = [
+    { href: `/app/workspaces/${id}/settings`, label: "Overview" },
+    { href: `/app/workspaces/${id}/settings/general`, label: "General" },
+    { href: `/app/workspaces/${id}/settings/members`, label: "Members" },
+    { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
+    { href: `/app/workspaces/${id}/settings/policy`, label: "Policy mode" },
+    { href: `/app/workspaces/${id}/settings/usage`, label: "Usage" },
+    { href: `/app/workspaces/${id}/settings/domains`, label: "Domains" },
+  ];
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <div className="text-xs font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
+          <div className="app-section-kicker">
             WORKSPACE SETTINGS
           </div>
-          <div className="text-sm mt-1" style={{ color: "var(--muted)" }}>
+          <h1 className="app-hero-title mt-1 text-3xl md:text-4xl">Workspace admin</h1>
+          <div className="text-sm mt-2" style={{ color: "var(--muted)" }}>
             Core configuration for this workspace.
           </div>
         </div>
-        <Link
-          href={`/app/workspaces/${id}/dashboard`}
-          className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-          style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-        >
-          Back to dashboard
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/app/account"
+            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
+          >
+            My settings
+          </Link>
+          <Link
+            href={`/app/workspaces/${id}/dashboard`}
+            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
+            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
+          >
+            Back to dashboard
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        {[
-          { href: `/app/workspaces/${id}/settings/general`, label: "General" },
-          { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
-          { href: `/app/workspaces/${id}/settings/policy`, label: "Policy mode" },
-          { href: `/app/workspaces/${id}/settings/usage`, label: "Usage" },
-          { href: `/app/workspaces/${id}/settings/domains`, label: "Domains" },
-        ].map((item) => (
+        {navItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -69,7 +83,7 @@ export default async function WorkspaceSettingsLayout({
               border: "1px solid var(--border)",
               borderRadius: 999,
               color: "var(--muted)",
-              background: "var(--card)",
+              background: "color-mix(in srgb, var(--card2) 45%, #fff)",
             }}
           >
             {item.label}

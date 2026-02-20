@@ -6,6 +6,13 @@ import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 
 export const dynamic = "force-dynamic";
 
+function isUnauthorizedAuthError(error: { message?: string; code?: string } | null | undefined) {
+  if (!error) return false;
+  if (error.code === "PGRST301") return true;
+  const msg = String(error.message ?? "").toLowerCase();
+  return msg.includes("auth session missing") || msg.includes("invalid jwt") || msg.includes("jwt");
+}
+
 type EntitlementsRow = {
   plan: string | null;
   subscription_status: string | null;
@@ -97,7 +104,12 @@ export async function GET() {
   const supabase = await supabaseServer();
 
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
-  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+  if (userErr) {
+    return NextResponse.json(
+      { error: isUnauthorizedAuthError(userErr) ? "Unauthorized" : userErr.message },
+      { status: isUnauthorizedAuthError(userErr) ? 401 : 500 }
+    );
+  }
   if (!userRes.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = userRes.user.id;

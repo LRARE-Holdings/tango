@@ -76,10 +76,13 @@ export default function InvitePasswordPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-sm space-y-6">
+    <main className="min-h-screen flex items-center justify-center px-6 py-10">
+      <div
+        className="w-full max-w-md space-y-6 border p-6 md:p-7"
+        style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}
+      >
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Set your password</h1>
+          <h1 className="marketing-serif text-4xl tracking-tight">Set your password</h1>
           <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
             Create your password to complete workspace access.
           </p>
@@ -141,4 +144,3 @@ export default function InvitePasswordPage() {
     </main>
   );
 }
-

@@ -21,7 +21,7 @@ const authCookie = process.env.AUTH_COOKIE || "";
 const checks = [
   { name: "Marketing home", path: "/", expect: [200] },
   { name: "Pricing page", path: "/pricing", expect: [200] },
-  { name: "Auth page", path: "/auth", expect: [200] },
+  { name: "Auth page", path: "/auth", expect: [200, 302, 307] },
   { name: "App shell (redirect or auth)", path: "/app", expect: [200, 302, 307, 401] },
   { name: "Public doc missing", path: "/api/public/not-a-real-id", expect: [404] },
   { name: "API me (auth-aware)", path: "/api/app/me", expect: [200, 401, 500] },
