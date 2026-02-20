@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { safeInternalPath } from "@/lib/safe-redirect";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/security/turnstile-widget";
+import { useRef } from "react";
 
 type Mode = "signin" | "signup";
 
@@ -44,6 +46,9 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentReset, setSentReset] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetHandle | null>(null);
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   useEffect(() => {
     // Avoid `useSearchParams()` to keep builds stable.
@@ -78,10 +83,15 @@ export default function AuthPage() {
     setSentReset(false);
 
     try {
+      if (captchaEnabled && !captchaToken) {
+        throw new Error("Please complete the security check.");
+      }
+
       if (mode === "signin") {
         const { error: signInErr } = await supabase.auth.signInWithPassword({
           email,
           password,
+          options: { captchaToken: captchaToken ?? undefined },
         });
         if (signInErr) throw signInErr;
         hardRedirect(nextPath);
@@ -95,6 +105,7 @@ export default function AuthPage() {
         email,
         password,
         options: {
+          captchaToken: captchaToken ?? undefined,
           // After email confirmation, Supabase can send the user here.
           // (If confirmations are disabled, the user will be immediately authenticated anyway.)
           emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
@@ -108,6 +119,7 @@ export default function AuthPage() {
       );
     } catch (error: unknown) {
       setError(errorMessage(error, "Could not continue"));
+      if (captchaEnabled) turnstileRef.current?.reset();
     } finally {
       setLoading(false);
     }
@@ -117,18 +129,23 @@ export default function AuthPage() {
     setLoading(true);
     setError(null);
     try {
+      if (captchaEnabled && !captchaToken) {
+        throw new Error("Please complete the security check.");
+      }
       const siteUrl = getSiteUrl();
 
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          captchaToken: captchaToken ?? undefined,
         },
       });
       if (oauthErr) throw oauthErr;
       // browser redirects away
     } catch (error: unknown) {
       setError(errorMessage(error, "Could not start Google sign-in"));
+      if (captchaEnabled) turnstileRef.current?.reset();
       setLoading(false);
     }
   }
@@ -139,16 +156,21 @@ export default function AuthPage() {
     setSentReset(false);
 
     try {
+      if (captchaEnabled && !captchaToken) {
+        throw new Error("Please complete the security check.");
+      }
       const siteUrl = getSiteUrl();
 
       const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${siteUrl}/auth/reset`,
+        captchaToken: captchaToken ?? undefined,
       });
       if (resetErr) throw resetErr;
 
       setSentReset(true);
     } catch (error: unknown) {
       setError(errorMessage(error, "Could not send reset email"));
+      if (captchaEnabled) turnstileRef.current?.reset();
     } finally {
       setLoading(false);
     }
@@ -214,9 +236,15 @@ export default function AuthPage() {
             style={{ borderColor: "var(--border)" }}
           />
 
+          <TurnstileWidget
+            ref={turnstileRef}
+            onTokenChange={setCaptchaToken}
+            className="pt-1"
+          />
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (captchaEnabled && !captchaToken)}
             className="focus-ring w-full rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
             style={{ background: "var(--fg)", color: "var(--bg)" }}
           >
@@ -238,7 +266,7 @@ export default function AuthPage() {
             type="button"
             onClick={forgotPassword}
             className="underline underline-offset-4 hover:opacity-80"
-            disabled={loading || !email}
+            disabled={loading || !email || (captchaEnabled && !captchaToken)}
             title={!email ? "Enter your email first" : "Send reset email"}
           >
             Forgot password

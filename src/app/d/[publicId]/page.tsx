@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/security/turnstile-widget";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -60,6 +61,9 @@ export default function PublicDocPage({
 
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetHandle | null>(null);
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   // We only reveal the final time-on-page after submission (keeps the UI calm)
   const timeOnPageFinal = () => {
@@ -314,6 +318,10 @@ export default function PublicDocPage({
       setError("Name and a valid email are required for this document.");
       return;
     }
+    if (captchaEnabled && !captchaToken) {
+      setError("Please complete the security check.");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -331,6 +339,9 @@ export default function PublicDocPage({
           max_scroll_percent: maxScroll,
           time_on_page_seconds: seconds,
           active_seconds: activeSeconds,
+          captchaToken,
+          turnstileToken: captchaToken,
+          cf_turnstile_response: captchaToken,
         }),
       });
 
@@ -340,6 +351,7 @@ export default function PublicDocPage({
       setSubmitted(true);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Something went wrong");
+      if (captchaEnabled) turnstileRef.current?.reset();
     } finally {
       setSubmitting(false);
     }
@@ -502,10 +514,18 @@ export default function PublicDocPage({
             </div>
 
             <div className="mt-5 flex flex-col sm:flex-row gap-3">
+              <TurnstileWidget
+                ref={turnstileRef}
+                onTokenChange={setCaptchaToken}
+                className="sm:mr-2"
+              />
+            </div>
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-3">
               <button
                 className="focus-ring rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
                 style={{ background: "var(--fg)", color: "var(--bg)" }}
-                disabled={!ack || submitting || rendering || !identityValid}
+                disabled={!ack || submitting || rendering || !identityValid || (captchaEnabled && !captchaToken)}
                 onClick={submit}
               >
                 {submitting ? "Submitting…" : "Submit acknowledgement"}

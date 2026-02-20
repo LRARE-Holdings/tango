@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/security/turnstile-widget";
 
 export default function PublicDocAccessPage({
   params,
@@ -16,6 +17,9 @@ export default function PublicDocAccessPage({
   const [requiresPassword, setRequiresPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetHandle | null>(null);
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   useEffect(() => {
     let alive = true;
@@ -54,16 +58,25 @@ export default function PublicDocAccessPage({
     setChecking(true);
     setError(null);
     try {
+      if (captchaEnabled && !captchaToken) {
+        throw new Error("Please complete the security check.");
+      }
       const res = await fetch(`/api/public/${publicId}/access`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({
+          password,
+          captchaToken,
+          turnstileToken: captchaToken,
+          cf_turnstile_response: captchaToken,
+        }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Incorrect password");
       window.location.replace(`/d/${publicId}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
+      if (captchaEnabled) turnstileRef.current?.reset();
     } finally {
       setChecking(false);
     }
@@ -109,10 +122,14 @@ export default function PublicDocAccessPage({
                 style={{ borderColor: "var(--border)" }}
                 autoComplete="current-password"
               />
+              <TurnstileWidget
+                ref={turnstileRef}
+                onTokenChange={setCaptchaToken}
+              />
               <button
                 type="button"
                 onClick={unlock}
-                disabled={checking || !password.trim()}
+                disabled={checking || !password.trim() || (captchaEnabled && !captchaToken)}
                 className="focus-ring rounded-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
                 style={{ background: "var(--fg)", color: "var(--bg)" }}
               >

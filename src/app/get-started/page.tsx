@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { safeInternalPath } from "@/lib/safe-redirect";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/security/turnstile-widget";
+import { useRef } from "react";
 
 function getSafeNextFromHref(href: string) {
   try {
@@ -36,6 +38,9 @@ export default function GetStartedPage() {
   const [nextPath, setNextPath] = useState("/onboarding");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetHandle | null>(null);
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   useEffect(() => {
     setNextPath(getSafeNextFromHref(window.location.href));
@@ -48,6 +53,9 @@ export default function GetStartedPage() {
     setLoading(true);
     setError(null);
     try {
+      if (captchaEnabled && !captchaToken) {
+        throw new Error("Please complete the security check.");
+      }
       const name = fullName.trim();
       if (!name) throw new Error("Enter your full name to continue.");
       if (!firstName) throw new Error("Enter your full name to continue.");
@@ -59,6 +67,7 @@ export default function GetStartedPage() {
         email,
         password,
         options: {
+          captchaToken: captchaToken ?? undefined,
           emailRedirectTo: confirmUrl,
           data: {
             full_name: name,
@@ -73,6 +82,7 @@ export default function GetStartedPage() {
       );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Could not create account");
+      if (captchaEnabled) turnstileRef.current?.reset();
     } finally {
       setLoading(false);
     }
@@ -82,16 +92,20 @@ export default function GetStartedPage() {
     setLoading(true);
     setError(null);
     try {
+      if (captchaEnabled && !captchaToken) {
+        throw new Error("Please complete the security check.");
+      }
       if (!firstName) throw new Error("Add your first name before continuing with Google.");
       const siteUrl = getSiteUrl();
       const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(nextPath)}&first_name=${encodeURIComponent(firstName)}`;
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo },
+        options: { redirectTo, captchaToken: captchaToken ?? undefined },
       });
       if (oauthErr) throw oauthErr;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Could not start Google sign-up");
+      if (captchaEnabled) turnstileRef.current?.reset();
       setLoading(false);
     }
   }
@@ -139,9 +153,15 @@ export default function GetStartedPage() {
             style={{ borderColor: "var(--border)" }}
           />
 
+          <TurnstileWidget
+            ref={turnstileRef}
+            onTokenChange={setCaptchaToken}
+            className="pt-1"
+          />
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (captchaEnabled && !captchaToken)}
             className="focus-ring w-full rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
             style={{ background: "var(--fg)", color: "var(--bg)" }}
           >
@@ -152,7 +172,7 @@ export default function GetStartedPage() {
         <button
           type="button"
           onClick={signUpWithGoogle}
-          disabled={loading}
+          disabled={loading || (captchaEnabled && !captchaToken)}
           className="focus-ring w-full rounded-full border px-4 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
           style={{ borderColor: "var(--border)", color: "var(--fg)" }}
         >
