@@ -6,65 +6,8 @@ import {
   isReceiptLaunchLive,
 } from "@/lib/launch-access";
 
-const MAINTENANCE_BYPASS_COOKIE = "receipt_maintenance_bypass";
-const MAINTENANCE_BYPASS_QUERY = "maintenance_bypass";
-
-function isMaintenanceMode() {
-  return process.env.MAINTENANCE_MODE === "1";
-}
-
-function isStaticAssetPath(pathname: string) {
-  if (pathname.startsWith("/_next/")) return true;
-  if (pathname === "/favicon.ico") return true;
-  if (pathname === "/robots.txt") return true;
-  if (pathname === "/sitemap.xml") return true;
-  return /\.[a-z0-9]+$/i.test(pathname);
-}
-
-function hasValidMaintenanceBypass(req: NextRequest) {
-  return req.cookies.get(MAINTENANCE_BYPASS_COOKIE)?.value === "1";
-}
-
-function hasValidMaintenanceBypassToken(req: NextRequest) {
-  const token = req.nextUrl.searchParams.get(MAINTENANCE_BYPASS_QUERY);
-  const expected = process.env.MAINTENANCE_BYPASS_TOKEN;
-  return Boolean(expected && token && token === expected);
-}
-
-function withMaintenanceBypassCookie(res: NextResponse) {
-  res.cookies.set({
-    name: MAINTENANCE_BYPASS_COOKIE,
-    value: "1",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 4,
-  });
-  return res;
-}
-
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
-
-  if (isMaintenanceMode()) {
-    if (isStaticAssetPath(pathname) || pathname.startsWith("/api/")) {
-      return NextResponse.next();
-    }
-
-    if (hasValidMaintenanceBypassToken(req)) {
-      const cleanUrl = req.nextUrl.clone();
-      cleanUrl.searchParams.delete(MAINTENANCE_BYPASS_QUERY);
-      return withMaintenanceBypassCookie(NextResponse.redirect(cleanUrl));
-    }
-
-    if (!hasValidMaintenanceBypass(req) && pathname !== "/maintenance") {
-      const maintenanceUrl = req.nextUrl.clone();
-      maintenanceUrl.pathname = "/maintenance";
-      maintenanceUrl.search = "";
-      return NextResponse.redirect(maintenanceUrl);
-    }
-  }
 
   if (!isReceiptLaunchLive() && (pathname === "/auth" || pathname === "/get-started")) {
     const hasLaunchAccess = req.cookies.get(RECEIPT_LAUNCH_UNLOCK_COOKIE)?.value === "1";
@@ -110,7 +53,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
-  ],
+  matcher: ["/app/:path*", "/auth", "/get-started"],
 };

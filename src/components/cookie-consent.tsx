@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Script from "next/script";
 
 const GA_MEASUREMENT_ID = "G-TDT3P14Q7M";
@@ -14,7 +14,7 @@ function readConsentCookie(): ConsentState {
   const entries = document.cookie.split(";").map((entry) => entry.trim());
   const row = entries.find((entry) => entry.startsWith(`${CONSENT_COOKIE}=`));
   if (!row) return "unknown";
-  const value = row.split("=")[1];
+  const value = decodeURIComponent(row.slice(CONSENT_COOKIE.length + 1));
   if (value === "accepted" || value === "rejected") return value;
   return "unknown";
 }
@@ -24,19 +24,27 @@ function writeConsentCookie(value: Exclude<ConsentState, "unknown">) {
   document.cookie = `${CONSENT_COOKIE}=${value}; Max-Age=${CONSENT_MAX_AGE}; Path=/; SameSite=Lax${secure}`;
 }
 
+function subscribeCookieStore() {
+  return () => {};
+}
+
 export function CookieConsent() {
-  const [consent, setConsent] = useState<ConsentState>(() =>
-    readConsentCookie()
+  const [consentOverride, setConsentOverride] = useState<ConsentState | null>(null);
+  const cookieConsent = useSyncExternalStore(
+    subscribeCookieStore,
+    readConsentCookie,
+    () => "unknown"
   );
+  const consent = consentOverride ?? cookieConsent;
 
   const accept = () => {
     writeConsentCookie("accepted");
-    setConsent("accepted");
+    setConsentOverride("accepted");
   };
 
   const reject = () => {
     writeConsentCookie("rejected");
-    setConsent("rejected");
+    setConsentOverride("rejected");
   };
 
   const showBanner = consent === "unknown";
