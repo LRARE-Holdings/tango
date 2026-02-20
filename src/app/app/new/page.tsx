@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
 import { InlineNotice, SectionDisclosure } from "@/components/ui/calm-core";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
+type SendMode = "single_upload" | "selected_documents" | "full_stack";
 
 type Recipient = {
   id: string;
@@ -261,6 +263,7 @@ function Panel({
 }
 
 export default function NewReceipt() {
+  const searchParams = useSearchParams();
   const toast = useToast();
   const nudgesShownRef = useRef<Record<string, boolean>>({});
 
@@ -270,6 +273,7 @@ export default function NewReceipt() {
 
   const personalPlus = can(plan, "personal");
   const proPlus = can(plan, "pro");
+  const canStackSend = can(plan, "pro");
 
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<"low" | "normal" | "high">("normal");
@@ -298,6 +302,11 @@ export default function NewReceipt() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [showUpgradeCard, setShowUpgradeCard] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  const [sendMode, setSendMode] = useState<SendMode>("single_upload");
+  const [availableDocuments, setAvailableDocuments] = useState<Array<{ id: string; title: string; publicId: string }>>([]);
+  const [availableStacks, setAvailableStacks] = useState<Array<{ id: string; name: string; item_count: number }>>([]);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
+  const [selectedStackId, setSelectedStackId] = useState("");
 
   useEffect(() => {
     async function loadMe() {
@@ -381,6 +390,83 @@ export default function NewReceipt() {
     setRequireRecipientIdentity(true);
   }, [policyModeEnabled]);
 
+  useEffect(() => {
+    if (!canStackSend && sendMode !== "single_upload") {
+      setSendMode("single_upload");
+    }
+  }, [canStackSend, sendMode]);
+
+  useEffect(() => {
+    const mode = searchParams.get("mode");
+    if (mode === "selected_documents" || mode === "full_stack" || mode === "single_upload") {
+      setSendMode(mode);
+    }
+    const stackId = searchParams.get("stackId");
+    if (stackId) setSelectedStackId(stackId);
+    const docsCsv = searchParams.get("documentIds");
+    if (docsCsv) {
+      const ids = Array.from(
+        new Set(
+          docsCsv
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean)
+        )
+      ).slice(0, 100);
+      setSelectedDocumentIds(ids);
+      if (ids.length > 0 && mode !== "full_stack") setSendMode("selected_documents");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!primaryWorkspaceId || !canStackSend) {
+      setAvailableDocuments([]);
+      setAvailableStacks([]);
+      return;
+    }
+    const workspaceId = primaryWorkspaceId;
+    let cancelled = false;
+    async function loadWorkspaceDeliveryOptions() {
+      try {
+        const [docsRes, stacksRes] = await Promise.all([
+          fetch(`/api/app/workspaces/${encodeURIComponent(workspaceId)}/documents`, { cache: "no-store" }),
+          fetch(`/api/app/workspaces/${encodeURIComponent(workspaceId)}/stacks`, { cache: "no-store" }),
+        ]);
+        const docsJson = docsRes.ok ? await docsRes.json() : { documents: [] };
+        const stacksJson = stacksRes.ok ? await stacksRes.json() : { stacks: [] };
+        if (!cancelled) {
+          setAvailableDocuments(
+            Array.isArray(docsJson?.documents)
+              ? docsJson.documents.map((doc: { id: string; title: string; publicId: string }) => ({
+                  id: String(doc.id),
+                  title: String(doc.title ?? "Untitled"),
+                  publicId: String(doc.publicId ?? ""),
+                }))
+              : []
+          );
+          setAvailableStacks(
+            Array.isArray(stacksJson?.stacks)
+              ? stacksJson.stacks.map((stack: { id: string; name: string; item_count?: number }) => ({
+                  id: String(stack.id),
+                  name: String(stack.name ?? "Stack"),
+                  item_count: Number(stack.item_count ?? 0),
+                }))
+              : []
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailableDocuments([]);
+          setAvailableStacks([]);
+        }
+      }
+    }
+    void loadWorkspaceDeliveryOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryWorkspaceId, canStackSend]);
+
   function maybeNudgeUpgrade(key: string, title: string, description: string) {
     if (plan !== "free") return;
     if (nudgesShownRef.current[key]) return;
@@ -432,26 +518,32 @@ export default function NewReceipt() {
   }, [file]);
 
   const hasFile = Boolean(file);
+  const hasSource =
+    sendMode === "single_upload"
+      ? hasFile
+      : sendMode === "full_stack"
+        ? Boolean(selectedStackId)
+        : selectedDocumentIds.length > 0;
 
   const recipientsCount = useMemo(() => recipients.filter((r) => r.name.trim() || r.email.trim()).length, [recipients]);
   const flowStep = useMemo(() => {
     if (shareUrl) return 3;
-    if (hasFile) return 2;
+    if (hasSource) return 2;
     return 1;
-  }, [hasFile, shareUrl]);
+  }, [hasSource, shareUrl]);
 
   useEffect(() => {
     if (shareUrl) {
       setWizardStep(3);
       return;
     }
-    if (hasFile && wizardStep === 1) {
+    if (hasSource && wizardStep === 1) {
       setWizardStep(2);
     }
-    if (!hasFile && wizardStep > 1) {
+    if (!hasSource && wizardStep > 1) {
       setWizardStep(1);
     }
-  }, [hasFile, shareUrl, wizardStep]);
+  }, [hasSource, shareUrl, wizardStep]);
 
   const recipientsValid = useMemo(() => {
     if (!sendEmails) return true;
@@ -494,7 +586,19 @@ export default function NewReceipt() {
     if (needsWorkspaceSelection) {
       return "Choose an active workspace from the top selector before creating a receipt.";
     }
-    if (!file) return "Please choose a PDF or DOCX file.";
+    if (sendMode !== "single_upload" && !canStackSend) {
+      return "Stack sending is available on Pro, Team, and Enterprise plans.";
+    }
+    if (sendMode === "single_upload" && !file) return "Please choose a PDF or DOCX file.";
+    if (sendMode === "selected_documents" && selectedDocumentIds.length === 0) {
+      return "Choose at least one existing document.";
+    }
+    if (sendMode === "full_stack" && !selectedStackId) {
+      return "Choose a stack to send.";
+    }
+    if (sendMode !== "single_upload" && !primaryWorkspaceId) {
+      return "Select an active workspace before sending a stack.";
+    }
     if (sendEmails && !personalPlus) return "Email sending is available on Personal plans and above.";
     if (!recipientsValid) return "Please add valid recipient emails (or turn off email sending).";
     if (passwordEnabled && !personalPlus) return "Password protection is available on Personal plans and above.";
@@ -519,27 +623,42 @@ export default function NewReceipt() {
 
     setLoading(true);
     try {
-      const form = new FormData();
-      form.append("source_type", "upload");
-      form.append("title", title || "Untitled");
-      if (file) {
-        form.append("file", file);
+      let res: Response;
+      if (sendMode === "single_upload") {
+        const form = new FormData();
+        form.append("source_type", "upload");
+        form.append("title", title || "Untitled");
+        if (file) {
+          form.append("file", file);
+        }
+        form.append("send_emails", String(sendEmails && personalPlus));
+        form.append("recipients", JSON.stringify(configuredRecipients));
+        form.append("require_recipient_identity", String(requireRecipientIdentity && plan !== "free"));
+        form.append("password_enabled", String(passwordEnabled && personalPlus));
+        form.append("password", passwordEnabled && personalPlus ? password : "");
+        form.append("max_acknowledgers_enabled", String(maxAcknowledgersEnabled));
+        form.append("max_acknowledgers", String(maxAcknowledgersEnabled ? maxAcknowledgers : 0));
+        form.append("tags", JSON.stringify(tagValues));
+        form.append("priority", priority);
+        form.append("labels", labelsInput);
+        form.append("template_enabled", String(useTemplate && proPlus));
+        form.append("template_id", useTemplate && proPlus ? templateId : "");
+        form.append("save_default", String(saveAsDefault && proPlus));
+        res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
+      } else {
+        res = await fetch(`/api/app/workspaces/${encodeURIComponent(primaryWorkspaceId ?? "")}/send`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            mode: sendMode,
+            stack_id: sendMode === "full_stack" ? selectedStackId : undefined,
+            document_ids: sendMode === "selected_documents" ? selectedDocumentIds : undefined,
+            title: title || undefined,
+            send_emails: sendEmails && personalPlus,
+            recipients: configuredRecipients,
+          }),
+        });
       }
-      form.append("send_emails", String(sendEmails && personalPlus));
-      form.append("recipients", JSON.stringify(configuredRecipients));
-      form.append("require_recipient_identity", String(requireRecipientIdentity && plan !== "free"));
-      form.append("password_enabled", String(passwordEnabled && personalPlus));
-      form.append("password", passwordEnabled && personalPlus ? password : "");
-      form.append("max_acknowledgers_enabled", String(maxAcknowledgersEnabled));
-      form.append("max_acknowledgers", String(maxAcknowledgersEnabled ? maxAcknowledgers : 0));
-      form.append("tags", JSON.stringify(tagValues));
-      form.append("priority", priority);
-      form.append("labels", labelsInput);
-      form.append("template_enabled", String(useTemplate && proPlus));
-      form.append("template_id", useTemplate && proPlus ? templateId : "");
-      form.append("save_default", String(saveAsDefault && proPlus));
-
-      const res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Upload failed");
 
@@ -583,8 +702,14 @@ export default function NewReceipt() {
 
   function goNext() {
     if (wizardStep === 1) {
-      if (!hasFile) {
-        setError("Please choose a PDF or DOCX file.");
+      if (!hasSource) {
+        setError(
+          sendMode === "single_upload"
+            ? "Please choose a PDF or DOCX file."
+            : sendMode === "full_stack"
+              ? "Please choose a stack."
+              : "Please choose at least one document."
+        );
         return;
       }
       setWizardStep(2);
@@ -610,9 +735,29 @@ export default function NewReceipt() {
         k: "Mode",
         v: primaryWorkspaceId ? (policyModeEnabled ? "Workspace (Policy mode)" : "Workspace") : "Personal",
       },
-      { k: "Source", v: "Upload file" },
+      {
+        k: "Source",
+        v:
+          sendMode === "single_upload"
+            ? "Upload file"
+            : sendMode === "full_stack"
+              ? "Entire stack"
+              : "Selected existing documents",
+      },
       { k: "Priority", v: priority.toUpperCase() },
-      { k: "File", v: hasFile ? "Attached" : "Missing" },
+      {
+        k: sendMode === "single_upload" ? "File" : "Selection",
+        v:
+          sendMode === "single_upload"
+            ? hasFile
+              ? "Attached"
+              : "Missing"
+            : sendMode === "full_stack"
+              ? (selectedStackId ? "Stack selected" : "Missing")
+              : selectedDocumentIds.length > 0
+                ? `${selectedDocumentIds.length} selected`
+                : "Missing",
+      },
       { k: "Email", v: emailState },
       { k: "Recipients", v: String(recipientsCount) },
       { k: "Require identity", v: requireRecipientIdentity && plan !== "free" ? "On" : "Off" },
@@ -624,7 +769,10 @@ export default function NewReceipt() {
     plan,
     primaryWorkspaceId,
     policyModeEnabled,
+    sendMode,
     hasFile,
+    selectedStackId,
+    selectedDocumentIds.length,
     priority,
     sendEmails,
     personalPlus,
@@ -666,11 +814,11 @@ export default function NewReceipt() {
             </Link>
             {wizardStep > 1 ? <SecondaryButton onClick={goBack} disabled={loading}>Previous</SecondaryButton> : null}
             {wizardStep < 3 ? (
-              <PrimaryButton onClick={goNext} disabled={loading || (wizardStep === 1 && !hasFile)}>
+              <PrimaryButton onClick={goNext} disabled={loading || (wizardStep === 1 && !hasSource)}>
                 Next
               </PrimaryButton>
             ) : (
-              <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasFile}>
+              <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasSource}>
                 {loading ? "Creating…" : "Create"}
               </PrimaryButton>
             )}
@@ -679,6 +827,22 @@ export default function NewReceipt() {
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
           <div className="lg:col-span-7 space-y-2">
+            <div className="space-y-1">
+              <Label>SEND MODE</Label>
+              <Select
+                value={sendMode}
+                onChange={(v) => setSendMode(v as SendMode)}
+                disabled={!canStackSend && sendMode !== "single_upload"}
+              >
+                <option value="single_upload">Single document (upload)</option>
+                <option value="selected_documents" disabled={!canStackSend}>
+                  Selected existing documents (Pro+)
+                </option>
+                <option value="full_stack" disabled={!canStackSend}>
+                  Entire stack (Pro+)
+                </option>
+              </Select>
+            </div>
             {wizardStep >= 2 ? (
               <>
                 <Label>TITLE (OPTIONAL)</Label>
@@ -721,48 +885,107 @@ export default function NewReceipt() {
               </>
             ) : (
               <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
-                Step 1: upload your file. Step 2 will collect title, labels, and metadata.
+                {sendMode === "single_upload"
+                  ? "Step 1: upload your file. Step 2 will collect title, labels, and metadata."
+                  : sendMode === "full_stack"
+                    ? "Step 1: choose a stack. Step 2 will let you set title and metadata for the stack delivery."
+                    : "Step 1: select one or more existing documents. Step 2 will let you set title and metadata."}
               </div>
             )}
           </div>
 
           <div className="lg:col-span-5">
             <Label>DOCUMENT SOURCE</Label>
-            <label
-              className="focus-ring mt-2 block cursor-pointer p-5"
-              style={{
-                borderRadius: 16,
-                border: hasFile ? "1px solid var(--fg)" : "1px solid var(--border)",
-                background: hasFile
-                  ? "color-mix(in srgb, var(--card2) 78%, transparent)"
-                  : "color-mix(in srgb, var(--bg) 92%, var(--card))",
-                transition: "all 180ms ease",
-              }}
-            >
-              <input
-                type="file"
-                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">{hasFile ? "File attached" : "Select your file"}</div>
-                  <div className="mt-1 text-xs truncate" style={{ color: "var(--muted)" }}>
-                    {fileLabel}
+            {sendMode === "single_upload" ? (
+              <label
+                className="focus-ring mt-2 block cursor-pointer p-5"
+                style={{
+                  borderRadius: 16,
+                  border: hasFile ? "1px solid var(--fg)" : "1px solid var(--border)",
+                  background: hasFile
+                    ? "color-mix(in srgb, var(--card2) 78%, transparent)"
+                    : "color-mix(in srgb, var(--bg) 92%, var(--card))",
+                  transition: "all 180ms ease",
+                }}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{hasFile ? "File attached" : "Select your file"}</div>
+                    <div className="mt-1 text-xs truncate" style={{ color: "var(--muted)" }}>
+                      {fileLabel}
+                    </div>
+                    <div className="mt-2 text-[11px]" style={{ color: "var(--muted2)" }}>
+                      Max 20MB. PDF or DOCX.
+                    </div>
                   </div>
-                  <div className="mt-2 text-[11px]" style={{ color: "var(--muted2)" }}>
-                    Max 20MB. PDF or DOCX.
-                  </div>
+                  <span
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-semibold"
+                    style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
+                  >
+                    {hasFile ? "Replace" : "Browse"}
+                  </span>
                 </div>
-                <span
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold"
-                  style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
-                >
-                  {hasFile ? "Replace" : "Browse"}
-                </span>
+              </label>
+            ) : null}
+            {sendMode === "selected_documents" ? (
+              <div className="mt-2 space-y-2 rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
+                {!canStackSend ? (
+                  <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                    Upgrade to Pro to send selected document groups.
+                  </div>
+                ) : availableDocuments.length === 0 ? (
+                  <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                    No workspace documents found.
+                  </div>
+                ) : (
+                  <div className="max-h-56 space-y-2 overflow-auto pr-1">
+                    {availableDocuments.map((doc) => {
+                      const selected = selectedDocumentIds.includes(doc.id);
+                      return (
+                        <label key={doc.id} className="flex items-start gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={(event) =>
+                              setSelectedDocumentIds((current) =>
+                                event.target.checked
+                                  ? Array.from(new Set([...current, doc.id]))
+                                  : current.filter((id) => id !== doc.id)
+                              )
+                            }
+                          />
+                          <span className="min-w-0">
+                            <span className="block font-medium">{doc.title}</span>
+                            <span className="block text-xs" style={{ color: "var(--muted2)" }}>{doc.publicId}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </label>
+            ) : null}
+            {sendMode === "full_stack" ? (
+              <div className="mt-2 space-y-2 rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
+                <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                  Choose a stack to send as one delivery link.
+                </div>
+                <Select value={selectedStackId} onChange={setSelectedStackId} disabled={!canStackSend || availableStacks.length === 0}>
+                  <option value="">Select stack…</option>
+                  {availableStacks.map((stack) => (
+                    <option key={stack.id} value={stack.id}>
+                      {stack.name} ({stack.item_count})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
@@ -773,7 +996,7 @@ export default function NewReceipt() {
       >
         <div className="grid grid-cols-3 gap-3 text-xs">
           {[
-            { id: 1, label: "Upload" },
+            { id: 1, label: "Source" },
             { id: 2, label: "Configure" },
             { id: 3, label: "Create" },
           ].map((step) => {
@@ -797,7 +1020,7 @@ export default function NewReceipt() {
           })}
         </div>
         <div className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
-          Current step: {wizardStep === 1 ? "Upload document" : wizardStep === 2 ? "Name and metadata" : "Receipt settings"}
+          Current step: {wizardStep === 1 ? "Choose source" : wizardStep === 2 ? "Name and metadata" : "Receipt settings"}
         </div>
       </section>
 
@@ -857,9 +1080,13 @@ export default function NewReceipt() {
             background: "color-mix(in srgb, var(--bg) 92%, var(--card))",
           }}
         >
-          <div className="text-sm font-semibold">Start by uploading your document</div>
+          <div className="text-sm font-semibold">
+            {sendMode === "single_upload" ? "Start by uploading your document" : "Start by choosing what to send"}
+          </div>
           <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            After upload, you can add recipients and adjust options before sending.
+            {sendMode === "single_upload"
+              ? "After upload, you can add recipients and adjust options before sending."
+              : "After selecting documents or a stack, you can add recipients and adjust options before sending."}
           </div>
           <InlineNotice>Your first record only takes a minute. You can refine defaults later in settings.</InlineNotice>
         </section>
@@ -867,11 +1094,11 @@ export default function NewReceipt() {
 
       <div
         style={{
-          opacity: hasFile && wizardStep >= 3 ? 1 : 0,
-          transform: hasFile && wizardStep >= 3 ? "translateY(0)" : "translateY(8px)",
-          maxHeight: hasFile && wizardStep >= 3 ? "6000px" : "0px",
+          opacity: hasSource && wizardStep >= 3 ? 1 : 0,
+          transform: hasSource && wizardStep >= 3 ? "translateY(0)" : "translateY(8px)",
+          maxHeight: hasSource && wizardStep >= 3 ? "6000px" : "0px",
           overflow: "hidden",
-          pointerEvents: hasFile && wizardStep >= 3 ? "auto" : "none",
+          pointerEvents: hasSource && wizardStep >= 3 ? "auto" : "none",
           transition: "opacity 280ms ease, transform 280ms ease, max-height 560ms ease",
         }}
       >
@@ -1294,7 +1521,7 @@ export default function NewReceipt() {
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Summary</div>
-                <Pill>{loading ? "Working…" : hasFile ? "Configured" : "Waiting for source"}</Pill>
+                <Pill>{loading ? "Working…" : hasSource ? "Configured" : "Waiting for source"}</Pill>
               </div>
 
               <div className="mt-4 space-y-2">
@@ -1320,7 +1547,7 @@ export default function NewReceipt() {
                 <SecondaryButton onClick={() => (window.location.href = "/app")} disabled={loading}>
                   Cancel
                 </SecondaryButton>
-                <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasFile}>
+                <PrimaryButton onClick={create} disabled={loading || needsWorkspaceSelection || !hasSource}>
                   {loading ? "Creating…" : "Create"}
                 </PrimaryButton>
               </div>

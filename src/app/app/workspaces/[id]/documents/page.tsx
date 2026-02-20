@@ -859,17 +859,26 @@ export default function WorkspaceDocumentsPage() {
                 {stackDetail.items.length} documents • {stackDetail.shares.length} shared users
               </div>
             </div>
-            {stackDetail.can_manage ? (
-              <button
-                type="button"
-                onClick={() => void deleteStack(stackDetail.stack.id)}
-                disabled={stackActionBusy}
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/app/new?mode=full_stack&stackId=${encodeURIComponent(stackDetail.stack.id)}`}
                 className="focus-ring px-3 py-2 text-xs font-semibold"
-                style={{ borderRadius: 999, border: "1px solid var(--border)", color: "#991b1b" }}
+                style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--fg)" }}
               >
-                Delete stack
-              </button>
-            ) : null}
+                Send stack
+              </Link>
+              {stackDetail.can_manage ? (
+                <button
+                  type="button"
+                  onClick={() => void deleteStack(stackDetail.stack.id)}
+                  disabled={stackActionBusy}
+                  className="focus-ring px-3 py-2 text-xs font-semibold"
+                  style={{ borderRadius: 999, border: "1px solid var(--border)", color: "#991b1b" }}
+                >
+                  Delete stack
+                </button>
+              ) : null}
+            </div>
           </div>
           {stackDetailLoading ? <div className="text-sm" style={{ color: "var(--muted)" }}>Loading stack…</div> : null}
           {!stackDetailLoading ? (

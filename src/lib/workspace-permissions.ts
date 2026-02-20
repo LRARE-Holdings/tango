@@ -34,3 +34,10 @@ export function canViewAnalytics(
   return member.can_view_analytics === true;
 }
 
+export function canUseStackDelivery(
+  member: WorkspaceMemberAccess | null | undefined,
+  plan: EffectivePlan | null | undefined
+) {
+  if (!member || !member.license_active) return false;
+  return plan === "pro" || plan === "team" || plan === "enterprise";
+}

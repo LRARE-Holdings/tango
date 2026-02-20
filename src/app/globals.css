@@ -227,17 +227,17 @@ body {
 }
 
 .app-shell {
-  --bg: #f7f7f5;
-  --fg: #1f2220;
-  --muted: #616660;
-  --muted2: #7a807a;
-  --border: rgba(31, 34, 32, 0.14);
-  --border2: rgba(31, 34, 32, 0.08);
-  --card: #ffffff;
-  --card2: #f2f3ef;
-  --app-shadow-sm: 0 8px 22px rgba(16, 21, 18, 0.06);
-  --app-shadow-md: 0 14px 34px rgba(16, 21, 18, 0.1);
-  background: linear-gradient(180deg, #fafaf8 0%, var(--bg) 34%, var(--bg) 100%);
+  --bg: #0f1113;
+  --fg: #edf1f5;
+  --muted: #aeb6c0;
+  --muted2: #8b949f;
+  --border: rgba(237, 241, 245, 0.16);
+  --border2: rgba(237, 241, 245, 0.1);
+  --card: #15191d;
+  --card2: #1b2127;
+  --app-shadow-sm: 0 10px 26px rgba(0, 0, 0, 0.34);
+  --app-shadow-md: 0 16px 38px rgba(0, 0, 0, 0.48);
+  background: linear-gradient(180deg, #0b0d0f 0%, var(--bg) 34%, var(--bg) 100%);
   color: var(--fg);
 }
 
@@ -253,8 +253,8 @@ body {
   border-radius: 18px;
   background: linear-gradient(
     160deg,
-    color-mix(in srgb, var(--card) 90%, #ffffff),
-    color-mix(in srgb, var(--card2) 62%, #ffffff)
+    color-mix(in srgb, var(--card) 92%, #0f1215),
+    color-mix(in srgb, var(--card2) 78%, #0b0f13)
   );
   box-shadow: var(--app-shadow-sm);
 }
@@ -272,7 +272,7 @@ body {
 .app-shell .app-chip {
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--card2) 70%, #fff);
+  background: color-mix(in srgb, var(--card2) 78%, #12161b);
   color: var(--muted);
 }
 
@@ -283,13 +283,13 @@ body {
 
 .app-shell .app-topbar-link:hover {
   color: var(--fg);
-  background: color-mix(in srgb, var(--card2) 55%, #fff);
+  background: color-mix(in srgb, var(--card2) 70%, #11161b);
 }
 
 .app-shell .app-topbar-link[data-active="true"] {
   color: var(--fg);
-  background: color-mix(in srgb, var(--card2) 74%, #fff);
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--fg) 28%, transparent);
+  background: color-mix(in srgb, var(--card2) 84%, #10151a);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--fg) 34%, transparent);
 }
 
 .app-shell .app-section-kicker {
@@ -301,21 +301,21 @@ body {
 
 @media (prefers-color-scheme: dark) {
   .app-shell {
-    --bg: #101312;
-    --fg: #e9ece8;
-    --muted: #b3bab2;
-    --muted2: #919a91;
-    --border: rgba(233, 236, 232, 0.2);
-    --border2: rgba(233, 236, 232, 0.12);
-    --card: #151a18;
-    --card2: #1c2220;
-    --app-shadow-sm: 0 10px 26px rgba(0, 0, 0, 0.32);
-    --app-shadow-md: 0 16px 38px rgba(0, 0, 0, 0.46);
-    background: linear-gradient(180deg, #111614 0%, var(--bg) 34%, var(--bg) 100%);
+    --bg: #0b0d0f;
+    --fg: #f0f3f7;
+    --muted: #b2bac3;
+    --muted2: #8f99a5;
+    --border: rgba(240, 243, 247, 0.17);
+    --border2: rgba(240, 243, 247, 0.1);
+    --card: #12161a;
+    --card2: #181e24;
+    --app-shadow-sm: 0 10px 26px rgba(0, 0, 0, 0.36);
+    --app-shadow-md: 0 16px 38px rgba(0, 0, 0, 0.5);
+    background: linear-gradient(180deg, #090b0d 0%, var(--bg) 34%, var(--bg) 100%);
   }
 
   .app-shell .app-topbar {
-    background: #101312;
+    background: #0b0d0f;
   }
 
   .app-shell .app-content-card {

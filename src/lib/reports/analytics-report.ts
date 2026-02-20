@@ -61,6 +61,13 @@ export type AnalyticsReportInput = {
       active_seconds: number | null;
     }>;
   }>;
+  stackReceipts?: Array<{
+    stack_title: string;
+    recipient_email: string;
+    completed_at: string;
+    total_documents: number;
+    acknowledged_documents: number;
+  }>;
 };
 
 function fmtDuration(seconds: number | null) {
@@ -315,6 +322,29 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
       const line = `${row.document_title} (${row.document_public_id}) | ${recipient} | ${how} | ${when}`;
       currentPage.drawText(line.slice(0, 180), { x: theme.margin, y, font, size: 8.5 });
       y -= 10;
+    }
+  }
+
+  if ((input.stackReceipts ?? []).length > 0) {
+    if (y < 90) {
+      currentPage = pdf.addPage([595.28, 841.89]);
+      y = pageHeight - theme.margin;
+    }
+    y -= 16;
+    currentPage.drawText("Stack acknowledgement receipts", { x: theme.margin, y, font: fontBold, size: 12 });
+    y -= 14;
+    for (const row of input.stackReceipts ?? []) {
+      ensureRoom(22, "Stack acknowledgement receipts (continued)");
+      currentPage.drawText(
+        `${row.stack_title} | ${row.recipient_email} | ${new Date(row.completed_at).toUTCString()}`,
+        { x: theme.margin, y, font, size: 8.6 }
+      );
+      y -= 9;
+      currentPage.drawText(
+        `Acknowledged ${row.acknowledged_documents}/${row.total_documents} documents`,
+        { x: theme.margin + 8, y, font, size: 8.1, color: theme.muted }
+      );
+      y -= 9;
     }
   }
 

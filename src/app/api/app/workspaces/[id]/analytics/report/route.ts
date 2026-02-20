@@ -49,6 +49,12 @@ function parseTags(input: unknown): Record<string, string> {
   return out;
 }
 
+function isMissingTableError(error: { code?: string; message?: string } | null | undefined, table: string) {
+  if (!error) return false;
+  if (error.code === "42P01") return true;
+  return String(error.message ?? "").toLowerCase().includes(table.toLowerCase());
+}
+
 function isPolicyTagged(doc: DocumentRow) {
   const labels = parseLabels(doc.labels).map((x) => x.toLowerCase());
   if (labels.includes("policy")) return true;
@@ -299,6 +305,39 @@ export async function POST(
       .sort((a, b) => a.document_title.localeCompare(b.document_title));
 
     const generatedAtIso = new Date().toISOString();
+    let stackReceipts: Array<{
+      stack_title: string;
+      recipient_email: string;
+      completed_at: string;
+      total_documents: number;
+      acknowledged_documents: number;
+    }> = [];
+    const stackReceiptsRes = await admin
+      .from("stack_acknowledgement_receipts")
+      .select("completed_at,summary")
+      .eq("workspace_id", workspaceId)
+      .gte("completed_at", fromIso)
+      .lte("completed_at", toIso)
+      .order("completed_at", { ascending: false })
+      .limit(200);
+    if (stackReceiptsRes.error && !isMissingTableError(stackReceiptsRes.error, "stack_acknowledgement_receipts")) {
+      return NextResponse.json({ error: stackReceiptsRes.error.message }, { status: 500 });
+    }
+    if (!stackReceiptsRes.error) {
+      stackReceipts = (stackReceiptsRes.data ?? [])
+        .map((row) => {
+          const summary = ((row as { summary?: unknown }).summary ?? {}) as Record<string, unknown>;
+          return {
+            stack_title: String(summary.stack_title ?? "Stack delivery"),
+            recipient_email: String(summary.recipient_email ?? ""),
+            completed_at: String((row as { completed_at?: string }).completed_at ?? ""),
+            total_documents: Number(summary.total_documents ?? 0),
+            acknowledged_documents: Number(summary.acknowledged_documents ?? 0),
+          };
+        })
+        .filter((row) => row.completed_at);
+    }
+
     const bytes = await buildAnalyticsReportPdf({
       workspaceName,
       generatedAtIso,
@@ -318,6 +357,7 @@ export async function POST(
       series: mode === "compliance" ? complianceSnapshot.series : snapshot.series,
       evidenceRows,
       complianceDocuments: mode === "compliance" ? complianceDocuments : [],
+      stackReceipts,
     });
 
     const fileBase = mode === "compliance" ? "compliance-report" : "management-report";
