@@ -1,3 +1,13 @@
+import type { Metadata } from "next";
+import { buildMarketingMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Privacy Policy",
+  description:
+    "Read Receipt's Privacy Policy, including data processing roles, data categories, lawful bases and data retention practices.",
+  path: "/privacy",
+});
+
 export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-[var(--mk-bg)] text-[var(--mk-fg)]">

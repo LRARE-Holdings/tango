@@ -1,4 +1,19 @@
+import type { Metadata } from "next";
 import { ReceiptPreview } from "@/components/marketing/ReceiptPreview";
+import { buildMarketingMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Product",
+  description:
+    "See how Receipt captures delivery, review activity and acknowledgement into a clean, audit-ready record.",
+  path: "/product",
+  keywords: [
+    "document tracking",
+    "acknowledgement workflow",
+    "audit-ready records",
+    "policy distribution software",
+  ],
+});
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (

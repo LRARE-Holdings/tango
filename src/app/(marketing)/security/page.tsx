@@ -1,4 +1,14 @@
 // src/app/(marketing)/security/page.tsx
+import type { Metadata } from "next";
+import { buildMarketingMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Security",
+  description:
+    "Learn how Receipt protects data with encryption, clear access controls and an explicit, neutral evidence model.",
+  path: "/security",
+  keywords: ["security", "data protection", "gdpr", "compliance evidence"],
+});
 
 function Card({
   title,

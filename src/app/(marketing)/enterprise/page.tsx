@@ -1,3 +1,18 @@
+import type { Metadata } from "next";
+import { buildMarketingMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Enterprise",
+  description:
+    "Enterprise Receipt plans for organisations that need governance controls, procurement-ready terms and audit-friendly workflows.",
+  path: "/enterprise",
+  keywords: [
+    "enterprise compliance software",
+    "policy acknowledgement platform",
+    "governance controls",
+  ],
+});
+
 async function submitEnterpriseEnquiry(formData: FormData) {
   "use server";
   const payload = {

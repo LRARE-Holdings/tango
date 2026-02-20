@@ -8,6 +8,11 @@ import {
 
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
+  const isPrivatePath =
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/d/");
 
   if (!isReceiptLaunchLive() && (pathname === "/auth" || pathname === "/get-started")) {
     const hasLaunchAccess = req.cookies.get(RECEIPT_LAUNCH_UNLOCK_COOKIE)?.value === "1";
@@ -26,6 +31,10 @@ export async function proxy(req: NextRequest) {
     res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.headers.set("Pragma", "no-cache");
     res.headers.set("Expires", "0");
+  }
+
+  if (isPrivatePath) {
+    res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   }
 
   const supabase = createServerClient(
@@ -57,6 +66,7 @@ export async function proxy(req: NextRequest) {
     redirect.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     redirect.headers.set("Pragma", "no-cache");
     redirect.headers.set("Expires", "0");
+    redirect.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
     return redirect;
   }
 

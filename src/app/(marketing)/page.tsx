@@ -1,7 +1,22 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { AuthFragmentRedirect } from "@/components/auth-fragment-redirect";
 import { HeroDeliveredWord } from "@/components/marketing/HeroDeliveredWord";
+import { absoluteUrl, buildMarketingMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Receipt | Proof of document acknowledgement",
+  description:
+    "Receipt gives teams clear proof of delivery, review activity and acknowledgement for policies, procedures and client documents.",
+  path: "/",
+  keywords: [
+    "document acknowledgement software",
+    "policy acknowledgement",
+    "proof of delivery",
+    "compliance audit trail",
+  ],
+});
 
 function firstValue(v: string | string[] | undefined) {
   return typeof v === "string" ? v : Array.isArray(v) ? (v[0] ?? null) : null;
@@ -74,8 +89,39 @@ export default async function Home({
     redirect(`/auth/confirm?${qs.toString()}`);
   }
 
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Receipt",
+    url: absoluteUrl("/"),
+    logo: absoluteUrl("/receipt-logo.png"),
+  };
+
+  const softwareSchema = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Receipt",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    description:
+      "Proof of document delivery, review activity and acknowledgement for business teams.",
+    offers: {
+      "@type": "Offer",
+      url: absoluteUrl("/pricing"),
+      priceCurrency: "GBP",
+      price: "0",
+      availability: "https://schema.org/InStock",
+    },
+  };
+
   return (
     <main className="min-h-screen bg-[var(--mk-bg)] text-[var(--mk-fg)]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([organizationSchema, softwareSchema]),
+        }}
+      />
       <AuthFragmentRedirect />
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute inset-0 marketing-glow" />
