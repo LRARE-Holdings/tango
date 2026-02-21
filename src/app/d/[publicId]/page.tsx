@@ -518,6 +518,7 @@ export default function PublicDocPage({
                 ref={turnstileRef}
                 onTokenChange={setCaptchaToken}
                 className="sm:mr-2"
+                action="public_submit"
               />
             </div>
 

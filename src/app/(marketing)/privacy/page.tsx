@@ -70,9 +70,11 @@ export default function PrivacyPage() {
               <li>
                 Email address (where provided by the user or used for delivery)
               </li>
-              <li>IP address</li>
-              <li>Device and browser information (user agent)</li>
-              <li>Document access timestamps</li>
+              <li>
+                IP address and device/browser information (user agent) for
+                acknowledgement submissions and protected access checks
+              </li>
+              <li>Document access and acknowledgement timestamps</li>
               <li>Review activity (e.g. time on page, scroll depth)</li>
               <li>Acknowledgement status and timestamp</li>
             </ul>

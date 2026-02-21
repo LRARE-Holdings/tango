@@ -157,6 +157,7 @@ export default function GetStartedPage() {
             ref={turnstileRef}
             onTokenChange={setCaptchaToken}
             className="pt-1"
+            action="auth"
           />
 
           <button

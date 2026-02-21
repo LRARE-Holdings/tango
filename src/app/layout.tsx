@@ -79,7 +79,7 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const gtmId = (process.env.NEXT_PUBLIC_GTM_ID || "GTM-T77S35PK").trim();
+  const gtmId = String(process.env.NEXT_PUBLIC_GTM_ID ?? "").trim();
 
   return (
     <html

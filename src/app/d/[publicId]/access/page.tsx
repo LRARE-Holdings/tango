@@ -125,6 +125,7 @@ export default function PublicDocAccessPage({
               <TurnstileWidget
                 ref={turnstileRef}
                 onTokenChange={setCaptchaToken}
+                action="public_access"
               />
               <button
                 type="button"

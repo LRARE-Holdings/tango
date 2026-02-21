@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { buildMarketingMetadata } from "@/lib/seo";
+import { redirect } from "next/navigation";
+import { sendWithResend } from "@/lib/email/resend";
 
 export const metadata: Metadata = buildMarketingMetadata({
   title: "Enterprise",
@@ -13,21 +15,95 @@ export const metadata: Metadata = buildMarketingMetadata({
   ],
 });
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function submitEnterpriseEnquiry(formData: FormData) {
   "use server";
   const payload = {
-    name: String(formData.get("name") ?? ""),
-    email: String(formData.get("email") ?? ""),
-    company: String(formData.get("company") ?? ""),
-    seats: String(formData.get("seats") ?? ""),
-    message: String(formData.get("message") ?? ""),
-    source: String(formData.get("source") ?? "enterprise"),
+    name: String(formData.get("name") ?? "").trim(),
+    email: String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase(),
+    company: String(formData.get("company") ?? "").trim(),
+    seats: String(formData.get("seats") ?? "").trim(),
+    message: String(formData.get("message") ?? "").trim(),
+    source: String(formData.get("source") ?? "enterprise").trim(),
     createdAt: new Date().toISOString(),
   };
-  // Enquiry handling can be wired to CRM/email without changing this page copy.
-  void payload;
+
+  if (!payload.name || !payload.email || !payload.company || !payload.message) {
+    redirect("/enterprise?enquiry=invalid");
+  }
+
+  const inquiryDestination = String(
+    process.env.RECEIPT_ENTERPRISE_INBOX || process.env.RECEIPT_FROM_EMAIL || ""
+  ).trim();
+  if (!inquiryDestination) {
+    redirect("/enterprise?enquiry=error");
+  }
+
+  const subject = `Enterprise enquiry: ${payload.company}`;
+  const text = `New enterprise enquiry
+
+Name: ${payload.name}
+Email: ${payload.email}
+Company: ${payload.company}
+Seats: ${payload.seats || "Not specified"}
+Source: ${payload.source}
+Created at: ${payload.createdAt}
+
+Message:
+${payload.message}
+`;
+
+  const safe = {
+    name: escapeHtml(payload.name),
+    email: escapeHtml(payload.email),
+    company: escapeHtml(payload.company),
+    seats: escapeHtml(payload.seats || "Not specified"),
+    source: escapeHtml(payload.source),
+    createdAt: escapeHtml(payload.createdAt),
+    message: escapeHtml(payload.message),
+  };
+
+  const html = `
+  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;line-height:1.5;color:#111;">
+    <h2 style="margin:0 0 12px;">New enterprise enquiry</h2>
+    <p><strong>Name:</strong> ${safe.name}</p>
+    <p><strong>Email:</strong> ${safe.email}</p>
+    <p><strong>Company:</strong> ${safe.company}</p>
+    <p><strong>Seats:</strong> ${safe.seats}</p>
+    <p><strong>Source:</strong> ${safe.source}</p>
+    <p><strong>Created at:</strong> ${safe.createdAt}</p>
+    <p><strong>Message:</strong></p>
+    <pre style="white-space:pre-wrap;background:#f7f7f8;padding:12px;border-radius:8px;">${safe.message}</pre>
+  </div>`;
+
+  const sent = await sendWithResend({
+    to: inquiryDestination,
+    subject,
+    html,
+    text,
+  });
+
+  redirect(sent.ok ? "/enterprise?enquiry=sent" : "/enterprise?enquiry=error");
 }
-export default function EnterprisePage() {
+export default async function EnterprisePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ enquiry?: string | string[] }>;
+}) {
+  const params = (await searchParams) ?? {};
+  const enquiryParam = Array.isArray(params.enquiry) ? params.enquiry[0] : params.enquiry;
+  const enquiryState = typeof enquiryParam === "string" ? enquiryParam : "";
+
   return (
     <main className="min-h-screen bg-[var(--mk-bg)] text-[var(--mk-fg)]">
       {/* background texture */}
@@ -153,21 +229,39 @@ export default function EnterprisePage() {
             <div className="w-full md:max-w-md">
               <form className="space-y-3" action={submitEnterpriseEnquiry}>
                 <input type="hidden" name="source" value="enterprise" />
+                {enquiryState === "sent" ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    Thanks. Your enquiry has been sent and we will respond shortly.
+                  </div>
+                ) : null}
+                {enquiryState === "invalid" ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    Please complete all required fields before sending your enquiry.
+                  </div>
+                ) : null}
+                {enquiryState === "error" ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    We could not send your enquiry right now. Please email legal@lrare.co.uk.
+                  </div>
+                ) : null}
                 <input
                   className="w-full rounded-xl border border-[var(--mk-border)] bg-[var(--mk-surface)] px-4 py-3 text-sm text-[var(--mk-fg)] outline-none placeholder:text-[var(--mk-muted-2)] focus:ring-2 focus:ring-[var(--mk-fg)]/20"
                   placeholder="Name"
                   name="name"
+                  required
                 />
                 <input
                   type="email"
                   className="w-full rounded-xl border border-[var(--mk-border)] bg-[var(--mk-surface)] px-4 py-3 text-sm text-[var(--mk-fg)] outline-none placeholder:text-[var(--mk-muted-2)] focus:ring-2 focus:ring-[var(--mk-fg)]/20"
                   placeholder="Work email"
                   name="email"
+                  required
                 />
                 <input
                   className="w-full rounded-xl border border-[var(--mk-border)] bg-[var(--mk-surface)] px-4 py-3 text-sm text-[var(--mk-fg)] outline-none placeholder:text-[var(--mk-muted-2)] focus:ring-2 focus:ring-[var(--mk-fg)]/20"
                   placeholder="Organisation"
                   name="company"
+                  required
                 />
                 <input
                   className="w-full rounded-xl border border-[var(--mk-border)] bg-[var(--mk-surface)] px-4 py-3 text-sm text-[var(--mk-fg)] outline-none placeholder:text-[var(--mk-muted-2)] focus:ring-2 focus:ring-[var(--mk-fg)]/20"
@@ -178,6 +272,7 @@ export default function EnterprisePage() {
                   className="min-h-30 w-full rounded-xl border border-[var(--mk-border)] bg-[var(--mk-surface)] px-4 py-3 text-sm text-[var(--mk-fg)] outline-none placeholder:text-[var(--mk-muted-2)] focus:ring-2 focus:ring-[var(--mk-fg)]/20"
                   placeholder="What do you need Receipt to do?"
                   name="message"
+                  required
                 />
                 <button
                   type="submit"

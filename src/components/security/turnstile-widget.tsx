@@ -9,6 +9,7 @@ declare global {
         container: string | HTMLElement,
         options: {
           sitekey: string;
+          action?: string;
           theme?: "light" | "dark" | "auto";
           size?: "normal" | "compact";
           callback?: (token: string) => void;
@@ -68,6 +69,7 @@ type Props = {
   className?: string;
   theme?: "light" | "dark" | "auto";
   size?: "normal" | "compact";
+  action?: string;
 };
 
 export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, Props>(
@@ -78,6 +80,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, Props>(
       className,
       theme = "auto",
       size = "normal",
+      action,
     },
     ref
   ) {
@@ -112,6 +115,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, Props>(
 
           widgetIdRef.current = window.turnstile.render(containerRef.current, {
             sitekey: siteKey,
+            ...(action ? { action } : {}),
             theme,
             size,
             callback: (token) => {
@@ -136,7 +140,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, Props>(
         }
         widgetIdRef.current = null;
       };
-    }, [onTokenChange, siteKey, size, theme]);
+    }, [action, onTokenChange, siteKey, size, theme]);
 
     if (!siteKey) return null;
     return <div ref={containerRef} className={className} />;

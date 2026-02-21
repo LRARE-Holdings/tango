@@ -83,8 +83,9 @@ export default function SecurityPage() {
             <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--mk-muted)]">
               Your data is protected with GDPR-compliant infrastructure
               providers, with encryption in transit and at rest. Receipt
-              records document access, review activity, and acknowledgement in a
-              focused, file-ready format without over-claiming what that means.
+              records document review and acknowledgement activity, with access
+              controls and abuse protections, in a focused file-ready format
+              without over-claiming what that means.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -218,12 +219,13 @@ export default function SecurityPage() {
               </IconCircle>
               <div>
                 <div className="text-sm font-semibold text-[var(--mk-fg)]">
-                  Mandatory network audit trail
+                  Acknowledgement network audit trail
                 </div>
                 <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
-                  IP address and user-agent are recorded for every access and
-                  acknowledgement event, giving your team a consistent forensic
-                  trail for investigations and compliance review.
+                  IP address and user-agent are recorded on acknowledgement
+                  submissions and protected access checks, giving your team a
+                  consistent forensic trail for investigations and compliance
+                  review.
                 </div>
               </div>
             </div>

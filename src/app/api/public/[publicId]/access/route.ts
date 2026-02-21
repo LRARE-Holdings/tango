@@ -6,8 +6,10 @@ import {
   constantTimeEquals,
   readCookie,
 } from "@/lib/public-access";
-import { limitPublicAccessAttempt } from "@/lib/rate-limit";
+import { limitPublicAccessAttempt, limitPublicRead } from "@/lib/rate-limit";
 import { verifyPassword } from "@/lib/password";
+import { publicErrorResponse, publicRateLimitResponse } from "@/lib/security/public-errors";
+import { extractTurnstileToken, verifyTurnstileToken } from "@/lib/security/turnstile";
 
 type DocRow = {
   id: string;
@@ -86,18 +88,42 @@ export async function GET(
   ctx: { params: Promise<{ publicId: string }> | { publicId: string } }
 ) {
   const { publicId } = (await ctx.params) as { publicId: string };
+  const readRate = await limitPublicRead(req, `doc-access:${publicId}`);
+  if (!readRate.success) {
+    if (readRate.misconfigured) {
+      return publicErrorResponse({
+        status: 503,
+        code: "SECURITY_MISCONFIGURED",
+        message: "Service temporarily unavailable.",
+      });
+    }
+    return publicRateLimitResponse(readRate);
+  }
   const { data: doc, error } = await loadDoc(publicId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (error) {
+    return publicErrorResponse({
+      status: 500,
+      code: "DOCUMENT_LOOKUP_FAILED",
+      message: "Could not load access status.",
+    });
+  }
+  if (!doc) return publicErrorResponse({ status: 404, code: "NOT_FOUND", message: "Not found." });
 
   const closure = await isClosedForAcknowledgement(doc);
-  if (closure.error) return NextResponse.json({ error: closure.error }, { status: 500 });
+  if (closure.error) {
+    return publicErrorResponse({
+      status: 500,
+      code: "DOCUMENT_LOOKUP_FAILED",
+      message: "Could not load access status.",
+    });
+  }
   if (closure.closed) {
-    return NextResponse.json(
-      { error: "This link is closed. It is no longer accepting acknowledgements." },
-      { status: 410 }
-    );
+    return publicErrorResponse({
+      status: 410,
+      code: "LINK_CLOSED",
+      message: "This link is closed. It is no longer accepting acknowledgements.",
+    });
   }
 
   const requiresPassword = Boolean(doc.password_enabled && doc.password_hash);
@@ -125,18 +151,35 @@ export async function POST(
   ctx: { params: Promise<{ publicId: string }> | { publicId: string } }
 ) {
   const { publicId } = (await ctx.params) as { publicId: string };
+  const body = (await req.json().catch(() => null)) as
+    | { password?: string; captchaToken?: string; turnstileToken?: string; cf_turnstile_response?: string }
+    | null;
+
   const { data: doc, error } = await loadDoc(publicId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (error) {
+    return publicErrorResponse({
+      status: 500,
+      code: "DOCUMENT_LOOKUP_FAILED",
+      message: "Could not verify access.",
+    });
+  }
+  if (!doc) return publicErrorResponse({ status: 404, code: "NOT_FOUND", message: "Not found." });
 
   const closure = await isClosedForAcknowledgement(doc);
-  if (closure.error) return NextResponse.json({ error: closure.error }, { status: 500 });
+  if (closure.error) {
+    return publicErrorResponse({
+      status: 500,
+      code: "DOCUMENT_LOOKUP_FAILED",
+      message: "Could not verify access.",
+    });
+  }
   if (closure.closed) {
-    return NextResponse.json(
-      { error: "This link is closed. It is no longer accepting acknowledgements." },
-      { status: 410 }
-    );
+    return publicErrorResponse({
+      status: 410,
+      code: "LINK_CLOSED",
+      message: "This link is closed. It is no longer accepting acknowledgements.",
+    });
   }
 
   const requiresPassword = Boolean(doc.password_enabled && doc.password_hash);
@@ -146,26 +189,38 @@ export async function POST(
 
   const rate = await limitPublicAccessAttempt(req, publicId);
   if (!rate.success) {
-    const retryAfter = rate.reset ? Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000)) : 60;
-    return NextResponse.json(
-      { error: "Too many attempts. Try again later." },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": String(retryAfter),
-          ...(typeof rate.limit === "number" ? { "X-RateLimit-Limit": String(rate.limit) } : {}),
-          ...(typeof rate.remaining === "number" ? { "X-RateLimit-Remaining": String(rate.remaining) } : {}),
-        },
-      }
-    );
+    if (rate.misconfigured) {
+      return publicErrorResponse({
+        status: 503,
+        code: "SECURITY_MISCONFIGURED",
+        message: "Service temporarily unavailable.",
+      });
+    }
+    return publicRateLimitResponse(rate, "Too many attempts. Try again later.");
   }
 
-  const body = (await req.json().catch(() => null)) as { password?: string } | null;
+  const captcha = await verifyTurnstileToken({
+    req,
+    token: extractTurnstileToken(body),
+    expectedAction: "public_access",
+  });
+  if (!captcha.ok) {
+    return publicErrorResponse({
+      status: captcha.status,
+      code: captcha.code,
+      message: captcha.message,
+    });
+  }
+
   const password = typeof body?.password === "string" ? body.password : "";
 
   const ok = await verifyPassword(password, String(doc.password_hash));
   if (!ok) {
-    return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
+    return publicErrorResponse({
+      status: 401,
+      code: "PASSWORD_INVALID",
+      message: "Incorrect password.",
+    });
   }
 
   const token = accessTokenFor(publicId, String(doc.password_hash));

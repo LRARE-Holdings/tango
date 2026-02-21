@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { limitPublicStackFinalize } from "@/lib/rate-limit";
+import { publicErrorResponse, publicRateLimitResponse } from "@/lib/security/public-errors";
+import { extractTurnstileToken, verifyTurnstileToken } from "@/lib/security/turnstile";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 function normalizeEmail(v: string | null) {
@@ -11,7 +14,35 @@ export async function POST(
 ) {
   try {
     const { stackPublicId } = (await ctx.params) as { stackPublicId: string };
-    const body = (await req.json().catch(() => null)) as { email?: string } | null;
+    const rate = await limitPublicStackFinalize(req, stackPublicId);
+    if (!rate.success) {
+      if (rate.misconfigured) {
+        return publicErrorResponse({
+          status: 503,
+          code: "SECURITY_MISCONFIGURED",
+          message: "Service temporarily unavailable.",
+        });
+      }
+      return publicRateLimitResponse(rate, "Too many finalize attempts. Try again later.");
+    }
+
+    const body = (await req.json().catch(() => null)) as
+      | { email?: string; captchaToken?: string; turnstileToken?: string; cf_turnstile_response?: string }
+      | null;
+
+    const captcha = await verifyTurnstileToken({
+      req,
+      token: extractTurnstileToken(body),
+      expectedAction: "public_stack",
+    });
+    if (!captcha.ok) {
+      return publicErrorResponse({
+        status: captcha.status,
+        code: captcha.code,
+        message: captcha.message,
+      });
+    }
+
     const email = normalizeEmail(body?.email ?? null);
     if (!email) return NextResponse.json({ error: "email is required." }, { status: 400 });
 
@@ -21,7 +52,13 @@ export async function POST(
       .select("id,workspace_id,stack_id,title,status,created_at")
       .eq("public_id", stackPublicId)
       .maybeSingle();
-    if (deliveryRes.error) return NextResponse.json({ error: deliveryRes.error.message }, { status: 500 });
+    if (deliveryRes.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not finalize this stack.",
+      });
+    }
     if (!deliveryRes.data) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
     const delivery = deliveryRes.data as {
@@ -42,7 +79,13 @@ export async function POST(
       .eq("delivery_id", delivery.id)
       .eq("recipient_email", email)
       .maybeSingle();
-    if (recipientRes.error) return NextResponse.json({ error: recipientRes.error.message }, { status: 500 });
+    if (recipientRes.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not finalize this stack.",
+      });
+    }
     if (!recipientRes.data) {
       return NextResponse.json({ error: "No acknowledgement activity found for this recipient." }, { status: 404 });
     }
@@ -58,13 +101,25 @@ export async function POST(
       .select("position,required,document:documents(id,title,public_id,priority,labels,tags)")
       .eq("delivery_id", delivery.id)
       .order("position", { ascending: true });
-    if (docsRes.error) return NextResponse.json({ error: docsRes.error.message }, { status: 500 });
+    if (docsRes.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not finalize this stack.",
+      });
+    }
 
     const ackRes = await admin
       .from("stack_document_acknowledgements")
       .select("document_id,acknowledged_at,ack_method,metadata,completion_id")
       .eq("delivery_recipient_id", deliveryRecipient.id);
-    if (ackRes.error) return NextResponse.json({ error: ackRes.error.message }, { status: 500 });
+    if (ackRes.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not finalize this stack.",
+      });
+    }
     const ackByDoc = new Map(
       (ackRes.data ?? []).map((row) => [
         String((row as { document_id: string }).document_id),
@@ -159,7 +214,11 @@ export async function POST(
       .select("id,completed_at")
       .single();
     if (receiptUpsert.error || !receiptUpsert.data) {
-      return NextResponse.json({ error: receiptUpsert.error?.message ?? "Failed to store receipt." }, { status: 500 });
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_FINALIZE_FAILED",
+        message: "Could not finalize this stack.",
+      });
     }
 
     await Promise.all([
@@ -180,7 +239,11 @@ export async function POST(
       completed_at: String((receiptUpsert.data as { completed_at: string }).completed_at),
       summary,
     });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed." }, { status: 500 });
+  } catch {
+    return publicErrorResponse({
+      status: 500,
+      code: "STACK_FINALIZE_FAILED",
+      message: "Could not finalize this stack.",
+    });
   }
 }

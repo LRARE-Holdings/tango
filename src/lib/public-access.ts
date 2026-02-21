@@ -1,10 +1,7 @@
 import crypto from "crypto";
 
 function accessSecret() {
-  const secret =
-    process.env.RECEIPT_PUBLIC_ACCESS_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secret = process.env.RECEIPT_PUBLIC_ACCESS_SECRET;
 
   if (!secret || secret.trim().length < 16) {
     throw new Error("Public access secret is not configured. Set RECEIPT_PUBLIC_ACCESS_SECRET.");

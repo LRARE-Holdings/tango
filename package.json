@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:e2e": "playwright test tests/e2e",
+    "test:security": "playwright test tests/security",
+    "test:gate": "npm run test:e2e && npm run test:security",
+    "qa:gate": "npm run release:verify-env && npm run qa:full && npm run test:gate",
     "qa:static": "npm run lint && npm run build",
     "qa:smoke": "node scripts/qa/smoke.mjs",
     "qa:pdf": "node scripts/qa/pdf-regression.mjs",
@@ -33,6 +37,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

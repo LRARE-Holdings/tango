@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/security/turnstile-widget";
 
 type StackDocument = {
   id: string;
@@ -57,6 +58,9 @@ export default function PublicStackPage({
   const [success, setSuccess] = useState<string | null>(null);
   const [data, setData] = useState<StackPayload | null>(null);
   const startedAtRef = useRef<number>(Date.now());
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetHandle | null>(null);
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   const canLoadWithIdentity = useMemo(() => isEmail(email), [email]);
 
@@ -88,6 +92,10 @@ export default function PublicStackPage({
       setError("Enter a valid email to continue.");
       return;
     }
+    if (captchaEnabled && !captchaToken) {
+      setError("Please complete the security check.");
+      return;
+    }
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -104,6 +112,9 @@ export default function PublicStackPage({
           max_scroll_percent: 100,
           time_on_page_seconds: seconds,
           active_seconds: seconds,
+          captchaToken,
+          turnstileToken: captchaToken,
+          cf_turnstile_response: captchaToken,
         }),
       });
       const json = (await res.json()) as { error?: string };
@@ -112,6 +123,7 @@ export default function PublicStackPage({
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed.");
+      if (captchaEnabled) turnstileRef.current?.reset();
     } finally {
       setSaving(false);
     }
@@ -122,6 +134,10 @@ export default function PublicStackPage({
       setError("Enter a valid email to finalize.");
       return;
     }
+    if (captchaEnabled && !captchaToken) {
+      setError("Please complete the security check.");
+      return;
+    }
     setFinalizing(true);
     setError(null);
     setSuccess(null);
@@ -129,7 +145,12 @@ export default function PublicStackPage({
       const res = await fetch(`/api/public/stacks/${encodeURIComponent(stackPublicId)}/finalize`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          captchaToken,
+          turnstileToken: captchaToken,
+          cf_turnstile_response: captchaToken,
+        }),
       });
       const json = (await res.json()) as { error?: string; receipt_id?: string };
       if (!res.ok) throw new Error(json?.error ?? "Could not finalize stack.");
@@ -137,6 +158,7 @@ export default function PublicStackPage({
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed.");
+      if (captchaEnabled) turnstileRef.current?.reset();
     } finally {
       setFinalizing(false);
     }
@@ -235,10 +257,11 @@ export default function PublicStackPage({
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
+                <TurnstileWidget ref={turnstileRef} onTokenChange={setCaptchaToken} action="public_stack" />
                 <button
                   type="button"
                   onClick={() => void finalizeStack()}
-                  disabled={finalizing || requiredOutstanding > 0}
+                  disabled={finalizing || requiredOutstanding > 0 || (captchaEnabled && !captchaToken)}
                   className="focus-ring rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
                   style={{ background: "var(--fg)", color: "var(--bg)" }}
                 >

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { limitPublicRead } from "@/lib/rate-limit";
+import { publicErrorResponse, publicRateLimitResponse } from "@/lib/security/public-errors";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   accessCookieName,
@@ -46,6 +48,17 @@ export async function GET(
   ctx: { params: Promise<{ publicId: string }> | { publicId: string } }
 ) {
   const { publicId } = (await ctx.params) as { publicId: string };
+  const readRate = await limitPublicRead(req, `doc:${publicId}`);
+  if (!readRate.success) {
+    if (readRate.misconfigured) {
+      return publicErrorResponse({
+        status: 503,
+        code: "SECURITY_MISCONFIGURED",
+        message: "Service temporarily unavailable.",
+      });
+    }
+    return publicRateLimitResponse(readRate);
+  }
 
   const admin = supabaseAdmin();
 
@@ -76,10 +89,11 @@ export async function GET(
   }
 
   if (error) {
-    return NextResponse.json(
-      { error: "Supabase query failed", message: error.message },
-      { status: 500 }
-    );
+    return publicErrorResponse({
+      status: 500,
+      code: "DOCUMENT_LOOKUP_FAILED",
+      message: "Could not load this document.",
+    });
   }
 
   if (!doc) {
@@ -108,10 +122,11 @@ export async function GET(
   }
 
   if (!effectiveFilePath || effectiveFilePath === "pending") {
-    return NextResponse.json(
-      { error: "Document has no uploaded file yet", doc },
-      { status: 500 }
-    );
+    return publicErrorResponse({
+      status: 500,
+      code: "DOCUMENT_UNAVAILABLE",
+      message: "Document is not available yet.",
+    });
   }
 
   const maxAcknowledgersEnabled = Boolean(doc.max_acknowledgers_enabled && (doc.max_acknowledgers ?? 0) > 0);
@@ -127,7 +142,11 @@ export async function GET(
       .eq("acknowledged", true);
 
     if (countErr) {
-      return NextResponse.json({ error: countErr.message }, { status: 500 });
+      return publicErrorResponse({
+        status: 500,
+        code: "DOCUMENT_LOOKUP_FAILED",
+        message: "Could not load this document.",
+      });
     }
     isAckLimitClosed = (count ?? 0) >= maxAcknowledgers;
   }
@@ -154,10 +173,11 @@ export async function GET(
     .createSignedUrl(effectiveFilePath, 60 * 10);
 
   if (signErr || !signed?.signedUrl) {
-    return NextResponse.json(
-      { error: "Could not sign URL", message: signErr?.message ?? "unknown" },
-      { status: 500 }
-    );
+    return publicErrorResponse({
+      status: 500,
+      code: "DOCUMENT_UNAVAILABLE",
+      message: "Document is not available right now.",
+    });
   }
 
   return NextResponse.json({

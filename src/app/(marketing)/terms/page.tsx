@@ -72,6 +72,10 @@ export default function TermsPage() {
             understanding, consent or legal effect.
           </p>
           <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
+            Evidence fields may vary by plan, sender configuration, and security
+            controls enabled for the workflow in use.
+          </p>
+          <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
             You are solely responsible for:
           </p>
           <ul className="list-disc pl-5 space-y-1 text-sm text-[var(--mk-muted)]">

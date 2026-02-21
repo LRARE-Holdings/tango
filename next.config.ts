@@ -1,6 +1,73 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+const cspDirectives = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  [
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "https://www.googletagmanager.com",
+    "https://www.google-analytics.com",
+    "https://challenges.cloudflare.com",
+    "https://cdn.snitcher.com",
+  ].join(" "),
+  [
+    "connect-src 'self'",
+    "https://*.supabase.co",
+    "https://api.stripe.com",
+    "https://api.resend.com",
+    "https://www.google-analytics.com",
+    "https://region1.google-analytics.com",
+    "https://radar.snitcher.com",
+    "https://*.ingest.sentry.io",
+    "https://challenges.cloudflare.com",
+  ].join(" "),
+  "frame-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com",
+  "worker-src 'self' blob:",
+];
+
+if (process.env.NODE_ENV === "production") {
+  cspDirectives.push("upgrade-insecure-requests");
+}
+
+const contentSecurityPolicy = cspDirectives
+  .join("; ")
+  .replace(/\s{2,}/g, " ")
+  .trim();
+
+const securityHeaders = [
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "DENY",
+  },
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=()",
+  },
+  {
+    key: "Content-Security-Policy",
+    value: contentSecurityPolicy,
+  },
+];
+
 const nextConfig: NextConfig = {
   async redirects() {
     return [
@@ -36,6 +103,14 @@ const nextConfig: NextConfig = {
         ],
         destination: "https://www.getreceipt.co/:path*",
         permanent: true,
+      },
+    ];
+  },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
       },
     ];
   },

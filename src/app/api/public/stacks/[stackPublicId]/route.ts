@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { limitPublicRead } from "@/lib/rate-limit";
+import { publicErrorResponse, publicRateLimitResponse } from "@/lib/security/public-errors";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 type StackRecipient = {
@@ -18,6 +20,17 @@ export async function GET(
 ) {
   try {
     const { stackPublicId } = (await ctx.params) as { stackPublicId: string };
+    const readRate = await limitPublicRead(req, `stack:${stackPublicId}`);
+    if (!readRate.success) {
+      if (readRate.misconfigured) {
+        return publicErrorResponse({
+          status: 503,
+          code: "SECURITY_MISCONFIGURED",
+          message: "Service temporarily unavailable.",
+        });
+      }
+      return publicRateLimitResponse(readRate);
+    }
     const admin = supabaseAdmin();
     const email = normalizeEmail(new URL(req.url).searchParams.get("recipient_email"));
 
@@ -26,7 +39,13 @@ export async function GET(
       .select("id,workspace_id,stack_id,title,public_id,status,expires_at,created_at")
       .eq("public_id", stackPublicId)
       .maybeSingle();
-    if (deliveryRes.error) return NextResponse.json({ error: deliveryRes.error.message }, { status: 500 });
+    if (deliveryRes.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not load this stack.",
+      });
+    }
     if (!deliveryRes.data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const delivery = deliveryRes.data as {
@@ -55,8 +74,13 @@ export async function GET(
         .order("position", { ascending: true }),
       admin.from("workspaces").select("name").eq("id", delivery.workspace_id).maybeSingle(),
     ]);
-    if (docsRes.error) return NextResponse.json({ error: docsRes.error.message }, { status: 500 });
-    if (workspaceRes.error) return NextResponse.json({ error: workspaceRes.error.message }, { status: 500 });
+    if (docsRes.error || workspaceRes.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not load this stack.",
+      });
+    }
 
     let recipient: StackRecipient | null = null;
     if (email) {
@@ -66,7 +90,13 @@ export async function GET(
         .eq("delivery_id", delivery.id)
         .eq("recipient_email", email)
         .maybeSingle();
-      if (recipientRes.error) return NextResponse.json({ error: recipientRes.error.message }, { status: 500 });
+      if (recipientRes.error) {
+        return publicErrorResponse({
+          status: 500,
+          code: "STACK_LOOKUP_FAILED",
+          message: "Could not load this stack.",
+        });
+      }
       recipient = (recipientRes.data as StackRecipient | null) ?? null;
     }
 
@@ -83,7 +113,13 @@ export async function GET(
     } else {
       acknowledgements = { data: [], error: null };
     }
-    if (acknowledgements.error) return NextResponse.json({ error: acknowledgements.error.message }, { status: 500 });
+    if (acknowledgements.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not load this stack.",
+      });
+    }
     const ackByDoc = new Map(
       (acknowledgements.data ?? []).map((row) => [
         String((row as { document_id: string }).document_id),
@@ -136,7 +172,11 @@ export async function GET(
       recipient,
       documents,
     });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed." }, { status: 500 });
+  } catch {
+    return publicErrorResponse({
+      status: 500,
+      code: "STACK_LOOKUP_FAILED",
+      message: "Could not load this stack.",
+    });
   }
 }

@@ -39,11 +39,11 @@ export function WebAnalytics({ consentAccepted }: WebAnalyticsProps) {
   const searchParams = useSearchParams();
 
   const gaId = useMemo(
-    () => String(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-TDT3P14Q7M").trim(),
+    () => String(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "").trim(),
     []
   );
   const gtmId = useMemo(
-    () => String(process.env.NEXT_PUBLIC_GTM_ID || "GTM-T77S35PK").trim(),
+    () => String(process.env.NEXT_PUBLIC_GTM_ID || "").trim(),
     []
   );
 

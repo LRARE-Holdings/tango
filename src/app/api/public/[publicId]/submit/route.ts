@@ -8,6 +8,8 @@ import {
 } from "@/lib/public-access";
 import { limitPublicSubmit } from "@/lib/rate-limit";
 import { sendWithResend } from "@/lib/email/resend";
+import { publicErrorResponse, publicRateLimitResponse } from "@/lib/security/public-errors";
+import { extractTurnstileToken, verifyTurnstileToken } from "@/lib/security/turnstile";
 
 /**
  * Best-effort client IP extraction.
@@ -126,18 +128,14 @@ export async function POST(
   const { publicId } = (await ctx.params) as { publicId: string };
   const rate = await limitPublicSubmit(req, publicId);
   if (!rate.success) {
-    const retryAfter = rate.reset ? Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000)) : 60;
-    return NextResponse.json(
-      { error: "Too many submissions. Please try again later." },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": String(retryAfter),
-          ...(typeof rate.limit === "number" ? { "X-RateLimit-Limit": String(rate.limit) } : {}),
-          ...(typeof rate.remaining === "number" ? { "X-RateLimit-Remaining": String(rate.remaining) } : {}),
-        },
-      }
-    );
+    if (rate.misconfigured) {
+      return publicErrorResponse({
+        status: 503,
+        code: "SECURITY_MISCONFIGURED",
+        message: "Service temporarily unavailable.",
+      });
+    }
+    return publicRateLimitResponse(rate, "Too many submissions. Please try again later.");
   }
   const admin = supabaseAdmin();
 
@@ -145,10 +143,26 @@ export async function POST(
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return publicErrorResponse({
+      status: 400,
+      code: "INVALID_JSON",
+      message: "Invalid JSON body.",
+    });
   }
 
   const payload = (body ?? {}) as Record<string, unknown>;
+  const captcha = await verifyTurnstileToken({
+    req,
+    token: extractTurnstileToken(payload),
+    expectedAction: "public_submit",
+  });
+  if (!captcha.ok) {
+    return publicErrorResponse({
+      status: captcha.status,
+      code: captcha.code,
+      message: captcha.message,
+    });
+  }
 
   const name = typeof payload.name === "string" ? payload.name.trim() : null;
   const email = typeof payload.email === "string" ? payload.email.trim() : null;
@@ -212,7 +226,11 @@ export async function POST(
   }
 
   if (docErr) {
-    return NextResponse.json({ error: docErr.message }, { status: 500 });
+    return publicErrorResponse({
+      status: 500,
+      code: "DOCUMENT_LOOKUP_FAILED",
+      message: "Could not process this acknowledgement request.",
+    });
   }
 
   if (!doc) {
@@ -241,7 +259,11 @@ export async function POST(
       .eq("document_id", doc.id)
       .eq("acknowledged", true);
     if (countErr) {
-      return NextResponse.json({ error: countErr.message }, { status: 500 });
+      return publicErrorResponse({
+        status: 500,
+        code: "SUBMISSION_FAILED",
+        message: "Could not process this acknowledgement request.",
+      });
     }
     if ((count ?? 0) >= maxAcknowledgers) {
       if ("closed_at" in doc) {
@@ -294,10 +316,11 @@ export async function POST(
     .single();
 
   if (recErr || !recipient) {
-    return NextResponse.json(
-      { error: recErr?.message ?? "Recipient insert failed" },
-      { status: 500 }
-    );
+    return publicErrorResponse({
+      status: 500,
+      code: "SUBMISSION_FAILED",
+      message: "Could not process this acknowledgement request.",
+    });
   }
 
   // Create completion record
@@ -351,10 +374,11 @@ export async function POST(
   }
 
   if (compErr || !completion) {
-    return NextResponse.json(
-      { error: compErr?.message ?? "Completion insert failed" },
-      { status: 500 }
-    );
+    return publicErrorResponse({
+      status: 500,
+      code: "SUBMISSION_FAILED",
+      message: "Could not process this acknowledgement request.",
+    });
   }
 
   if (acknowledged && maxAcknowledgersEnabled && maxAcknowledgers > 0) {
@@ -364,7 +388,11 @@ export async function POST(
       .eq("document_id", doc.id)
       .eq("acknowledged", true);
     if (countErr) {
-      return NextResponse.json({ error: countErr.message }, { status: 500 });
+      return publicErrorResponse({
+        status: 500,
+        code: "SUBMISSION_FAILED",
+        message: "Could not process this acknowledgement request.",
+      });
     }
 
     if ((count ?? 0) > maxAcknowledgers) {

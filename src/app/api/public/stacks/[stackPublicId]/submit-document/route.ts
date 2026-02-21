@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { limitPublicStackSubmit } from "@/lib/rate-limit";
+import { publicErrorResponse, publicRateLimitResponse } from "@/lib/security/public-errors";
+import { extractTurnstileToken, verifyTurnstileToken } from "@/lib/security/turnstile";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { accessCookieName, accessTokenFor, constantTimeEquals, readCookie } from "@/lib/public-access";
 
@@ -27,6 +30,9 @@ type Body = {
   max_scroll_percent?: number;
   time_on_page_seconds?: number;
   active_seconds?: number;
+  captchaToken?: string | null;
+  turnstileToken?: string | null;
+  cf_turnstile_response?: string | null;
 };
 
 export async function POST(
@@ -35,8 +41,32 @@ export async function POST(
 ) {
   try {
     const { stackPublicId } = (await ctx.params) as { stackPublicId: string };
+    const rate = await limitPublicStackSubmit(req, stackPublicId);
+    if (!rate.success) {
+      if (rate.misconfigured) {
+        return publicErrorResponse({
+          status: 503,
+          code: "SECURITY_MISCONFIGURED",
+          message: "Service temporarily unavailable.",
+        });
+      }
+      return publicRateLimitResponse(rate, "Too many submissions. Please try again later.");
+    }
+
     const admin = supabaseAdmin();
     const body = (await req.json().catch(() => null)) as Body | null;
+    const captcha = await verifyTurnstileToken({
+      req,
+      token: extractTurnstileToken(body),
+      expectedAction: "public_stack",
+    });
+    if (!captcha.ok) {
+      return publicErrorResponse({
+        status: captcha.status,
+        code: captcha.code,
+        message: captcha.message,
+      });
+    }
 
     const documentPublicId = String(body?.document_public_id ?? "").trim();
     const name = String(body?.name ?? "").trim();
@@ -54,7 +84,13 @@ export async function POST(
       .select("id,workspace_id,stack_id,status,expires_at")
       .eq("public_id", stackPublicId)
       .maybeSingle();
-    if (deliveryRes.error) return NextResponse.json({ error: deliveryRes.error.message }, { status: 500 });
+    if (deliveryRes.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not process this acknowledgement.",
+      });
+    }
     if (!deliveryRes.data) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const delivery = deliveryRes.data as { id: string; workspace_id: string; stack_id: string | null; status: string; expires_at: string | null };
     if (delivery.status !== "active") {
@@ -68,7 +104,13 @@ export async function POST(
       .from("stack_delivery_documents")
       .select("document:documents(id,public_id,title,current_version_id,password_enabled,password_hash,require_recipient_identity,max_acknowledgers_enabled,max_acknowledgers,closed_at)")
       .eq("delivery_id", delivery.id);
-    if (allowedDocRes.error) return NextResponse.json({ error: allowedDocRes.error.message }, { status: 500 });
+    if (allowedDocRes.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "STACK_LOOKUP_FAILED",
+        message: "Could not process this acknowledgement.",
+      });
+    }
 
     const allowedDocs = (allowedDocRes.data ?? [])
       .map((row) => {
@@ -113,7 +155,13 @@ export async function POST(
         .select("id", { head: true, count: "exact" })
         .eq("document_id", doc.id)
         .eq("acknowledged", true);
-      if (countErr) return NextResponse.json({ error: countErr.message }, { status: 500 });
+      if (countErr) {
+        return publicErrorResponse({
+          status: 500,
+          code: "SUBMISSION_FAILED",
+          message: "Could not process this acknowledgement.",
+        });
+      }
       if ((count ?? 0) >= doc.max_acknowledgers) {
         return NextResponse.json({ error: "This document link is closed." }, { status: 409 });
       }
@@ -133,7 +181,11 @@ export async function POST(
       .select("id")
       .single();
     if (recipientInsert.error || !recipientInsert.data) {
-      return NextResponse.json({ error: recipientInsert.error?.message ?? "Recipient insert failed." }, { status: 500 });
+      return publicErrorResponse({
+        status: 500,
+        code: "SUBMISSION_FAILED",
+        message: "Could not process this acknowledgement.",
+      });
     }
 
     const completionInsert = await admin
@@ -153,7 +205,11 @@ export async function POST(
       .select("id")
       .single();
     if (completionInsert.error || !completionInsert.data) {
-      return NextResponse.json({ error: completionInsert.error?.message ?? "Completion insert failed." }, { status: 500 });
+      return publicErrorResponse({
+        status: 500,
+        code: "SUBMISSION_FAILED",
+        message: "Could not process this acknowledgement.",
+      });
     }
 
     const stackRecipient = await admin
@@ -171,7 +227,11 @@ export async function POST(
       .select("id")
       .single();
     if (stackRecipient.error || !stackRecipient.data) {
-      return NextResponse.json({ error: stackRecipient.error?.message ?? "Stack recipient upsert failed." }, { status: 500 });
+      return publicErrorResponse({
+        status: 500,
+        code: "SUBMISSION_FAILED",
+        message: "Could not process this acknowledgement.",
+      });
     }
 
     const stackAck = await admin
@@ -193,13 +253,23 @@ export async function POST(
         },
         { onConflict: "delivery_recipient_id,document_id" }
       );
-    if (stackAck.error) return NextResponse.json({ error: stackAck.error.message }, { status: 500 });
+    if (stackAck.error) {
+      return publicErrorResponse({
+        status: 500,
+        code: "SUBMISSION_FAILED",
+        message: "Could not process this acknowledgement.",
+      });
+    }
 
     return NextResponse.json({
       ok: true,
       completion_id: String((completionInsert.data as { id: string }).id),
     });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed." }, { status: 500 });
+  } catch {
+    return publicErrorResponse({
+      status: 500,
+      code: "SUBMISSION_FAILED",
+      message: "Could not process this acknowledgement.",
+    });
   }
 }

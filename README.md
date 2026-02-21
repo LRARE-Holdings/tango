@@ -41,9 +41,18 @@ BASE_URL=https://your-preview-or-prod-url npm run qa:smoke
 # full gate
 BASE_URL=https://your-preview-or-prod-url npm run qa:full
 
+# playwright customer-surface gate
+BASE_URL=https://your-preview-or-prod-url npm run test:e2e
+BASE_URL=https://your-preview-or-prod-url npm run test:security
+
+# consolidated release gate
+BASE_URL=https://your-preview-or-prod-url npm run qa:gate
+
 # verify required launch env vars are present
 npm run release:verify-env
 ```
+
+Test data env contract for Playwright is documented in `docs/qa/test-data-contract.md`.
 
 ## Snitcher Radar (Lead Tracking)
 
@@ -64,14 +73,13 @@ Web analytics is also consent-gated. If `NEXT_PUBLIC_GTM_ID` is set, GTM is used
 If GTM is not set, direct Google Analytics (`gtag`) is used.
 
 ```bash
-# Optional direct GA measurement ID (defaults to G-TDT3P14Q7M)
+# Optional direct GA measurement ID
 NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 
 # Optional GTM container (when set, GTM is preferred over direct GA)
 NEXT_PUBLIC_GTM_ID=GTM-XXXXXXX
 ```
-
-If unset, the app defaults to `GTM-T77S35PK`.
+If both are unset, analytics loaders remain disabled even when consent is granted.
 
 ## Deploy on Vercel
 
