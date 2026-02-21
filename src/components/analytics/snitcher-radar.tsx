@@ -2,17 +2,102 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
-import Script from "next/script";
 import { isPublicTrackingPath } from "@/lib/analytics/snitcher-scope";
 
 type SnitcherRadarProps = {
   consentAccepted: boolean;
 };
 
-function buildBootstrapSource(settingsJson: string) {
-  return `
-!function(e){"use strict";var t=e&&e.namespace;if(t&&e.profileId&&e.cdn){var i=window[t];if(i&&Array.isArray(i)||(i=window[t]=[]),!i.initialized&&!i._loaded)if(i._loaded)console&&console.warn("[Radar] Duplicate initialization attempted");else{i._loaded=!0;["track","page","identify","group","alias","ready","debug","on","off","once","trackClick","trackSubmit","trackLink","trackForm","pageview","screen","reset","register","setAnonymousId","addSourceMiddleware","addIntegrationMiddleware","addDestinationMiddleware","giveCookieConsent"].forEach((function(e){var a;i[e]=(a=e,function(){var e=window[t];if(e.initialized)return e[a].apply(e,arguments);var i=[].slice.call(arguments);return i.unshift(a),e.push(i),e})})),-1===e.apiEndpoint.indexOf("http")&&(e.apiEndpoint="https://"+e.apiEndpoint),i.bootstrap=function(){var t,i=document.createElement("script");i.async=!0,i.type="text/javascript",i.id="__radar__",i.setAttribute("data-settings",JSON.stringify(e)),i.src=[-1!==(t=e.cdn).indexOf("http")?"":"https://",t,"/releases/latest/radar.min.js"].join("");var a=document.scripts[0];a.parentNode.insertBefore(i,a)},i.bootstrap()}}else"undefined"!=typeof console&&console.error("[Radar] Configuration incomplete")}(${settingsJson});
-`;
+const RADAR_METHODS = [
+  "track",
+  "page",
+  "identify",
+  "group",
+  "alias",
+  "ready",
+  "debug",
+  "on",
+  "off",
+  "once",
+  "trackClick",
+  "trackSubmit",
+  "trackLink",
+  "trackForm",
+  "pageview",
+  "screen",
+  "reset",
+  "register",
+  "setAnonymousId",
+  "addSourceMiddleware",
+  "addIntegrationMiddleware",
+  "addDestinationMiddleware",
+  "giveCookieConsent",
+] as const;
+
+type RadarSettings = {
+  apiEndpoint: string;
+  cdn: string;
+  namespace: "Snitcher";
+  profileId: string;
+};
+
+type SnitcherQueue = NonNullable<Window["Snitcher"]>;
+
+function toAbsoluteUrl(base: string) {
+  if (base.includes("http://") || base.includes("https://")) return base;
+  return `https://${base}`;
+}
+
+function getSnitcher(namespace: string) {
+  return (window as unknown as Record<string, SnitcherQueue | undefined>)[namespace];
+}
+
+function setSnitcher(namespace: string, value: SnitcherQueue) {
+  (window as unknown as Record<string, SnitcherQueue | undefined>)[namespace] = value;
+}
+
+function ensureSnitcherLoaded(rawSettings: RadarSettings) {
+  if (!rawSettings.profileId || !rawSettings.cdn || !rawSettings.namespace) return null;
+  const settings = { ...rawSettings, apiEndpoint: toAbsoluteUrl(rawSettings.apiEndpoint) };
+  const namespace = settings.namespace;
+  const existing = getSnitcher(namespace);
+  const queue = (existing && Array.isArray(existing) ? existing : []) as SnitcherQueue;
+
+  if (queue.initialized || queue._loaded) {
+    return queue;
+  }
+
+  queue._loaded = true;
+  RADAR_METHODS.forEach((methodName) => {
+    queue[methodName] = (...args: unknown[]) => {
+      const live = getSnitcher(namespace);
+      if (live?.initialized && typeof live[methodName] === "function") {
+        return live[methodName](...args);
+      }
+      queue.push([methodName, ...args]);
+      return queue;
+    };
+  });
+
+  queue.bootstrap = () => {
+    if (document.getElementById("__radar__")) return;
+    const script = document.createElement("script");
+    script.async = true;
+    script.type = "text/javascript";
+    script.id = "__radar__";
+    script.setAttribute("data-settings", JSON.stringify(settings));
+    script.src = `${toAbsoluteUrl(settings.cdn)}/releases/latest/radar.min.js`;
+    const firstScript = document.scripts[0];
+    if (firstScript?.parentNode) {
+      firstScript.parentNode.insertBefore(script, firstScript);
+      return;
+    }
+    document.head.appendChild(script);
+  };
+
+  setSnitcher(namespace, queue);
+  queue.bootstrap();
+  return queue;
 }
 
 export function SnitcherRadar({ consentAccepted }: SnitcherRadarProps) {
@@ -22,20 +107,22 @@ export function SnitcherRadar({ consentAccepted }: SnitcherRadarProps) {
   const shouldLoad = consentAccepted && inScope && enabled;
   const hasGrantedConsentRef = useRef(false);
 
-  const settingsJson = useMemo(
+  const settings = useMemo(
     () =>
-      JSON.stringify({
+      ({
         apiEndpoint: process.env.NEXT_PUBLIC_SNITCHER_API_ENDPOINT || "radar.snitcher.com",
         cdn: process.env.NEXT_PUBLIC_SNITCHER_CDN || "cdn.snitcher.com",
         namespace: "Snitcher",
         profileId: process.env.NEXT_PUBLIC_SNITCHER_PROFILE_ID || "srOWIXW42o",
-      }),
+      }) satisfies RadarSettings,
     []
   );
-  const bootstrapSource = useMemo(() => buildBootstrapSource(settingsJson), [settingsJson]);
 
   useEffect(() => {
     if (!shouldLoad) return;
+    const queue = ensureSnitcherLoaded(settings);
+    if (!queue) return;
+
     let cancelled = false;
     let attempts = 0;
 
@@ -61,13 +148,7 @@ export function SnitcherRadar({ consentAccepted }: SnitcherRadarProps) {
     return () => {
       cancelled = true;
     };
-  }, [shouldLoad, pathname]);
+  }, [pathname, settings, shouldLoad]);
 
-  if (!shouldLoad) return null;
-
-  return (
-    <Script id="snitcher-radar-bootstrap" strategy="afterInteractive">
-      {bootstrapSource}
-    </Script>
-  );
+  return null;
 }
