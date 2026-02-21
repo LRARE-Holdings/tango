@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import Script from "next/script";
+import { SnitcherRadar } from "@/components/analytics/snitcher-radar";
 
 const GA_MEASUREMENT_ID = "G-TDT3P14Q7M";
 const CONSENT_COOKIE = "receipt_cookie_consent";
@@ -66,6 +67,7 @@ export function CookieConsent() {
               gtag('config', '${GA_MEASUREMENT_ID}');
             `}
           </Script>
+          <SnitcherRadar consentAccepted />
         </>
       ) : null}
 

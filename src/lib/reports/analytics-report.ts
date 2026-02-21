@@ -1,5 +1,14 @@
 import { PDFDocument } from "pdf-lib";
-import { createReportDocument, drawHeader, drawKeyValueRow } from "@/lib/reports/layout";
+import { createReportContext, saveReport } from "@/lib/reports/engine/core";
+import { drawTable } from "@/lib/reports/engine/table";
+import {
+  drawKeyValueRow,
+  drawMetricCards,
+  drawParagraph,
+  drawReportHeader,
+  drawSectionHeading,
+  finalizeFooters,
+} from "@/lib/reports/engine/sections";
 
 export type AnalyticsReportMode = "compliance" | "management";
 
@@ -78,294 +87,353 @@ function fmtDuration(seconds: number | null) {
   return `${days}d ${hours}h`;
 }
 
+function fmtUtc(iso: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "—";
+  return d.toUTCString();
+}
+
+function normalizePriority(value: string) {
+  const clean = value.trim().toLowerCase();
+  if (!clean) return "normal";
+  return clean;
+}
+
 export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Promise<Uint8Array> {
-  const { pdf, page, font, fontBold, theme } = await createReportDocument();
-  let currentPage = page;
-  const pageHeight = page.getHeight();
-  const ensureRoom = (need: number, heading?: string) => {
-    if (y >= 70 + need) return;
-    currentPage = pdf.addPage([595.28, 841.89]);
-    y = pageHeight - theme.margin;
-    if (heading) {
-      currentPage.drawText(heading, { x: theme.margin, y, font: fontBold, size: 12 });
-      y -= 16;
-    }
-  };
-  let y = drawHeader({
-    page: currentPage,
-    fontBold,
+  const ctx = await createReportContext();
+  const generatedDate = new Date(input.generatedAtIso);
+  const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
+  const generatedLabel = Number.isFinite(generatedDate.getTime())
+    ? generatedDate.toUTCString()
+    : new Date().toUTCString();
+
+  drawReportHeader(ctx, {
     title:
       input.mode === "compliance"
         ? `${input.workspaceName} Compliance Report`
         : `${input.workspaceName} Management KPI Report`,
-    subtitle: `Generated ${new Date(input.generatedAtIso).toUTCString()} · ${input.rangeLabel}`,
-    theme,
+    subtitle: `${input.rangeLabel}`,
+    eyebrow: input.mode === "compliance" ? "COMPLIANCE / REGULATORY" : "MANAGEMENT / OPERATIONS",
+    rightMeta: `Generated ${generatedLabel}`,
+    brandName: input.workspaceName,
   });
 
-  y = drawKeyValueRow({
-    page: currentPage,
-    font,
-    fontBold,
-    y,
-    key: "Total documents sent",
-    value: String(input.metrics.total_documents_sent),
-    theme,
+  drawSectionHeading(ctx, "Summary");
+  drawKeyValueRow(ctx, "Total documents sent", String(input.metrics.total_documents_sent));
+  drawKeyValueRow(ctx, "Acknowledgement rate", `${input.metrics.acknowledgement_rate_percent}%`);
+  drawKeyValueRow(
+    ctx,
+    "Average time to acknowledgement",
+    fmtDuration(input.metrics.avg_time_to_ack_seconds)
+  );
+  drawKeyValueRow(ctx, "Outstanding acknowledgements", String(input.metrics.outstanding_acknowledgements));
+
+  if (input.mode === "compliance") {
+    drawParagraph(ctx, "Regulatory scope: Policy-tagged receipts only.", { muted: true, size: 9.2 });
+  }
+
+  ctx.cursor.y -= 8;
+  drawMetricCards(
+    ctx,
+    [
+      { label: "TOTAL SENT", value: String(input.metrics.total_documents_sent) },
+      { label: "ACK RATE", value: `${input.metrics.acknowledgement_rate_percent}%` },
+      { label: "AVG TIME TO ACK", value: fmtDuration(input.metrics.avg_time_to_ack_seconds) },
+      { label: "OUTSTANDING", value: String(input.metrics.outstanding_acknowledgements) },
+    ],
+    { columns: 4 }
+  );
+
+  drawSectionHeading(ctx, "Breakdown by priority");
+  drawTable(ctx, {
+    columns: [
+      { key: "priority", header: "Priority", value: (row) => row.priority, minWidth: 120 },
+      { key: "ack", header: "Acknowledged", value: (row) => row.ack, minWidth: 150 },
+      { key: "rate", header: "Rate", value: (row) => row.rate, minWidth: 80, align: "right", mode: "fixed", width: 80 },
+    ],
+    rows: [...input.byPriority]
+      .sort((a, b) => normalizePriority(a.priority).localeCompare(normalizePriority(b.priority)))
+      .map((row) => ({
+        priority: normalizePriority(row.priority),
+        ack: `${row.acknowledged}/${row.total}`,
+        rate: row.total > 0 ? `${Math.round((row.acknowledged / row.total) * 100)}%` : "0%",
+      })),
+    repeatHeader: true,
+    fontSize: 9,
+    headerFontSize: 9.2,
   });
-  y = drawKeyValueRow({
-    page: currentPage,
-    font,
-    fontBold,
-    y,
-    key: "Acknowledgement rate",
-    value: `${input.metrics.acknowledgement_rate_percent}%`,
-    theme,
+
+  drawSectionHeading(ctx, "Top labels/tags");
+  drawTable(ctx, {
+    columns: [
+      { key: "label", header: "Label / Tag", value: (row) => row.label, minWidth: 280 },
+      { key: "total", header: "Documents", value: (row) => String(row.total), mode: "fixed", width: 90, align: "right" },
+    ],
+    rows: [...input.byLabel]
+      .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
+      .slice(0, 24),
+    repeatHeader: true,
+    fontSize: 9,
+    headerFontSize: 9.2,
   });
-  y = drawKeyValueRow({
-    page: currentPage,
-    font,
-    fontBold,
-    y,
-    key: "Average time to acknowledgement",
-    value: fmtDuration(input.metrics.avg_time_to_ack_seconds),
-    theme,
-  });
-  y = drawKeyValueRow({
-    page: currentPage,
-    font,
-    fontBold,
-    y,
-    key: "Outstanding acknowledgements",
-    value: String(input.metrics.outstanding_acknowledgements),
-    theme,
+
+  drawSectionHeading(ctx, "Daily trend");
+  drawTable(ctx, {
+    columns: [
+      { key: "date", header: "Date", value: (row) => row.date, minWidth: 120 },
+      { key: "sent", header: "Sent", value: (row) => String(row.sent), mode: "fixed", width: 65, align: "right" },
+      {
+        key: "ack",
+        header: "Acknowledged",
+        value: (row) => String(row.acknowledged),
+        mode: "fixed",
+        width: 110,
+        align: "right",
+      },
+      {
+        key: "rate",
+        header: "Ack rate",
+        value: (row) => (row.sent > 0 ? `${Math.round((row.acknowledged / row.sent) * 100)}%` : "0%"),
+        mode: "fixed",
+        width: 80,
+        align: "right",
+      },
+    ],
+    rows: [...input.series]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-30),
+    repeatHeader: true,
+    fontSize: 8.8,
+    headerFontSize: 9.1,
   });
 
   if (input.mode === "compliance") {
-    y -= 6;
-    currentPage.drawText("Regulatory scope: Policy-tagged receipts only.", {
-      x: theme.margin,
-      y,
-      font: font,
-      size: 10,
-      color: theme.muted,
-    });
-    y -= 14;
-  }
+    drawSectionHeading(
+      ctx,
+      "Policy document evidence",
+      "Each policy document includes acknowledgement evidence and outstanding submissions."
+    );
 
-  y -= 16;
-  currentPage.drawText("Breakdown by priority", { x: theme.margin, y, font: fontBold, size: 12 });
-  y -= 18;
-  for (const row of input.byPriority) {
-    y = drawKeyValueRow({
-      page: currentPage,
-      font,
-      fontBold,
-      y,
-      key: `${row.priority} priority`,
-      value: `${row.acknowledged}/${row.total} acknowledged`,
-      theme,
-    });
-  }
+    const docs = [...(input.complianceDocuments ?? [])].sort(
+      (a, b) =>
+        a.document_title.localeCompare(b.document_title) ||
+        a.document_public_id.localeCompare(b.document_public_id)
+    );
 
-  y -= 16;
-  currentPage.drawText("Top labels/tags", { x: theme.margin, y, font: fontBold, size: 12 });
-  y -= 18;
-  for (const row of input.byLabel.slice(0, 8)) {
-    y = drawKeyValueRow({
-      page: currentPage,
-      font,
-      fontBold,
-      y,
-      key: row.label,
-      value: String(row.total),
-      theme,
-    });
-  }
-
-  y -= 16;
-  currentPage.drawText("Daily trend (last 30 days)", { x: theme.margin, y, font: fontBold, size: 12 });
-  y -= 18;
-  for (const row of input.series.slice(-10)) {
-    y = drawKeyValueRow({
-      page: currentPage,
-      font,
-      fontBold,
-      y,
-      key: row.date,
-      value: `Sent ${row.sent} · Ack ${row.acknowledged}`,
-      theme,
-    });
-  }
-
-  if (input.mode === "compliance") {
-    y -= 16;
-    currentPage.drawText("Policy document evidence", { x: theme.margin, y, font: fontBold, size: 12 });
-    y -= 14;
-
-    const docs = input.complianceDocuments ?? [];
     if (docs.length === 0) {
-      currentPage.drawText("No policy-tagged documents matched this date range.", {
-        x: theme.margin,
-        y,
-        font,
-        size: 9.5,
-        color: theme.muted,
-      });
-      y -= 12;
+      drawParagraph(ctx, "No policy-tagged documents matched this date range.", { muted: true });
     }
 
     for (const doc of docs) {
-      ensureRoom(88, "Policy document evidence (continued)");
-      currentPage.drawText(`${doc.document_title} (${doc.document_public_id || "No public ID"})`, {
-        x: theme.margin,
-        y,
-        font: fontBold,
-        size: 10.5,
-      });
-      y -= 12;
-      currentPage.drawText(
-        `Created ${doc.created_at ? new Date(doc.created_at).toUTCString() : "—"} | Priority ${doc.priority.toUpperCase()} | Acknowledged ${doc.acknowledged_count} | Pending submissions ${doc.pending_submission_count}`,
-        { x: theme.margin, y, font, size: 8.8, color: theme.muted }
+      ctx.ensureSpace(96);
+      drawSectionHeading(ctx, `${doc.document_title} (${doc.document_public_id || "No public ID"})`);
+      drawKeyValueRow(ctx, "Created", fmtUtc(doc.created_at));
+      drawKeyValueRow(ctx, "Priority", normalizePriority(doc.priority).toUpperCase());
+      drawKeyValueRow(ctx, "Labels", doc.labels.join(", ") || "—");
+      drawKeyValueRow(
+        ctx,
+        "Tags",
+        Object.entries(doc.tags)
+          .map(([k, v]) => `${k}:${v}`)
+          .join(", ") || "—"
       );
-      y -= 11;
-      const tagsLine = Object.entries(doc.tags)
-        .map(([k, v]) => `${k}:${v}`)
-        .join(", ");
-      const labelsLine = doc.labels.join(", ");
-      currentPage.drawText(`Labels: ${labelsLine || "—"} | Tags: ${tagsLine || "—"}`, {
-        x: theme.margin,
-        y,
-        font,
-        size: 8.4,
-        color: theme.muted,
-      });
-      y -= 11;
-      currentPage.drawText(
-        doc.outstanding
-          ? "Outstanding acknowledgement: YES (no acknowledged submissions recorded in range)"
-          : "Outstanding acknowledgement: NO",
-        { x: theme.margin, y, font: fontBold, size: 8.8 }
+      drawKeyValueRow(ctx, "Acknowledged in range", String(doc.acknowledged_count));
+      drawKeyValueRow(ctx, "Pending submissions", String(doc.pending_submission_count));
+      drawKeyValueRow(
+        ctx,
+        "Outstanding acknowledgement",
+        doc.outstanding ? "YES (no acknowledged submissions recorded in range)" : "NO"
       );
-      y -= 11;
 
-      currentPage.drawText("Acknowledgements", { x: theme.margin, y, font: fontBold, size: 9 });
-      y -= 10;
-      if (doc.acknowledgements.length === 0) {
-        currentPage.drawText("None in selected date range.", { x: theme.margin + 8, y, font, size: 8.4, color: theme.muted });
-        y -= 10;
-      } else {
-        for (const ack of doc.acknowledgements) {
-          ensureRoom(24, "Policy document evidence (continued)");
-          const who = ack.recipient_name || ack.recipient_email || "Unknown recipient";
-          const when = ack.submitted_at ? new Date(ack.submitted_at).toUTCString() : "—";
-          currentPage.drawText(`• ${who} | ${when} | ${ack.method}`, { x: theme.margin + 8, y, font, size: 8.4 });
-          y -= 9;
-          currentPage.drawText(
-            `  Scroll ${ack.max_scroll_percent ?? 0}% | Active ${fmtDuration(ack.active_seconds)} | Page ${fmtDuration(ack.time_on_page_seconds)} | IP ${ack.ip ?? "—"}`,
-            { x: theme.margin + 8, y, font, size: 8.1, color: theme.muted }
-          );
-          y -= 9;
-        }
-      }
-
-      currentPage.drawText("Outstanding acknowledgements / pending submissions", {
-        x: theme.margin,
-        y,
-        font: fontBold,
-        size: 9,
+      drawSectionHeading(ctx, "Acknowledgements");
+      const acknowledgements = [...doc.acknowledgements].sort(
+        (a, b) =>
+          (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "") ||
+          (a.recipient_email ?? "").localeCompare(b.recipient_email ?? "")
+      );
+      drawTable(ctx, {
+        columns: [
+          {
+            key: "recipient",
+            header: "Recipient",
+            value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
+            minWidth: 140,
+          },
+          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 120 },
+          { key: "method", header: "How", value: (row) => row.method, minWidth: 90 },
+          {
+            key: "metrics",
+            header: "Metrics",
+            value: (row) =>
+              `Scroll ${row.max_scroll_percent ?? 0}% | Active ${fmtDuration(row.active_seconds)} | Page ${fmtDuration(
+                row.time_on_page_seconds
+              )}`,
+            minWidth: 170,
+          },
+          { key: "ip", header: "IP", value: (row) => row.ip ?? "—", minWidth: 70 },
+        ],
+        rows: acknowledgements.length > 0 ? acknowledgements : [
+          {
+            recipient_name: null,
+            recipient_email: null,
+            submitted_at: null,
+            method: "No acknowledgements in selected date range",
+            max_scroll_percent: null,
+            active_seconds: null,
+            time_on_page_seconds: null,
+            ip: null,
+            user_agent: null,
+          },
+        ],
+        repeatHeader: true,
+        fontSize: 8.2,
+        headerFontSize: 8.4,
+        lineHeight: 9.8,
       });
-      y -= 10;
-      if (doc.pending_submissions.length === 0) {
-        currentPage.drawText("None recorded.", { x: theme.margin + 8, y, font, size: 8.4, color: theme.muted });
-        y -= 12;
-      } else {
-        for (const pending of doc.pending_submissions) {
-          ensureRoom(16, "Policy document evidence (continued)");
-          const who = pending.recipient_name || pending.recipient_email || "Unknown recipient";
-          const when = pending.submitted_at ? new Date(pending.submitted_at).toUTCString() : "—";
-          currentPage.drawText(`• ${who} | ${when} | ${pending.method}`, {
-            x: theme.margin + 8,
-            y,
-            font,
-            size: 8.4,
-          });
-          y -= 9;
-        }
-        y -= 3;
-      }
-      y -= 8;
+
+      drawSectionHeading(ctx, "Outstanding acknowledgements / pending submissions");
+      const pending = [...doc.pending_submissions].sort(
+        (a, b) =>
+          (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "") ||
+          (a.recipient_email ?? "").localeCompare(b.recipient_email ?? "")
+      );
+      drawTable(ctx, {
+        columns: [
+          {
+            key: "recipient",
+            header: "Recipient",
+            value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
+            minWidth: 150,
+          },
+          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 130 },
+          { key: "method", header: "Status", value: (row) => row.method, minWidth: 170 },
+          {
+            key: "metrics",
+            header: "Metrics",
+            value: (row) =>
+              `Scroll ${row.max_scroll_percent ?? 0}% | Active ${fmtDuration(row.active_seconds)} | Page ${fmtDuration(
+                row.time_on_page_seconds
+              )}`,
+            minWidth: 170,
+          },
+        ],
+        rows: pending.length > 0
+          ? pending
+          : [
+              {
+                recipient_name: null,
+                recipient_email: null,
+                submitted_at: null,
+                method: "None recorded",
+                max_scroll_percent: null,
+                time_on_page_seconds: null,
+                active_seconds: null,
+              },
+            ],
+        repeatHeader: true,
+        fontSize: 8.2,
+        headerFontSize: 8.4,
+      });
     }
   } else {
-    y -= 16;
-    currentPage.drawText("Acknowledgement evidence", { x: theme.margin, y, font: fontBold, size: 12 });
-    y -= 14;
-    const evidenceHeader = "Document | Recipient | How | When";
-    currentPage.drawText(evidenceHeader, { x: theme.margin, y, font: fontBold, size: 9.5 });
-    y -= 12;
-
-    for (const row of input.evidenceRows) {
-      if (y < 70) {
-        currentPage = pdf.addPage([595.28, 841.89]);
-        y = pageHeight - theme.margin;
-        currentPage.drawText("Acknowledgement evidence (continued)", {
-          x: theme.margin,
-          y,
-          font: fontBold,
-          size: 12,
-        });
-        y -= 14;
-        currentPage.drawText(evidenceHeader, { x: theme.margin, y, font: fontBold, size: 9.5 });
-        y -= 12;
-      }
-      const when = row.submitted_at ? new Date(row.submitted_at).toUTCString() : "—";
-      const recipient = row.recipient_name || row.recipient_email || "Unknown recipient";
-      const how = `${row.method}; scroll ${row.max_scroll_percent ?? 0}%; active ${fmtDuration(row.active_seconds)}`;
-      const line = `${row.document_title} (${row.document_public_id}) | ${recipient} | ${how} | ${when}`;
-      currentPage.drawText(line.slice(0, 180), { x: theme.margin, y, font, size: 8.5 });
-      y -= 10;
-    }
-  }
-
-  if ((input.stackReceipts ?? []).length > 0) {
-    if (y < 90) {
-      currentPage = pdf.addPage([595.28, 841.89]);
-      y = pageHeight - theme.margin;
-    }
-    y -= 16;
-    currentPage.drawText("Stack acknowledgement receipts", { x: theme.margin, y, font: fontBold, size: 12 });
-    y -= 14;
-    for (const row of input.stackReceipts ?? []) {
-      ensureRoom(22, "Stack acknowledgement receipts (continued)");
-      currentPage.drawText(
-        `${row.stack_title} | ${row.recipient_email} | ${new Date(row.completed_at).toUTCString()}`,
-        { x: theme.margin, y, font, size: 8.6 }
-      );
-      y -= 9;
-      currentPage.drawText(
-        `Acknowledged ${row.acknowledged_documents}/${row.total_documents} documents`,
-        { x: theme.margin + 8, y, font, size: 8.1, color: theme.muted }
-      );
-      y -= 9;
-    }
-  }
-
-  const pages = pdf.getPages();
-  for (let i = 0; i < pages.length; i += 1) {
-    const p = pages[i];
-    const label = `Page ${i + 1} of ${pages.length}`;
-    p.drawText(label, {
-      x: p.getWidth() - theme.margin - font.widthOfTextAtSize(label, 9),
-      y: 20,
-      size: 9,
-      font,
+    drawSectionHeading(ctx, "Acknowledgement evidence");
+    const rows = [...input.evidenceRows].sort(
+      (a, b) =>
+        (a.document_title || "").localeCompare(b.document_title || "") ||
+        (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "")
+    );
+    drawTable(ctx, {
+      columns: [
+        {
+          key: "document",
+          header: "Document",
+          value: (row) => `${row.document_title} (${row.document_public_id || "No public ID"})`,
+          minWidth: 175,
+        },
+        {
+          key: "recipient",
+          header: "Recipient",
+          value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
+          minWidth: 130,
+        },
+        { key: "how", header: "How", value: (row) => row.method, minWidth: 90 },
+        {
+          key: "metrics",
+          header: "Engagement",
+          value: (row) =>
+            `Scroll ${row.max_scroll_percent ?? 0}% | Active ${fmtDuration(row.active_seconds)} | Page ${fmtDuration(
+              row.time_on_page_seconds
+            )}`,
+          minWidth: 170,
+        },
+        { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 130 },
+      ],
+      rows:
+        rows.length > 0
+          ? rows
+          : [
+              {
+                document_title: "No acknowledgements available in selected range",
+                document_public_id: "",
+                recipient_name: null,
+                recipient_email: null,
+                acknowledged: false,
+                submitted_at: null,
+                method: "—",
+                max_scroll_percent: null,
+                time_on_page_seconds: null,
+                active_seconds: null,
+                ip: null,
+              },
+            ],
+      repeatHeader: true,
+      fontSize: 8.3,
+      headerFontSize: 8.5,
+      lineHeight: 9.9,
     });
   }
 
-  pdf.setTitle(
+  const stackReceipts = [...(input.stackReceipts ?? [])].sort(
+    (a, b) =>
+      (b.completed_at ?? "").localeCompare(a.completed_at ?? "") ||
+      a.stack_title.localeCompare(b.stack_title)
+  );
+  if (stackReceipts.length > 0) {
+    drawSectionHeading(ctx, "Stack acknowledgement receipts");
+    drawTable(ctx, {
+      columns: [
+        { key: "stack", header: "Stack", value: (row) => row.stack_title, minWidth: 180 },
+        { key: "recipient", header: "Recipient", value: (row) => row.recipient_email, minWidth: 150 },
+        { key: "completed", header: "Completed", value: (row) => fmtUtc(row.completed_at), minWidth: 130 },
+        {
+          key: "status",
+          header: "Acknowledged",
+          value: (row) => `${row.acknowledged_documents}/${row.total_documents}`,
+          mode: "fixed",
+          width: 80,
+          align: "right",
+        },
+      ],
+      rows: stackReceipts,
+      repeatHeader: true,
+      fontSize: 8.5,
+      headerFontSize: 8.7,
+    });
+  }
+
+  finalizeFooters(
+    ctx,
     input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report"
   );
-  pdf.setProducer("Receipt");
-  pdf.setCreator("Receipt");
-  return pdf.save();
+  ctx.pdf.setTitle(
+    input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report"
+  );
+  ctx.pdf.setProducer("Receipt");
+  ctx.pdf.setCreator("Receipt");
+  ctx.pdf.setCreationDate(metadataDate);
+  ctx.pdf.setModificationDate(metadataDate);
+  return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }
 
 export async function bytesToPdfDocument(bytes: Uint8Array): Promise<PDFDocument> {

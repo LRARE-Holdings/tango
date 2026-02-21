@@ -45,6 +45,19 @@ BASE_URL=https://your-preview-or-prod-url npm run qa:full
 npm run release:verify-env
 ```
 
+## Snitcher Radar (Lead Tracking)
+
+Snitcher is consent-gated through the existing cookie banner and only runs on non-`/app` routes.
+
+```bash
+NEXT_PUBLIC_SNITCHER_ENABLED=true
+NEXT_PUBLIC_SNITCHER_PROFILE_ID=srOWIXW42o
+NEXT_PUBLIC_SNITCHER_API_ENDPOINT=radar.snitcher.com
+NEXT_PUBLIC_SNITCHER_CDN=cdn.snitcher.com
+```
+
+If these are omitted, defaults match the values above. Set `NEXT_PUBLIC_SNITCHER_ENABLED=false` to disable client loading.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

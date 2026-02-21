@@ -23,6 +23,7 @@ type WorkspaceBrandSummary = {
   name: string | null;
   hasLogo: boolean;
   logoUrl: string | null;
+  logoWidthPx: number;
 };
 
 function normalizePlan(input: string | null | undefined) {
@@ -146,12 +147,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 name?: string | null;
                 brand_logo_path?: string | null;
                 brand_logo_updated_at?: string | null;
+                brand_logo_width_px?: number | null;
               };
             }
           | null;
         if (!active || !res.ok) return;
         const name = String(json?.workspace?.name ?? "").trim() || null;
         const hasLogo = Boolean(json?.workspace?.brand_logo_path);
+        const logoWidthRaw = Number(json?.workspace?.brand_logo_width_px ?? 104);
+        const logoWidthPx = Number.isFinite(logoWidthRaw)
+          ? Math.max(48, Math.min(320, Math.floor(logoWidthRaw)))
+          : 104;
         const logoUrl = hasLogo
           ? `/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/branding/logo/view${
               json?.workspace?.brand_logo_updated_at
@@ -159,7 +165,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 : ""
             }`
           : null;
-        setWorkspaceBrand({ name, hasLogo, logoUrl });
+        setWorkspaceBrand({ name, hasLogo, logoUrl, logoWidthPx });
       } catch {
         if (active) setWorkspaceBrand(null);
       }
@@ -292,6 +298,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           src={workspaceBrand.logoUrl}
                           alt={workspaceBrand.name ? `${workspaceBrand.name} logo` : "Workspace logo"}
                           className="workspace-brand-logo"
+                          style={{
+                            width: `${workspaceBrand.logoWidthPx}px`,
+                            maxWidth: "100%",
+                            height: "auto",
+                          }}
                           onError={() => setWorkspaceBrand((prev) => (prev ? { ...prev, logoUrl: null } : prev))}
                         />
                       ) : (

@@ -104,7 +104,7 @@ export async function GET(
     const withSlug = await supabase
       .from("workspaces")
       .select(
-        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields,billing_owner_user_id,policy_mode_enabled"
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,billing_owner_user_id,policy_mode_enabled"
       )
       .eq("id", resolved.id)
       .maybeSingle();
@@ -116,7 +116,8 @@ export async function GET(
       wsErr &&
       (isMissingColumnError(wsErr, "slug") ||
         isMissingColumnError(wsErr, "billing_owner_user_id") ||
-        isMissingColumnError(wsErr, "policy_mode_enabled"))
+        isMissingColumnError(wsErr, "policy_mode_enabled") ||
+        isMissingColumnError(wsErr, "brand_logo_width_px"))
     ) {
       const fallback = await supabase
         .from("workspaces")
@@ -130,6 +131,7 @@ export async function GET(
         workspace.document_tag_fields = [];
         workspace.billing_owner_user_id = workspace.created_by;
         workspace.policy_mode_enabled = false;
+        workspace.brand_logo_width_px = 104;
       }
     }
 
@@ -280,7 +282,7 @@ export async function PATCH(
       .update(payload)
       .eq("id", resolved.id)
       .select(
-        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,document_tag_fields,policy_mode_enabled"
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,policy_mode_enabled"
       )
       .single();
 
@@ -288,7 +290,8 @@ export async function PATCH(
       result.error &&
       (isMissingColumnError(result.error, "slug") ||
         isMissingColumnError(result.error, "document_tag_fields") ||
-        isMissingColumnError(result.error, "policy_mode_enabled"))
+        isMissingColumnError(result.error, "policy_mode_enabled") ||
+        isMissingColumnError(result.error, "brand_logo_width_px"))
     ) {
       if (body && "policy_mode_enabled" in body) {
         return NextResponse.json(
@@ -297,6 +300,7 @@ export async function PATCH(
         );
       }
       const fallbackPayload = { ...payload };
+      delete fallbackPayload.brand_logo_width_px;
       delete fallbackPayload.document_tag_fields;
 
       if (slugRaw !== undefined) {
@@ -315,7 +319,13 @@ export async function PATCH(
 
       if (fallback.error) throw new Error(fallback.error.message);
       return NextResponse.json({
-        workspace: { ...(fallback.data ?? {}), slug: null, document_tag_fields: [], policy_mode_enabled: false },
+        workspace: {
+          ...(fallback.data ?? {}),
+          slug: null,
+          brand_logo_width_px: 104,
+          document_tag_fields: [],
+          policy_mode_enabled: false,
+        },
       });
     }
 

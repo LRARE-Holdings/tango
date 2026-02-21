@@ -9,6 +9,7 @@ type Workspace = {
   name: string;
   slug?: string | null;
   brand_logo_updated_at?: string | null;
+  brand_logo_width_px?: number | null;
 };
 
 export default function WorkspaceBrandingPage() {
@@ -23,6 +24,9 @@ export default function WorkspaceBrandingPage() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [logoWidthPx, setLogoWidthPx] = useState<number>(104);
+  const [savingSize, setSavingSize] = useState(false);
+  const [sizeMsg, setSizeMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -45,6 +49,8 @@ export default function WorkspaceBrandingPage() {
         if (!res.ok) throw new Error(json?.error ?? "Failed to load");
         if (!alive) return;
         setWorkspace(json?.workspace ?? null);
+        const width = Number(json?.workspace?.brand_logo_width_px ?? 104);
+        setLogoWidthPx(Number.isFinite(width) ? Math.max(48, Math.min(320, Math.floor(width))) : 104);
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -95,6 +101,27 @@ export default function WorkspaceBrandingPage() {
     }
   }
 
+  async function saveLogoSize(nextWidth: number) {
+    if (!workspaceIdentifier) return;
+    setSavingSize(true);
+    setSizeMsg(null);
+    try {
+      const res = await fetch(`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/branding/logo`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ brand_logo_width_px: nextWidth }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save logo size.");
+      setSizeMsg("Logo size saved.");
+      setWorkspace((prev) => (prev ? { ...prev, brand_logo_width_px: nextWidth } : prev));
+    } catch (e: unknown) {
+      setSizeMsg(e instanceof Error ? e.message : "Failed to save logo size.");
+    } finally {
+      setSavingSize(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
@@ -128,11 +155,11 @@ export default function WorkspaceBrandingPage() {
                   <Image
                     src={logoSrc}
                     alt="Workspace logo"
-                    width={192}
-                    height={48}
+                    width={logoWidthPx}
+                    height={Math.max(20, Math.round(logoWidthPx / 4))}
                     unoptimized
-                    className="h-12 w-auto"
-                    style={{ objectFit: "contain" }}
+                    className="w-auto"
+                    style={{ objectFit: "contain", width: `${logoWidthPx}px`, height: "auto", maxWidth: "100%" }}
                   />
                 ) : (
                   <div className="text-sm" style={{ color: "var(--muted)" }}>
@@ -142,6 +169,37 @@ export default function WorkspaceBrandingPage() {
               </div>
               <div className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
                 PNG only. Recommended: transparent background, 512×512.
+              </div>
+              <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--border2)" }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold">Header logo size</div>
+                  <div className="text-xs" style={{ color: "var(--muted2)" }}>{logoWidthPx}px</div>
+                </div>
+                <input
+                  type="range"
+                  min={48}
+                  max={320}
+                  step={1}
+                  value={logoWidthPx}
+                  onChange={(e) => setLogoWidthPx(Math.max(48, Math.min(320, Math.floor(Number(e.target.value) || 104))))}
+                  className="mt-3 w-full"
+                />
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void saveLogoSize(logoWidthPx)}
+                    disabled={savingSize}
+                    className="focus-ring px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
+                    style={{ borderRadius: 999, border: "1px solid var(--border)" }}
+                  >
+                    {savingSize ? "Saving…" : "Save size"}
+                  </button>
+                  {sizeMsg ? (
+                    <div className="text-xs" style={{ color: sizeMsg === "Logo size saved." ? "var(--muted)" : "#ff3b30" }}>
+                      {sizeMsg}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
 

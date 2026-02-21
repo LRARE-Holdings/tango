@@ -1,4 +1,11 @@
-import { createReportDocument, drawHeader, drawKeyValueRow } from "@/lib/reports/layout";
+import { createReportContext, saveReport } from "@/lib/reports/engine/core";
+import { drawTable } from "@/lib/reports/engine/table";
+import {
+  drawKeyValueRow,
+  drawReportHeader,
+  drawSectionHeading,
+  finalizeFooters,
+} from "@/lib/reports/engine/sections";
 
 export type StackEvidenceDocument = {
   document_title: string;
@@ -39,115 +46,84 @@ function fmtUtc(iso: string | null) {
 }
 
 export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Promise<Uint8Array> {
-  const { pdf, page, font, fontBold, theme } = await createReportDocument();
-  let currentPage = page;
-  const pageHeight = page.getHeight();
-  let y = drawHeader({
-    page: currentPage,
-    fontBold,
+  const ctx = await createReportContext();
+  const generatedDate = new Date(input.generatedAtIso);
+  const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
+  const generatedLabel = Number.isFinite(generatedDate.getTime())
+    ? generatedDate.toUTCString()
+    : new Date().toUTCString();
+
+  drawReportHeader(ctx, {
     title: `${input.stackTitle} Evidence Record`,
-    subtitle: `Generated ${fmtUtc(input.generatedAtIso)} · ${input.workspaceName}`,
-    theme,
+    subtitle: `Generated ${generatedLabel} · ${input.workspaceName}`,
+    eyebrow: "STACK ACKNOWLEDGEMENT EVIDENCE",
+    rightMeta: `Generated ${generatedLabel}`,
+    brandName: input.workspaceName,
   });
 
-  const ensureRoom = (need: number, heading?: string) => {
-    if (y >= 70 + need) return;
-    currentPage = pdf.addPage([595.28, 841.89]);
-    y = pageHeight - theme.margin;
-    if (heading) {
-      currentPage.drawText(heading, { x: theme.margin, y, font: fontBold, size: 12 });
-      y -= 16;
-    }
-  };
+  drawSectionHeading(ctx, "Receipt Summary");
+  drawKeyValueRow(ctx, "Receipt reference", input.receiptId);
+  drawKeyValueRow(
+    ctx,
+    "Recipient",
+    input.recipientName ? `${input.recipientName} <${input.recipientEmail}>` : input.recipientEmail
+  );
+  drawKeyValueRow(ctx, "Completed at", fmtUtc(input.completedAt));
+  drawKeyValueRow(ctx, "Acknowledgements", `${input.acknowledgedDocuments}/${input.totalDocuments}`);
+  ctx.cursor.y -= 8;
 
-  y = drawKeyValueRow({
-    page: currentPage,
-    font,
-    fontBold,
-    y,
-    key: "Receipt reference",
-    value: input.receiptId,
-    theme,
-  });
-  y = drawKeyValueRow({
-    page: currentPage,
-    font,
-    fontBold,
-    y,
-    key: "Recipient",
-    value: input.recipientName ? `${input.recipientName} <${input.recipientEmail}>` : input.recipientEmail,
-    theme,
-  });
-  y = drawKeyValueRow({
-    page: currentPage,
-    font,
-    fontBold,
-    y,
-    key: "Completed at",
-    value: fmtUtc(input.completedAt),
-    theme,
-  });
-  y = drawKeyValueRow({
-    page: currentPage,
-    font,
-    fontBold,
-    y,
-    key: "Acknowledgements",
-    value: `${input.acknowledgedDocuments}/${input.totalDocuments}`,
-    theme,
-  });
+  drawSectionHeading(
+    ctx,
+    "Document-level acknowledgement evidence",
+    "Each document remains independently acknowledged and auditable."
+  );
 
-  y -= 18;
-  currentPage.drawText("Document-level acknowledgement evidence", {
-    x: theme.margin,
-    y,
-    font: fontBold,
-    size: 12,
-  });
-  y -= 14;
-
-  for (const doc of input.documents) {
-    ensureRoom(88, "Document-level acknowledgement evidence (continued)");
-    const ackData = doc.acknowledgement_data ?? {};
-    const scroll = Number(ackData.max_scroll_percent ?? 0);
-    const scrollText = Number.isFinite(scroll) ? `${Math.max(0, Math.min(100, Math.floor(scroll)))}%` : "—";
-    const active = ackData.active_seconds;
-    const timeOnPage = ackData.time_on_page_seconds;
-    const ip = String(ackData.ip ?? "—");
-
-    currentPage.drawText(`${doc.document_title} (${doc.document_public_id || "No public ID"})`, {
-      x: theme.margin,
-      y,
-      font: fontBold,
-      size: 10.2,
+  const rows = [...input.documents]
+    .sort(
+      (a, b) =>
+        a.document_title.localeCompare(b.document_title) ||
+        a.document_public_id.localeCompare(b.document_public_id)
+    )
+    .map((doc) => {
+      const ackData = doc.acknowledgement_data ?? {};
+      const scroll = Number(ackData.max_scroll_percent ?? 0);
+      return {
+        title: `${doc.document_title} (${doc.document_public_id || "No public ID"})`,
+        status: doc.acknowledged ? "Acknowledged" : "Pending",
+        method: doc.method ?? "—",
+        at: fmtUtc(doc.acknowledged_at),
+        scroll: Number.isFinite(scroll) ? `${Math.max(0, Math.min(100, Math.floor(scroll)))}%` : "—",
+        active: fmtDuration(ackData.active_seconds),
+        page: fmtDuration(ackData.time_on_page_seconds),
+        ip: String(ackData.ip ?? "—"),
+      };
     });
-    y -= 11;
-    currentPage.drawText(
-      `Acknowledged: ${doc.acknowledged ? "Yes" : "No"} | Method: ${doc.method ?? "—"} | At: ${fmtUtc(doc.acknowledged_at)}`,
-      { x: theme.margin, y, font, size: 8.7, color: theme.muted }
-    );
-    y -= 10;
-    currentPage.drawText(
-      `Scroll: ${scrollText} | Active: ${fmtDuration(active)} | Page time: ${fmtDuration(timeOnPage)} | IP: ${ip}`,
-      { x: theme.margin, y, font, size: 8.5, color: theme.muted }
-    );
-    y -= 14;
-  }
 
-  const pages = pdf.getPages();
-  for (let i = 0; i < pages.length; i += 1) {
-    const p = pages[i];
-    const label = `Page ${i + 1} of ${pages.length}`;
-    p.drawText(label, {
-      x: p.getWidth() - theme.margin - font.widthOfTextAtSize(label, 9),
-      y: 20,
-      size: 9,
-      font,
-    });
-  }
+  drawTable(ctx, {
+    columns: [
+      { key: "title", header: "Document", value: (row) => row.title, minWidth: 180 },
+      { key: "status", header: "Status", value: (row) => row.status, mode: "fixed", width: 70 },
+      { key: "method", header: "Method", value: (row) => row.method, minWidth: 95 },
+      { key: "at", header: "Acknowledged at", value: (row) => row.at, minWidth: 120 },
+      { key: "scroll", header: "Scroll", value: (row) => row.scroll, mode: "fixed", width: 50, align: "right" },
+      { key: "active", header: "Active", value: (row) => row.active, mode: "fixed", width: 54, align: "right" },
+      { key: "page", header: "Page", value: (row) => row.page, mode: "fixed", width: 54, align: "right" },
+      { key: "ip", header: "IP", value: (row) => row.ip, minWidth: 75 },
+    ],
+    rows,
+    repeatHeader: true,
+    fontSize: 8.2,
+    headerFontSize: 8.4,
+    lineHeight: 9.8,
+    cellPaddingY: 4,
+    cellPaddingX: 5,
+  });
 
-  pdf.setTitle("Stack Evidence Record");
-  pdf.setProducer("Receipt");
-  pdf.setCreator("Receipt");
-  return pdf.save();
+  finalizeFooters(ctx, "Stack Evidence Document");
+  ctx.pdf.setTitle("Stack Evidence Record");
+  ctx.pdf.setProducer("Receipt");
+  ctx.pdf.setCreator("Receipt");
+  ctx.pdf.setCreationDate(metadataDate);
+  ctx.pdf.setModificationDate(metadataDate);
+  return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }
