@@ -43,11 +43,11 @@ export const DEFAULT_REPORT_THEME: ReportDocTheme = {
   lineHeight: 14,
   wordBreaks: DEFAULT_REPORT_WORD_BREAKS,
   colors: {
-    text: rgb(0.08, 0.1, 0.14),
-    muted: rgb(0.36, 0.4, 0.46),
-    border: rgb(0.87, 0.89, 0.92),
-    panel: rgb(0.965, 0.972, 0.985),
-    accent: rgb(0.09, 0.25, 0.49),
+    text: rgb(0, 0, 0),
+    muted: rgb(0, 0, 0),
+    border: rgb(0.82, 0.82, 0.82),
+    panel: rgb(0.965, 0.965, 0.965),
+    accent: rgb(0, 0, 0),
     white: rgb(1, 1, 1),
   },
 };

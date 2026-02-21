@@ -78,7 +78,7 @@ function drawWatermark(
     y: baseY,
     size,
     font: ctx.fonts.bold,
-    color: rgb(0.62, 0.65, 0.7),
+    color: rgb(0, 0, 0),
     opacity: 0.1,
     rotate: angle,
   });
@@ -103,7 +103,7 @@ function drawWatermark(
     y: baseY,
     size,
     font: ctx.fonts.bold,
-    color: rgb(0.62, 0.65, 0.7),
+    color: rgb(0, 0, 0),
     opacity: 0.1,
     rotate: angle,
   });
