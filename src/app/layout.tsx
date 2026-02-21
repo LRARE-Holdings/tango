@@ -78,12 +78,25 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const gtmId = (process.env.NEXT_PUBLIC_GTM_ID || "GTM-T77S35PK").trim();
+
   return (
     <html
       lang="en"
       className={`h-full ${inter.variable} ${instrumentSerif.variable}`}
     >
       <body className="min-h-full">
+        {gtmId ? (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(gtmId)}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
+              title="gtm"
+            />
+          </noscript>
+        ) : null}
         {children}
         <CookieConsent />
       </body>

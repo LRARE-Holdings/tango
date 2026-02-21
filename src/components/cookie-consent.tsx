@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import Script from "next/script";
 import { SnitcherRadar } from "@/components/analytics/snitcher-radar";
+import { WebAnalytics } from "@/components/analytics/web-analytics";
 
-const GA_MEASUREMENT_ID = "G-TDT3P14Q7M";
 const CONSENT_COOKIE = "receipt_cookie_consent";
 const CONSENT_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
@@ -55,18 +54,7 @@ export function CookieConsent() {
     <>
       {enableAnalytics ? (
         <>
-          <Script
-            src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-            strategy="afterInteractive"
-          />
-          <Script id="google-analytics" strategy="afterInteractive">
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', '${GA_MEASUREMENT_ID}');
-            `}
-          </Script>
+          <WebAnalytics consentAccepted />
           <SnitcherRadar consentAccepted />
         </>
       ) : null}
