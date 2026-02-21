@@ -227,17 +227,17 @@ body {
 }
 
 .app-shell {
-  --bg: #0f1113;
-  --fg: #edf1f5;
-  --muted: #aeb6c0;
-  --muted2: #8b949f;
-  --border: rgba(237, 241, 245, 0.16);
-  --border2: rgba(237, 241, 245, 0.1);
-  --card: #15191d;
-  --card2: #1b2127;
-  --app-shadow-sm: 0 10px 26px rgba(0, 0, 0, 0.34);
-  --app-shadow-md: 0 16px 38px rgba(0, 0, 0, 0.48);
-  background: linear-gradient(180deg, #0b0d0f 0%, var(--bg) 34%, var(--bg) 100%);
+  --bg: #f4f6f8;
+  --fg: #12161b;
+  --muted: #546170;
+  --muted2: #6b7785;
+  --border: rgba(15, 22, 31, 0.14);
+  --border2: rgba(15, 22, 31, 0.09);
+  --card: #ffffff;
+  --card2: #eef2f6;
+  --app-shadow-sm: 0 10px 26px rgba(13, 20, 30, 0.08);
+  --app-shadow-md: 0 16px 38px rgba(13, 20, 30, 0.14);
+  background: linear-gradient(180deg, #ffffff 0%, var(--bg) 34%, var(--bg) 100%);
   color: var(--fg);
 }
 
@@ -253,8 +253,8 @@ body {
   border-radius: 18px;
   background: linear-gradient(
     160deg,
-    color-mix(in srgb, var(--card) 92%, #0f1215),
-    color-mix(in srgb, var(--card2) 78%, #0b0f13)
+    color-mix(in srgb, var(--card) 96%, #ffffff),
+    color-mix(in srgb, var(--card2) 84%, #ffffff)
   );
   box-shadow: var(--app-shadow-sm);
 }
@@ -272,7 +272,7 @@ body {
 .app-shell .app-chip {
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--card2) 78%, #12161b);
+  background: color-mix(in srgb, var(--card2) 86%, #ffffff);
   color: var(--muted);
 }
 
@@ -283,12 +283,12 @@ body {
 
 .app-shell .app-topbar-link:hover {
   color: var(--fg);
-  background: color-mix(in srgb, var(--card2) 70%, #11161b);
+  background: color-mix(in srgb, var(--card2) 82%, #ffffff);
 }
 
 .app-shell .app-topbar-link[data-active="true"] {
   color: var(--fg);
-  background: color-mix(in srgb, var(--card2) 84%, #10151a);
+  background: color-mix(in srgb, var(--card2) 92%, #ffffff);
   box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--fg) 34%, transparent);
 }
 
