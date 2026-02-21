@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AppHero, AppPage, AppPanel } from "@/components/app/page-layout";
 
 type DocItem = {
   id: string;
@@ -52,52 +53,38 @@ export default function FilesPage() {
   }, [documents, query]);
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Files</h1>
-        <Link
-          href="/app/new"
-          className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
-          style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
-        >
-          Create new Receipt
-        </Link>
-      </div>
-
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search files"
-        className="focus-ring w-full border px-4 py-3 text-sm bg-transparent"
-        style={{ borderColor: "var(--border)", borderRadius: 12 }}
+    <AppPage>
+      <AppHero
+        kicker="FILES"
+        title="Files"
+        description="Find and manage all receipts from one place."
+        actions={
+          <Link href="/app/new" className="focus-ring app-btn-primary">
+            Create new Receipt
+          </Link>
+        }
       />
 
-      {loading ? <div className="text-sm" style={{ color: "var(--muted)" }}>Loading…</div> : null}
-      {error ? <div className="text-sm" style={{ color: "#b91c1c" }}>{error}</div> : null}
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search files" className="app-input" />
+
+      {loading ? <div className="app-subtle text-sm">Loading…</div> : null}
+      {error ? <div className="app-error">{error}</div> : null}
 
       {!loading && !error ? (
-        <div className="space-y-2">
-          {filtered.map((doc) => (
-            <Link
-              key={doc.id}
-              href={`/app/docs/${doc.id}`}
-              className="block border p-4 hover:opacity-90"
-              style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
-            >
-              <div className="text-sm font-semibold">{doc.title}</div>
-              <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                {doc.status} · {doc.acknowledgements} acknowledgements
-              </div>
-            </Link>
-          ))}
-          {filtered.length === 0 ? (
-            <div className="border p-4 text-sm" style={{ borderColor: "var(--border)", borderRadius: 12 }}>
-              No files found.
-            </div>
-          ) : null}
-        </div>
+        <AppPanel title="All files">
+          <div className="space-y-2">
+            {filtered.map((doc) => (
+              <Link key={doc.id} href={`/app/docs/${doc.id}`} className="app-list-item p-4">
+                <div className="text-sm font-semibold">{doc.title}</div>
+                <div className="app-subtle-2 mt-1 text-xs">
+                  {doc.status} · {doc.acknowledgements} acknowledgements
+                </div>
+              </Link>
+            ))}
+            {filtered.length === 0 ? <div className="app-empty">No files found.</div> : null}
+          </div>
+        </AppPanel>
       ) : null}
-    </div>
+    </AppPage>
   );
 }
-

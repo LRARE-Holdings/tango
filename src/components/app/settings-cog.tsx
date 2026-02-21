@@ -7,18 +7,12 @@ export function SettingsCog({ href }: { href: string }) {
     <Link
       href={href}
       aria-label="Settings"
-      className="focus-ring inline-flex h-12 w-12 items-center justify-center border transition"
-      style={{
-        borderColor: "var(--border)",
-        borderRadius: 999,
-        color: "var(--muted)",
-        background: "color-mix(in srgb, var(--card2) 60%, #fff)",
-      }}
+      className="focus-ring app-settings-cog inline-flex h-11 w-11 items-center justify-center transition"
     >
       <svg
         aria-hidden
         viewBox="0 0 24 24"
-        className="h-6 w-6"
+        className="h-5 w-5"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"

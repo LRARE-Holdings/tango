@@ -42,8 +42,7 @@ function PrimaryCta({ href, children }: { href: string; children: React.ReactNod
   return (
     <Link
       href={href}
-      className="focus-ring inline-flex items-center justify-center px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-90"
-      style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 999 }}
+      className="focus-ring app-btn-primary"
     >
       {children}
     </Link>
@@ -262,11 +261,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <OnboardingGate />
       </Suspense>
       <style>{`
-        /* Logo inversion in system dark mode (since svg is black) */
+        /* Logo inversion for dark UI */
         .receipt-logo { height: 26px; width: auto; display: block; }
-        @media (prefers-color-scheme: dark) {
-          .receipt-logo { filter: invert(1) hue-rotate(180deg); }
-        }
+        html.dark .receipt-logo { filter: invert(1) hue-rotate(180deg); }
         .workspace-brand-logo {
           height: 28px;
           width: auto;
@@ -323,13 +320,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     type="button"
                     onClick={signOut}
                     disabled={signingOut}
-                    className="focus-ring px-3 py-2 text-sm font-medium transition disabled:opacity-50"
-                    style={{
-                      border: "1px solid var(--border)",
-                      borderRadius: 12,
-                      color: "var(--muted)",
-                      background: "color-mix(in srgb, var(--card2) 58%, #fff)",
-                    }}
+                    className="focus-ring app-btn-secondary disabled:opacity-50"
                   >
                     {signingOut ? "Signing out…" : "Sign out"}
                   </button>

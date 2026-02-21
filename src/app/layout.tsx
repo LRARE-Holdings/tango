@@ -3,6 +3,7 @@ import { Inter, Instrument_Serif } from "next/font/google";
 import type { Metadata } from "next";
 import { CookieConsent } from "@/components/cookie-consent";
 import { getSiteUrl } from "@/lib/seo";
+import { ThemeScript } from "@/app/theme-script";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -85,6 +86,9 @@ export default function RootLayout({
       lang="en"
       className={`h-full ${inter.variable} ${instrumentSerif.variable}`}
     >
+      <head>
+        <ThemeScript />
+      </head>
       <body className="min-h-full">
         {gtmId ? (
           <noscript>

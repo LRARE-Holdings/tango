@@ -12,7 +12,7 @@ export function PlanMenu({ items }: { items: MenuItem[] }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Primary" className="flex items-center gap-1 rounded-2xl border px-2 py-1.5" style={{ borderColor: "var(--border2)", background: "color-mix(in srgb, var(--card) 92%, #fff)" }}>
+    <nav aria-label="Primary" className="app-nav-menu flex items-center gap-1">
       {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (

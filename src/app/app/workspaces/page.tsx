@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { AppHero, AppPage, AppPanel } from "@/components/app/page-layout";
 
 type Workspace = {
   id: string;
@@ -52,15 +53,11 @@ export default function WorkspacesPage() {
       const canManageWorkspace = w.my_role === "owner" || w.my_role === "admin";
 
       return (
-        <div
-          key={w.id}
-          className="border p-5"
-          style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 12 }}
-        >
+        <div key={w.id} className="app-card p-5">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="text-sm font-semibold truncate">{w.name}</div>
-              <div className="mt-1 text-xs truncate" style={{ color: "var(--muted2)" }}>
+              <div className="app-subtle-2 mt-1 truncate text-xs">
                 {w.id}
               </div>
             </div>
@@ -76,56 +73,24 @@ export default function WorkspacesPage() {
           </div>
 
           <div className="mt-4 flex gap-2">
-            <Link
-              href={`/app/workspaces/${identifier}/dashboard`}
-              className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-80"
-              style={{
-                background: "var(--fg)",
-                color: "var(--bg)",
-                borderRadius: 10,
-              }}
-            >
+            <Link href={`/app/workspaces/${identifier}/dashboard`} className="focus-ring app-btn-primary">
               Open
             </Link>
 
             {canManageWorkspace ? (
               <>
-                <Link
-                  href={`/app/workspaces/${identifier}/members`}
-                  className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-                  style={{
-                    border: "1px solid var(--border)",
-                    color: "var(--muted)",
-                    borderRadius: 10,
-                  }}
-                >
+                <Link href={`/app/workspaces/${identifier}/members`} className="focus-ring app-btn-secondary">
                   Members
                 </Link>
 
-                <Link
-                  href={`/app/workspaces/${identifier}/branding`}
-                  className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-                  style={{
-                    border: "1px solid var(--border)",
-                    color: "var(--muted)",
-                    borderRadius: 10,
-                  }}
-                >
+                <Link href={`/app/workspaces/${identifier}/branding`} className="focus-ring app-btn-secondary">
                   Branding
                 </Link>
               </>
             ) : null}
 
             {canManageWorkspace ? (
-              <Link
-                href={`/app/workspaces/${identifier}/settings`}
-                className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-                style={{
-                  border: "1px solid var(--border)",
-                  color: "var(--muted)",
-                  borderRadius: 10,
-                }}
-              >
+              <Link href={`/app/workspaces/${identifier}/settings`} className="focus-ring app-btn-secondary">
                 Settings
               </Link>
             ) : null}
@@ -136,58 +101,47 @@ export default function WorkspacesPage() {
   }, [workspaces]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Workspace</h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Members, invites, and branding for Team/Enterprise.
-          </p>
-        </div>
-
-        <Link
-          href="/app/workspaces/new"
-          className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-80"
-          style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
-        >
-          Create workspace
-        </Link>
-      </div>
+    <AppPage>
+      <AppHero
+        kicker="WORKSPACES"
+        title="Workspace"
+        description="Members, invites, and branding for Team/Enterprise."
+        actions={
+          <Link href="/app/workspaces/new" className="focus-ring app-btn-primary">
+            Create workspace
+          </Link>
+        }
+      />
 
       {loading && (
-        <div className="text-sm" style={{ color: "var(--muted)" }}>
+        <div className="app-subtle text-sm">
           Loading…
         </div>
       )}
 
       {error && (
-        <div className="border p-5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+        <div className="app-card p-5">
           <div className="text-sm font-semibold">Couldn’t load workspaces</div>
-          <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+          <div className="app-subtle mt-2 text-sm">
             {error}
           </div>
         </div>
       )}
 
       {!loading && !error && !hasAny && (
-        <div className="border p-6" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-          <div className="text-sm font-semibold">No workspace yet</div>
-          <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+        <AppPanel title="No workspace yet">
+          <div className="app-subtle text-sm">
             Workspaces are available on Team/Enterprise. Create one to invite members and add a logo.
           </div>
           <div className="mt-4">
-            <Link
-              href="/pricing"
-              className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-80"
-              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
-            >
+            <Link href="/pricing" className="focus-ring app-btn-secondary">
               View plans
             </Link>
           </div>
-        </div>
+        </AppPanel>
       )}
 
       {!loading && !error && hasAny && <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{cards}</div>}
-    </div>
+    </AppPage>
   );
 }

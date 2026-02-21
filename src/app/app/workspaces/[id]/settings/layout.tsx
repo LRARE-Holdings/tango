@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppHero, AppPage } from "@/components/app/page-layout";
 import { supabaseServer } from "@/lib/supabase/server";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 
@@ -45,37 +46,27 @@ export default async function WorkspaceSettingsLayout({
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="app-hero-title mt-1 text-3xl md:text-4xl">Settings</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/app/account"
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
-          >
-            My settings
-          </Link>
-          <Link
-            href={`/app/workspaces/${id}/dashboard`}
-            className="focus-ring px-4 py-2 text-sm font-medium hover:opacity-80"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
-          >
-            Back to dashboard
-          </Link>
-        </div>
-      </div>
+    <AppPage>
+      <AppHero
+        kicker="WORKSPACE"
+        title="Settings"
+        description="Manage members, policy mode, branding, domains, and workspace defaults from one place."
+        actions={
+          <>
+            <Link href="/app/account" className="focus-ring app-btn-secondary">
+              My settings
+            </Link>
+            <Link href={`/app/workspaces/${id}/dashboard`} className="focus-ring app-btn-secondary">
+              Back to dashboard
+            </Link>
+          </>
+        }
+      />
 
       <details
-        className="rounded-xl border p-3"
-        style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--card) 88%, transparent)" }}
+        className="app-card p-3"
       >
-        <summary
-          className="focus-ring cursor-pointer list-none select-none text-sm font-medium"
-          style={{ color: "var(--muted)" }}
-        >
+        <summary className="focus-ring app-subtle cursor-pointer list-none select-none text-sm font-medium">
           Workspace sections
         </summary>
         <div className="mt-3 flex items-center gap-2 flex-wrap">
@@ -83,13 +74,7 @@ export default async function WorkspaceSettingsLayout({
             <Link
               key={item.href}
               href={item.href}
-              className="focus-ring px-3 py-1.5 text-xs font-medium hover:opacity-90"
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 999,
-                color: "var(--muted)",
-                background: "color-mix(in srgb, var(--bg) 86%, var(--card2))",
-              }}
+              className="focus-ring app-btn-chip"
             >
               {item.label}
             </Link>
@@ -98,6 +83,6 @@ export default async function WorkspaceSettingsLayout({
       </details>
 
       {children}
-    </div>
+    </AppPage>
   );
 }

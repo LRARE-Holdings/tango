@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { AppHero, AppPage, AppPanel } from "@/components/app/page-layout";
 
 type StackSummary = {
   id: string;
@@ -156,53 +157,41 @@ export default function WorkspaceStacksPage() {
   }, [selectedReceiptId, workspaceIdentifier]);
 
   return (
-    <div className="space-y-6">
-      <section className="app-content-card p-6 md:p-7">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="app-section-kicker">STACKS</div>
-            <h1 className="mt-2 text-3xl tracking-tight app-hero-title">Stacks</h1>
-            <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-              Send stacks quickly and retrieve compiled acknowledgement evidence.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void runFilters()}
-            className="focus-ring px-3 py-2 text-sm font-semibold"
-            style={{ borderRadius: 10, border: "1px solid var(--border)" }}
-          >
+    <AppPage>
+      <AppHero
+        kicker="STACKS"
+        title="Stacks"
+        description="Send stacks quickly and retrieve compiled acknowledgement evidence."
+        actions={
+          <button type="button" onClick={() => void runFilters()} className="focus-ring app-btn-secondary">
             Refresh
           </button>
-        </div>
-      </section>
+        }
+      />
 
-      {error ? <div className="text-sm" style={{ color: "#b91c1c" }}>{error}</div> : null}
-      {loading ? <div className="text-sm" style={{ color: "var(--muted)" }}>Loading…</div> : null}
+      {error ? <div className="app-error">{error}</div> : null}
+      {loading ? <div className="app-subtle text-sm">Loading…</div> : null}
 
       {!loading ? (
         <>
-          <section className="app-content-card p-5">
-            <div className="text-sm font-semibold">Stack management</div>
+          <AppPanel title="Stack management">
             <div className="mt-3 grid gap-2 md:grid-cols-2">
               {stacks.map((stack) => (
-                <div key={stack.id} className="rounded-xl border p-3" style={{ borderColor: "var(--border)" }}>
+                <div key={stack.id} className="app-card p-3">
                   <div className="text-sm font-semibold">{stack.name}</div>
-                  <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                  <div className="app-subtle-2 mt-1 text-xs">
                     {stack.item_count} documents
                   </div>
                   <div className="mt-3 flex gap-2">
                     <Link
                       href={`/app/new?mode=full_stack&stackId=${encodeURIComponent(stack.id)}`}
-                      className="focus-ring px-3 py-1.5 text-xs font-semibold"
-                      style={{ borderRadius: 999, border: "1px solid var(--border)" }}
+                      className="focus-ring app-btn-chip"
                     >
                       Send stack
                     </Link>
                     <Link
                       href={`/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/documents`}
-                      className="focus-ring px-3 py-1.5 text-xs"
-                      style={{ borderRadius: 999, color: "var(--muted)" }}
+                      className="focus-ring app-btn-chip"
                     >
                       Manage in Files
                     </Link>
@@ -210,44 +199,39 @@ export default function WorkspaceStacksPage() {
                 </div>
               ))}
               {stacks.length === 0 ? (
-                <div className="text-sm" style={{ color: "var(--muted)" }}>
+                <div className="app-empty">
                   No stacks yet. Create one from Files.
                 </div>
               ) : null}
             </div>
-          </section>
+          </AppPanel>
 
-          <section className="app-content-card p-5">
-            <div className="text-sm font-semibold">Stack acknowledgements</div>
+          <AppPanel title="Stack acknowledgements">
             <div className="mt-3 grid gap-2 md:grid-cols-3">
               <input
                 value={q}
                 onChange={(event) => setQ(event.target.value)}
                 placeholder="Search stack title, email, receipt id"
-                className="focus-ring border px-3 py-2 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                className="app-input"
               />
               <input
                 type="date"
                 value={fromDate}
                 onChange={(event) => setFromDate(event.target.value)}
-                className="focus-ring border px-3 py-2 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                className="app-input"
               />
               <input
                 type="date"
                 value={toDate}
                 onChange={(event) => setToDate(event.target.value)}
-                className="focus-ring border px-3 py-2 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                className="app-input"
               />
             </div>
             <div className="mt-2">
               <button
                 type="button"
                 onClick={() => void runFilters()}
-                className="focus-ring px-3 py-1.5 text-xs font-semibold"
-                style={{ borderRadius: 999, border: "1px solid var(--border)" }}
+                className="focus-ring app-btn-chip"
               >
                 Apply filters
               </button>
@@ -263,43 +247,43 @@ export default function WorkspaceStacksPage() {
                     className="focus-ring w-full rounded-xl border px-3 py-3 text-left"
                     style={{
                       borderColor: selectedReceiptId === row.id ? "var(--fg)" : "var(--border)",
-                      background: selectedReceiptId === row.id ? "var(--card2)" : "transparent",
+                      background: selectedReceiptId === row.id ? "color-mix(in srgb, var(--card2) 70%, transparent)" : "transparent",
                     }}
                   >
                     <div className="text-sm font-semibold">{row.stack_title}</div>
-                    <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                    <div className="app-subtle-2 mt-1 text-xs">
                       {row.recipient_email} · {formatUtc(row.completed_at)}
                     </div>
-                    <div className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+                    <div className="app-subtle mt-1 text-xs">
                       {row.acknowledged_documents}/{row.total_documents} acknowledged
                     </div>
                   </button>
                 ))}
                 {receipts.length === 0 ? (
-                  <div className="text-sm" style={{ color: "var(--muted)" }}>
+                  <div className="app-empty">
                     No stack acknowledgement receipts found in this range.
                   </div>
                 ) : null}
               </div>
 
-              <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)" }}>
+              <div className="app-card p-3">
                 {!selectedReceipt ? (
-                  <div className="text-sm" style={{ color: "var(--muted)" }}>
+                  <div className="app-subtle text-sm">
                     Select a receipt to review document-level evidence and download the PDF.
                   </div>
                 ) : null}
                 {selectedReceipt && detailLoading ? (
-                  <div className="text-sm" style={{ color: "var(--muted)" }}>Loading receipt details…</div>
+                  <div className="app-subtle text-sm">Loading receipt details…</div>
                 ) : null}
                 {selectedReceipt && detail ? (
                   <div className="space-y-3">
                     <div>
                       <div className="text-sm font-semibold">{detail.summary.stack_title}</div>
-                      <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                      <div className="app-subtle-2 mt-1 text-xs">
                         {detail.summary.recipient_name ? `${detail.summary.recipient_name} · ` : ""}
                         {detail.summary.recipient_email}
                       </div>
-                      <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                      <div className="app-subtle-2 mt-1 text-xs">
                         Completed {formatUtc(detail.summary.completed_at ?? detail.receipt.completed_at)}
                       </div>
                     </div>
@@ -308,23 +292,22 @@ export default function WorkspaceStacksPage() {
                       href={`/api/app/workspaces/${encodeURIComponent(workspaceIdentifier)}/stacks/receipts/${encodeURIComponent(
                         detail.receipt.id
                       )}/evidence/pdf`}
-                      className="focus-ring inline-flex items-center px-3 py-1.5 text-xs font-semibold"
-                      style={{ borderRadius: 999, border: "1px solid var(--border)" }}
+                      className="focus-ring app-btn-chip"
                     >
                       Download stack evidence PDF
                     </a>
 
                     <div className="space-y-2">
                       {detail.evidence.documents.map((doc) => (
-                        <div key={`${doc.document_id}-${doc.document_public_id}`} className="rounded-lg border p-2.5" style={{ borderColor: "var(--border2)" }}>
+                        <div key={`${doc.document_id}-${doc.document_public_id}`} className="app-card-soft p-2.5">
                           <div className="text-sm font-medium">{doc.document_title}</div>
-                          <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                          <div className="app-subtle-2 mt-1 text-xs">
                             {doc.document_public_id || "No public ID"} · {doc.acknowledged ? "Acknowledged" : "Not acknowledged"}
                           </div>
-                          <div className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+                          <div className="app-subtle mt-1 text-xs">
                             Method: {doc.method ?? "—"} · At: {formatUtc(doc.acknowledged_at)}
                           </div>
-                          <div className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+                          <div className="app-subtle mt-1 text-xs">
                             Scroll: {String(doc.acknowledgement_data.max_scroll_percent ?? "—")}%
                             {" · "}Active: {formatDuration(doc.acknowledgement_data.active_seconds)}
                             {" · "}Page: {formatDuration(doc.acknowledgement_data.time_on_page_seconds)}
@@ -336,9 +319,9 @@ export default function WorkspaceStacksPage() {
                 ) : null}
               </div>
             </div>
-          </section>
+          </AppPanel>
         </>
       ) : null}
-    </div>
+    </AppPage>
   );
 }

@@ -36,10 +36,40 @@ export function TopbarNav({
 }) {
   const pathname = usePathname();
   const workspaceIdentifier = useMemo(() => extractWorkspaceIdentifier(pathname), [pathname]);
+  const [persistedWorkspaceId, setPersistedWorkspaceId] = useState<string | null>(null);
   const primaryWorkspaceIdentifier =
     typeof primaryWorkspaceId === "string" && primaryWorkspaceId.trim() ? primaryWorkspaceId.trim() : null;
-  const contextWorkspaceIdentifier = workspaceIdentifier ?? primaryWorkspaceIdentifier;
+  const contextWorkspaceIdentifier =
+    workspaceIdentifier ??
+    primaryWorkspaceIdentifier ??
+    (pathname.startsWith("/app/new") ? persistedWorkspaceId : null);
   const [workspaceCtx, setWorkspaceCtx] = useState<WorkspaceContext | null>(null);
+
+  useEffect(() => {
+    const rafId = window.requestAnimationFrame(() => {
+      try {
+        const stored = window.localStorage.getItem("receipt:last-workspace-id");
+        const clean = String(stored ?? "").trim();
+        setPersistedWorkspaceId(clean || null);
+      } catch {
+        setPersistedWorkspaceId(null);
+      }
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceIdentifier) return;
+    try {
+      window.localStorage.setItem("receipt:last-workspace-id", workspaceIdentifier);
+    } catch {
+      // noop
+    }
+    const rafId = window.requestAnimationFrame(() => {
+      setPersistedWorkspaceId(workspaceIdentifier);
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [workspaceIdentifier]);
 
   useEffect(() => {
     let active = true;
