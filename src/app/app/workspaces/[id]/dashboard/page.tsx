@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AppHero, AppPage, AppPanel } from "@/components/app/page-layout";
 import { WorkspaceDashboardLoading } from "@/components/workspace-dashboard-loading";
 
 type WorkspaceHomePayload = {
@@ -73,95 +74,76 @@ export default function WorkspaceDashboardPage() {
   const linkId = data?.workspace?.slug ?? workspaceIdentifier;
 
   return (
-    <div className="space-y-6">
-      <div className="app-content-card p-7">
-        <div className="app-section-kicker">{data?.workspace?.name ?? "Workspace"}</div>
-        <h1 className="app-hero-title mt-3 text-4xl tracking-tight">
-          {data?.greeting?.text ?? "Hello"}, {data?.greeting?.first_name ?? "there"}
-        </h1>
-        <div className="mt-4 flex gap-2 flex-wrap">
-          <Link
-            href="/app/new"
-            className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
-            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 999 }}
-          >
-            Create new Receipt
-          </Link>
-          <Link
-            href={`/app/workspaces/${linkId}/documents`}
-            className="focus-ring px-4 py-2 text-sm hover:opacity-90"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
-          >
-            Open Files
-          </Link>
-          {data?.viewer?.can_view_analytics ? (
-            <Link
-              href={`/app/workspaces/${linkId}/analytics`}
-              className="focus-ring px-4 py-2 text-sm hover:opacity-90"
-              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
-            >
-              Analytics
+    <AppPage>
+      <AppHero
+        kicker={data?.workspace?.name ?? "Workspace"}
+        title={
+          <>
+            {data?.greeting?.text ?? "Hello"}, {data?.greeting?.first_name ?? "there"}
+          </>
+        }
+        description="Your workspace pulse: recent activity, acknowledgements, and direct access to core areas."
+        actions={
+          <>
+            <Link href="/app/new" className="focus-ring app-btn-primary">
+              Create new Receipt
             </Link>
-          ) : null}
-        </div>
-      </div>
+            <Link href={`/app/workspaces/${linkId}/documents`} className="focus-ring app-btn-secondary">
+              Open Files
+            </Link>
+            {data?.viewer?.can_view_analytics ? (
+              <Link href={`/app/workspaces/${linkId}/analytics`} className="focus-ring app-btn-secondary">
+                Analytics
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       {error ? (
-        <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--border)", color: "#b91c1c" }}>
-          {error}
-        </div>
+        <div className="app-error">{error}</div>
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section className="app-content-card p-5 lg:col-span-2">
-          <div className="app-section-kicker">
-            RECENT FILES
-          </div>
+        <AppPanel title="Recent files" className="lg:col-span-2">
           <div className="mt-3 space-y-2">
             {(data?.recent_files ?? []).map((file) => (
                 <Link
                   key={file.id}
                   href={`/app/docs/${file.id}`}
-                  className="block rounded-xl border p-3 transition hover:-translate-y-0.5"
-                  style={{ borderColor: "var(--border2)", background: "var(--card)", color: "var(--fg)" }}
+                  className="app-list-item p-3"
                 >
                 <div className="flex items-center gap-2">
                   <div className="text-sm font-semibold">{file.title}</div>
-                  <span
-                    className="inline-flex items-center px-2 py-0.5 text-[11px]"
-                    style={{ borderRadius: 999, background: "var(--card2)", color: "var(--muted)" }}
-                  >
+                  <span className="app-btn-chip">
                     {String(file.priority ?? "normal")}
                   </span>
                 </div>
-                <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                <div className="app-subtle-2 mt-1 text-xs">
                   {file.source === "opened" ? "Last opened" : "Last created"} · {formatDate(file.at)}
                 </div>
               </Link>
             ))}
             {(data?.recent_files ?? []).length === 0 ? (
-              <div className="text-sm" style={{ color: "var(--muted)" }}>
+              <div className="app-empty">
                 No files yet.
               </div>
             ) : null}
           </div>
-        </section>
+        </AppPanel>
 
-        <section className="app-content-card p-5">
-          <div className="app-section-kicker">
-            WHILE YOU WERE AWAY
-          </div>
+        <AppPanel title="While you were away">
           <div className="mt-3 text-2xl font-semibold tracking-tight">
             {data?.while_away?.acknowledged_count ?? 0}
           </div>
-          <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+          <div className="app-subtle mt-1 text-sm">
             acknowledgements on {data?.while_away?.documents_affected ?? 0} documents
           </div>
-          <div className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
+          <div className="app-subtle-2 mt-3 text-xs">
             Since {formatDate(data?.while_away?.since ?? null)}
           </div>
-        </section>
+        </AppPanel>
       </div>
-    </div>
+    </AppPage>
   );
 }

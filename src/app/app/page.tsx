@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AppHero, AppPage, AppPanel } from "@/components/app/page-layout";
 
 type HomePayload = {
   greeting: { text: string; first_name: string };
@@ -48,86 +49,72 @@ export default function AppHome() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <div className="app-content-card p-7">
-        <div className="app-section-kicker">HOME</div>
-        <h1 className="app-hero-title mt-3 text-4xl tracking-tight">
-          {loading ? "Loading…" : `${data?.greeting?.text ?? "Hello"}, ${data?.greeting?.first_name ?? "there"}`}
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
-          Keep your acknowledgement workflow moving with quick access to the latest Receipts.
-        </p>
-        <div className="mt-5 flex gap-2 flex-wrap">
-          <Link
-            href="/app/new"
-            className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90"
-            style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 999 }}
-          >
-            Create new Receipt
-          </Link>
-          {data?.primary_workspace_id ? (
-            <Link
-              href={`/app/workspaces/${data.primary_workspace_id}/dashboard`}
-              className="focus-ring px-4 py-2 text-sm hover:opacity-90"
-              style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 999 }}
-            >
-              Open workspace dashboard
+    <AppPage>
+      <AppHero
+        kicker="HOME"
+        title={loading ? "Loading…" : `${data?.greeting?.text ?? "Hello"}, ${data?.greeting?.first_name ?? "there"}`}
+        description="Keep your acknowledgement workflow moving with quick access to the latest Receipts."
+        actions={
+          <>
+            <Link href="/app/new" className="focus-ring app-btn-primary">
+              Create new Receipt
             </Link>
-          ) : null}
-        </div>
-      </div>
+            {data?.primary_workspace_id ? (
+              <Link
+                href={`/app/workspaces/${data.primary_workspace_id}/dashboard`}
+                className="focus-ring app-btn-secondary"
+              >
+                Open workspace dashboard
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section className="app-content-card p-5 lg:col-span-2">
-          <div className="app-section-kicker">
-            RECENT FILES
-          </div>
+        <AppPanel title="Recent files" className="lg:col-span-2">
           {loading ? <div className="mt-3 text-sm">Loading…</div> : null}
-          {error ? <div className="mt-3 text-sm" style={{ color: "#b91c1c" }}>{error}</div> : null}
+          {error ? <div className="app-error mt-3">{error}</div> : null}
           {!loading && !error ? (
             <div className="mt-3 space-y-2">
               {(data?.recent_files ?? []).map((file) => (
                 <Link
                   key={file.id}
                   href={`/app/docs/${file.id}`}
-                  className="block rounded-xl border p-3 transition hover:-translate-y-0.5"
-                  style={{ borderColor: "var(--border2)", background: "var(--card)", color: "var(--fg)" }}
+                  className="app-list-item p-3"
                 >
                   <div className="text-sm font-semibold">{file.title}</div>
-                  <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                  <div className="app-subtle-2 mt-1 text-xs">
                     {file.source === "opened" ? "Last opened" : "Last created"} · {formatDate(file.at)}
                   </div>
                 </Link>
               ))}
               {(data?.recent_files ?? []).length === 0 ? (
-                <div className="text-sm" style={{ color: "var(--muted)" }}>
+                <div className="app-empty">
                   No files yet. Create your first Receipt to get started.
                 </div>
               ) : null}
             </div>
           ) : null}
-        </section>
+        </AppPanel>
 
-        <section className="app-content-card p-5">
-          <div className="app-section-kicker">
-            WHILE YOU WERE AWAY
-          </div>
+        <AppPanel title="While you were away">
           <div className="mt-3 text-2xl font-semibold tracking-tight">
             {data?.while_away?.acknowledged_count ?? 0}
           </div>
-          <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+          <div className="app-subtle mt-1 text-sm">
             acknowledgements on {data?.while_away?.documents_affected ?? 0} documents
           </div>
-          <div className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
+          <div className="app-subtle-2 mt-3 text-xs">
             Since {formatDate(data?.while_away?.since ?? null)}
           </div>
           {data?.while_away?.latest_at ? (
-            <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+            <div className="app-subtle-2 mt-1 text-xs">
               Latest at {formatDate(data.while_away.latest_at)}
             </div>
           ) : null}
-        </section>
+        </AppPanel>
       </div>
-    </div>
+    </AppPage>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { AppHero, AppPage, AppPanel } from "@/components/app/page-layout";
 
 type AnalyticsPayload = {
   workspace?: { id: string; name: string; slug: string | null };
@@ -98,98 +99,87 @@ export default function WorkspaceAnalyticsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl tracking-tight marketing-serif">Analytics</h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-          Team/Enterprise compliance and management insights.
-        </p>
-      </div>
+    <AppPage>
+      <AppHero
+        kicker="ANALYTICS"
+        title="Analytics"
+        description="Team/Enterprise compliance and management insights."
+      />
 
-      {loading ? <div className="text-sm" style={{ color: "var(--muted)" }}>Loading…</div> : null}
-      {error ? <div className="text-sm" style={{ color: "#b91c1c" }}>{error}</div> : null}
+      {loading ? <div className="app-subtle text-sm">Loading…</div> : null}
+      {error ? <div className="app-error">{error}</div> : null}
 
       {!loading && !error && data ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-              <div className="text-xs" style={{ color: "var(--muted2)" }}>TOTAL SENT</div>
+            <div className="app-card p-4">
+              <div className="app-subtle-2 text-xs">TOTAL SENT</div>
               <div className="mt-2 text-2xl font-semibold">{data.totals.documents_sent}</div>
             </div>
-            <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-              <div className="text-xs" style={{ color: "var(--muted2)" }}>ACK RATE</div>
+            <div className="app-card p-4">
+              <div className="app-subtle-2 text-xs">ACK RATE</div>
               <div className="mt-2 text-2xl font-semibold">{data.totals.acknowledgement_rate_percent}%</div>
             </div>
-            <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-              <div className="text-xs" style={{ color: "var(--muted2)" }}>AVG TIME TO ACK</div>
+            <div className="app-card p-4">
+              <div className="app-subtle-2 text-xs">AVG TIME TO ACK</div>
               <div className="mt-2 text-2xl font-semibold">{fmtDuration(data.totals.avg_time_to_ack_seconds)}</div>
             </div>
-            <div className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-              <div className="text-xs" style={{ color: "var(--muted2)" }}>OUTSTANDING</div>
+            <div className="app-card p-4">
+              <div className="app-subtle-2 text-xs">OUTSTANDING</div>
               <div className="mt-2 text-2xl font-semibold">{data.totals.outstanding_acknowledgements}</div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <section className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-              <div className="text-sm font-semibold">Recent trend</div>
+            <AppPanel title="Recent trend">
               <div className="mt-3 space-y-2">
                 {latestSeries.map((row) => (
                   <div key={row.date} className="flex items-center justify-between text-sm">
                     <span>{row.date}</span>
-                    <span style={{ color: "var(--muted)" }}>
+                    <span className="app-subtle">
                       Sent {row.sent} · Ack {row.acknowledged}
                     </span>
                   </div>
                 ))}
               </div>
-            </section>
-            <section className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-              <div className="text-sm font-semibold">By priority</div>
+            </AppPanel>
+            <AppPanel title="By priority">
               <div className="mt-3 space-y-2">
                 {data.by_priority.map((row) => (
                   <div key={row.priority} className="flex items-center justify-between text-sm">
                     <span>{row.priority}</span>
-                    <span style={{ color: "var(--muted)" }}>
+                    <span className="app-subtle">
                       {row.acknowledged}/{row.total} acknowledged
                     </span>
                   </div>
                 ))}
               </div>
-            </section>
+            </AppPanel>
           </div>
 
-          <section className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-            <div className="text-sm font-semibold">Top labels and tags</div>
+          <AppPanel title="Top labels and tags">
             <div className="mt-3 flex flex-wrap gap-2">
               {data.by_label.slice(0, 20).map((row) => (
-                <span
-                  key={row.label}
-                  className="inline-flex items-center px-2 py-1 text-xs"
-                  style={{ borderRadius: 999, background: "var(--card2)", color: "var(--muted)" }}
-                >
+                <span key={row.label} className="app-btn-chip">
                   {row.label} · {row.total}
                 </span>
               ))}
             </div>
-          </section>
+          </AppPanel>
 
-          <section className="border p-4" style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}>
-            <div className="text-sm font-semibold">Audit-ready reports</div>
+          <AppPanel title="Audit-ready reports">
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
               <input
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="focus-ring border px-3 py-2 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                className="app-input"
               />
               <input
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="focus-ring border px-3 py-2 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                className="app-input"
               />
             </div>
             <div className="mt-3 flex gap-2 flex-wrap">
@@ -197,8 +187,7 @@ export default function WorkspaceAnalyticsPage() {
                 type="button"
                 disabled={Boolean(exporting)}
                 onClick={() => void exportReport("compliance")}
-                className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-                style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+                className="focus-ring app-btn-primary disabled:opacity-50"
               >
                 {exporting === "compliance" ? "Generating…" : "Compliance report (PDF)"}
               </button>
@@ -206,15 +195,14 @@ export default function WorkspaceAnalyticsPage() {
                 type="button"
                 disabled={Boolean(exporting)}
                 onClick={() => void exportReport("management")}
-                className="focus-ring px-4 py-2 text-sm hover:opacity-90 disabled:opacity-50"
-                style={{ border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 10 }}
+                className="focus-ring app-btn-secondary disabled:opacity-50"
               >
                 {exporting === "management" ? "Generating…" : "Management KPI report (PDF)"}
               </button>
             </div>
-          </section>
+          </AppPanel>
         </>
       ) : null}
-    </div>
+    </AppPage>
   );
 }
