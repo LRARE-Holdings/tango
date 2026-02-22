@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase/server";
 import { safeInternalPath } from "@/lib/safe-redirect";
 
 export async function GET(req: Request) {
@@ -24,48 +23,14 @@ export async function GET(req: Request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const supabase = await supabaseServer();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) {
-    const loginUrl = new URL("/auth", url.origin);
-    loginUrl.searchParams.set("next", redirectTo);
-    loginUrl.searchParams.set("error", error.message);
-    return NextResponse.redirect(loginUrl);
-  }
-
+  // OAuth PKCE is initiated in the browser, so exchange the code in /auth/confirm
+  // to ensure the verifier is read from the same client-side cookie storage.
+  const confirmUrl = new URL("/auth/confirm", url.origin);
+  confirmUrl.searchParams.set("code", code);
+  confirmUrl.searchParams.set("next", redirectTo);
   if (firstName) {
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData.user) {
-      const withDisplayName = await supabase
-        .from("profiles")
-        .update({
-          display_name: firstName.slice(0, 80),
-          last_login_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userData.user.id);
-      if (withDisplayName.error && String(withDisplayName.error.message ?? "").toLowerCase().includes("display_name")) {
-        await supabase
-          .from("profiles")
-          .update({
-            last_login_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", userData.user.id);
-      }
-    }
-  } else {
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData.user) {
-      await supabase
-        .from("profiles")
-        .update({
-          last_login_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userData.user.id);
-    }
+    confirmUrl.searchParams.set("first_name", firstName);
   }
 
-  return NextResponse.redirect(new URL(redirectTo, url.origin));
+  return NextResponse.redirect(confirmUrl);
 }

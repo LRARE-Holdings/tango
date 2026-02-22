@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type UsageIntent = "personal" | "professional" | "team" | "unsure";
@@ -33,6 +33,88 @@ const CHECKOUT_MODE = String(process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_MODE ?? "cu
   .toLowerCase() === "hosted"
   ? "hosted"
   : "custom";
+const ONBOARDING_STATE_KEY = "receipt:onboarding:state:v1";
+const TRIAL_DAYS: Record<Billing, number> = { monthly: 7, annual: 14 };
+
+const INTENT_LABEL: Record<UsageIntent, string> = {
+  personal: "Personal usage",
+  professional: "Professional usage",
+  team: "Team usage",
+  unsure: "Intent not decided",
+};
+
+const FREQUENCY_LABEL: Record<Frequency, string> = {
+  occasionally: "Occasional cadence",
+  weekly: "Weekly cadence",
+  daily: "Daily cadence",
+  unsure: "Cadence not decided",
+};
+
+const TEAM_SIZE_LABEL: Record<TeamSize, string> = {
+  solo: "Solo access",
+  "2-5": "Small team (2-5)",
+  "6-20": "Growing team (6-20)",
+  "20+": "Large team (20+)",
+  unsure: "Team size not decided",
+};
+
+const NEED_LABEL: Record<NeedKey, string> = {
+  prove_opened: "Proof of opened docs",
+  acknowledgement: "Acknowledgement capture",
+  limit_acknowledgements: "Controlled acknowledgements",
+  send_email: "Email sending",
+  passwords: "Password-protected links",
+  audit_records: "Audit-ready records",
+  team_sharing: "Team sharing",
+  templates_defaults: "Templates and defaults",
+};
+
+const PLAN_BRAND: Record<
+  RecommendedPlan,
+  {
+    title: string;
+    strap: string;
+    summary: string;
+    accent: string;
+    accentSoft: string;
+  }
+> = {
+  free: {
+    title: "Free",
+    strap: "Lean start",
+    summary: "Best when you want to validate your workflow first and upgrade later.",
+    accent: "#5f6673",
+    accentSoft: "rgba(95, 102, 115, 0.16)",
+  },
+  personal: {
+    title: "Personal",
+    strap: "Individual power",
+    summary: "Built for solo workflows that still need stronger delivery and sharing controls.",
+    accent: "#1f8f5f",
+    accentSoft: "rgba(31, 143, 95, 0.14)",
+  },
+  pro: {
+    title: "Pro",
+    strap: "Operator mode",
+    summary: "Designed for frequent professional work with cleaner controls and defaults.",
+    accent: "#0b66d4",
+    accentSoft: "rgba(11, 102, 212, 0.14)",
+  },
+  team: {
+    title: "Team",
+    strap: "Shared operating model",
+    summary: "The right fit for multi-seat access, shared workflows, and central control.",
+    accent: "#ca6d1d",
+    accentSoft: "rgba(202, 109, 29, 0.16)",
+  },
+  enterprise: {
+    title: "Enterprise",
+    strap: "Governance first",
+    summary: "For procurement, policy controls, and organization-wide governance requirements.",
+    accent: "#1f2937",
+    accentSoft: "rgba(31, 41, 55, 0.14)",
+  },
+};
 
 type Answers = {
   intent: UsageIntent | null;
@@ -162,8 +244,69 @@ export default function OnboardingPage() {
     referralDetail: "",
   });
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("step") !== "result") return;
+
+    try {
+      const raw = window.sessionStorage.getItem(ONBOARDING_STATE_KEY);
+      if (!raw) {
+        setStep(STEPS.length - 1);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Partial<{
+        step: number;
+        billing: Billing;
+        seats: number;
+        answers: Answers;
+      }>;
+
+      if (parsed.answers && typeof parsed.answers === "object") {
+        setAnswers(parsed.answers);
+      }
+
+      if (parsed.billing === "monthly" || parsed.billing === "annual") {
+        setBilling(parsed.billing);
+      }
+
+      if (typeof parsed.seats === "number" && Number.isFinite(parsed.seats)) {
+        setSeats(Math.max(2, Math.min(50, Math.floor(parsed.seats))));
+      }
+
+      setStep(STEPS.length - 1);
+    } catch {
+      setStep(STEPS.length - 1);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(
+        ONBOARDING_STATE_KEY,
+        JSON.stringify({
+          step,
+          billing,
+          seats,
+          answers,
+        })
+      );
+    } catch {
+      // ignore storage write errors
+    }
+  }, [answers, billing, seats, step]);
+
   const progress = Math.round(((step + 1) / STEPS.length) * 100);
   const recommendation = useMemo(() => computeRecommendation(answers), [answers]);
+  const recommendationBrand = PLAN_BRAND[recommendation.plan];
+  const paidRecommendation =
+    recommendation.plan !== "free" && recommendation.plan !== "enterprise";
+  const decisionSignals = [
+    answers.intent ? INTENT_LABEL[answers.intent] : null,
+    answers.frequency ? FREQUENCY_LABEL[answers.frequency] : null,
+    answers.teamSize ? TEAM_SIZE_LABEL[answers.teamSize] : null,
+  ].filter(Boolean) as string[];
+  const requestedNeeds = answers.needs.slice(0, 4).map((need) => NEED_LABEL[need]);
 
   function next() {
     setError(null);
@@ -212,13 +355,28 @@ export default function OnboardingPage() {
     if (plan === "team") body.seats = seats;
 
     if (CHECKOUT_MODE === "custom") {
+      try {
+        window.sessionStorage.setItem(
+          ONBOARDING_STATE_KEY,
+          JSON.stringify({
+            step: STEPS.length - 1,
+            billing,
+            seats,
+            answers,
+          })
+        );
+      } catch {
+        // ignore storage write errors
+      }
+
       const params = new URLSearchParams({
         plan,
         billing,
         source: "onboarding",
+        return_to: "/onboarding?step=result",
       });
       if (plan === "team") params.set("seats", String(seats));
-      router.replace(`/app/billing/checkout?${params.toString()}`);
+      router.replace(`/checkout?${params.toString()}`);
       return;
     }
 
@@ -528,116 +686,231 @@ export default function OnboardingPage() {
             )}
 
             {STEPS[step].key === "result" && (
-              <div className="space-y-5">
-                <div className="border p-5" style={{ borderColor: "var(--border)", background: "var(--card2)" }}>
-                  <div className="text-xs tracking-widest" style={{ color: "var(--muted2)" }}>
-                    WE RECOMMEND
+              <div className="space-y-6">
+                <div
+                  className="relative overflow-hidden border p-6 md:p-7"
+                  style={{
+                    borderColor: recommendationBrand.accent,
+                    background:
+                      `radial-gradient(1200px 380px at -20% -60%, ${recommendationBrand.accentSoft} 0%, transparent 58%),` +
+                      "linear-gradient(145deg, var(--card2), var(--card))",
+                    borderRadius: 18,
+                  }}
+                >
+                  <div
+                    className="absolute right-5 top-5 rounded-full border px-3 py-1 text-[11px] font-semibold tracking-wide"
+                    style={{
+                      borderColor: recommendationBrand.accent,
+                      color: recommendationBrand.accent,
+                      background: recommendationBrand.accentSoft,
+                    }}
+                  >
+                    RECOMMENDED PLAN
                   </div>
-                  <div className="mt-2 text-3xl font-semibold tracking-tight">
-                    {recommendation.plan.toUpperCase()}
+
+                  <div className="max-w-2xl">
+                    <div className="text-xs font-semibold tracking-[0.18em] uppercase" style={{ color: recommendationBrand.accent }}>
+                      {recommendationBrand.strap}
+                    </div>
+                    <div className="mt-2 text-4xl font-semibold tracking-tight">{recommendationBrand.title}</div>
+                    <div className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+                      {recommendationBrand.summary}
+                    </div>
                   </div>
-                  <div className="mt-3 space-y-2">
-                    {recommendation.why.slice(0, 3).map((w) => (
-                      <div key={w} className="text-sm" style={{ color: "var(--muted)" }}>
-                        • {w}
+
+                  <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {recommendation.why.slice(0, 3).map((why, index) => (
+                      <div
+                        key={why}
+                        className="rounded-xl border p-3"
+                        style={{ borderColor: "var(--border)", background: "rgba(255, 255, 255, 0.04)" }}
+                      >
+                        <div className="text-[11px] tracking-[0.16em] uppercase" style={{ color: "var(--muted2)" }}>
+                          Reason {index + 1}
+                        </div>
+                        <div className="mt-1 text-sm leading-snug">{why}</div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Billing choice (only for paid plans) */}
-                {recommendation.plan !== "free" && recommendation.plan !== "enterprise" && (
-                  <div className="border p-5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="border p-5" style={{ borderColor: "var(--border)", background: "var(--card2)", borderRadius: 14 }}>
+                  <div className="text-xs tracking-[0.16em] uppercase" style={{ color: "var(--muted2)" }}>
+                    Decision signals
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {decisionSignals.length ? (
+                      decisionSignals.map((signal) => (
+                        <span
+                          key={signal}
+                          className="rounded-full border px-3 py-1.5 text-xs font-semibold"
+                          style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--muted)" }}
+                        >
+                          {signal}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm" style={{ color: "var(--muted)" }}>
+                        No key signals selected yet. You can still continue.
+                      </span>
+                    )}
+                  </div>
+
+                  {requestedNeeds.length > 0 ? (
+                    <>
+                      <div className="mt-4 text-xs tracking-[0.16em] uppercase" style={{ color: "var(--muted2)" }}>
+                        Requested capabilities
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {requestedNeeds.map((need) => (
+                          <span
+                            key={need}
+                            className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                            style={{ background: recommendationBrand.accentSoft, color: recommendationBrand.accent }}
+                          >
+                            {need}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+
+                {paidRecommendation && (
+                  <div className="border p-5" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}>
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div>
-                        <div className="text-sm font-semibold">Billing</div>
-                        <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                          {billing === "annual" ? "Includes a 14-day free trial." : "Includes a 7-day free trial."}{" "}
-                          You can cancel anytime in Stripe.
+                        <div className="text-sm font-semibold">Billing cadence</div>
+                        <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+                          {billing === "annual"
+                            ? "Annual checkout includes a 14-day trial."
+                            : "Monthly checkout includes a 7-day trial."}{" "}
+                          Cancel anytime from Stripe.
                         </div>
                       </div>
-
-                      <div className="inline-flex border" style={{ borderColor: "var(--border)" }}>
-                        <button
-                          type="button"
-                          onClick={() => setBilling("monthly")}
-                          className="px-4 py-2 text-sm font-semibold transition hover:opacity-90"
-                          style={{
-                            background: billing === "monthly" ? "var(--fg)" : "transparent",
-                            color: billing === "monthly" ? "var(--bg)" : "var(--fg)",
-                          }}
-                        >
-                          Monthly
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBilling("annual")}
-                          className="px-4 py-2 text-sm font-semibold transition hover:opacity-90"
-                          style={{
-                            borderLeft: `1px solid var(--border)`,
-                            background: billing === "annual" ? "var(--fg)" : "transparent",
-                            color: billing === "annual" ? "var(--bg)" : "var(--fg)",
-                          }}
-                        >
-                          Annual
-                        </button>
+                      <div
+                        className="rounded-full border px-3 py-1 text-xs font-semibold"
+                        style={{
+                          borderColor: recommendationBrand.accent,
+                          color: recommendationBrand.accent,
+                          background: recommendationBrand.accentSoft,
+                        }}
+                      >
+                        {TRIAL_DAYS[billing]}-day trial
                       </div>
                     </div>
 
-                    {/* Seats (Team only) */}
-                    {recommendation.plan === "team" && (
-                      <div className="mt-5">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="font-semibold">Seats</div>
-                          <div style={{ color: "var(--muted)" }}>{seats}</div>
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setBilling("monthly")}
+                        className="rounded-xl border px-4 py-3 text-left transition hover:opacity-90"
+                        style={{
+                          borderColor: billing === "monthly" ? recommendationBrand.accent : "var(--border)",
+                          background: billing === "monthly" ? recommendationBrand.accentSoft : "transparent",
+                        }}
+                      >
+                        <div className="text-sm font-semibold">Monthly</div>
+                        <div className="mt-0.5 text-xs" style={{ color: "var(--muted2)" }}>
+                          7-day trial
                         </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBilling("annual")}
+                        className="rounded-xl border px-4 py-3 text-left transition hover:opacity-90"
+                        style={{
+                          borderColor: billing === "annual" ? recommendationBrand.accent : "var(--border)",
+                          background: billing === "annual" ? recommendationBrand.accentSoft : "transparent",
+                        }}
+                      >
+                        <div className="text-sm font-semibold">Annual</div>
+                        <div className="mt-0.5 text-xs" style={{ color: "var(--muted2)" }}>
+                          14-day trial
+                        </div>
+                      </button>
+                    </div>
+
+                    {recommendation.plan === "team" && (
+                      <div className="mt-5 border-t pt-5" style={{ borderColor: "var(--border)" }}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold">Team seats</div>
+                            <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                              Start with your expected active members.
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSeats((s) => Math.max(2, s - 1))}
+                              className="h-8 w-8 rounded-full border text-sm"
+                              style={{ borderColor: "var(--border)" }}
+                              aria-label="Decrease seats"
+                            >
+                              -
+                            </button>
+                            <div className="min-w-12 text-center text-sm font-semibold">{seats}</div>
+                            <button
+                              type="button"
+                              onClick={() => setSeats((s) => Math.min(50, s + 1))}
+                              className="h-8 w-8 rounded-full border text-sm"
+                              style={{ borderColor: "var(--border)" }}
+                              aria-label="Increase seats"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
                         <input
                           type="range"
                           min={2}
                           max={50}
                           value={seats}
                           onChange={(e) => setSeats(Number(e.target.value))}
-                          className="mt-3 w-full"
+                          className="mt-3 w-full accent-[var(--fg)]"
                         />
-                        <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                          You’ll confirm seats and billing in Stripe checkout.
+                        <div className="mt-2 flex items-center justify-between text-[11px]" style={{ color: "var(--muted2)" }}>
+                          <span>2 seats</span>
+                          <span>50 seats</span>
                         </div>
                       </div>
                     )}
                   </div>
                 )}
 
-                <div className="flex flex-col md:flex-row gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <button
                     type="button"
                     onClick={onContinue}
                     disabled={submitting}
-                    className="focus-ring px-6 py-3 text-sm font-semibold transition disabled:opacity-50"
+                    className="focus-ring rounded-xl px-6 py-3 text-sm font-semibold transition disabled:opacity-50 md:col-span-2"
                     style={{ background: "var(--fg)", color: "var(--bg)" }}
                   >
                     {submitting
-                      ? "Redirecting…"
+                      ? "Redirecting..."
                       : recommendation.plan === "free"
-                        ? "Continue"
+                        ? "Continue with Free"
                         : recommendation.plan === "enterprise"
                           ? "Contact sales"
-                          : `Continue to ${billing === "annual" ? "annual" : "monthly"} checkout (${billing === "annual" ? "14" : "7"}-day trial)`}
+                          : `Continue to ${billing} checkout (${TRIAL_DAYS[billing]}-day trial)`}
                   </button>
 
                   <Link
                     href="/pricing"
-                    className="focus-ring border px-6 py-3 text-sm font-semibold hover:opacity-80"
+                    className="focus-ring rounded-xl border px-6 py-3 text-center text-sm font-semibold hover:opacity-80"
                     style={{ borderColor: "var(--border)", color: "var(--fg)" }}
                   >
                     View all plans
                   </Link>
 
-                  {recommendation.plan !== "free" && recommendation.plan !== "enterprise" ? (
+                  {paidRecommendation ? (
                     <button
                       type="button"
                       onClick={() => void chooseFreeForNow()}
                       disabled={submitting}
-                      className="focus-ring border px-6 py-3 text-sm font-semibold hover:opacity-80 disabled:opacity-50"
+                      className="focus-ring rounded-xl border px-6 py-3 text-sm font-semibold hover:opacity-80 disabled:opacity-50 md:col-span-3"
                       style={{ borderColor: "var(--border)", color: "var(--muted)" }}
                     >
                       Use Free for now
@@ -645,9 +918,11 @@ export default function OnboardingPage() {
                   ) : null}
                 </div>
 
-                <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-                  Trial starts today. We’ll charge after the trial ends unless you cancel. Prefer to explore first? Choose “Use Free for now” and upgrade anytime.
-                </div>
+                {paidRecommendation ? (
+                  <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+                    Trial starts today. You will be charged when the trial ends unless you cancel in Stripe.
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

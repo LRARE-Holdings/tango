@@ -97,7 +97,7 @@ export default function GetStartedPage() {
       }
       if (!firstName) throw new Error("Add your first name before continuing with Google.");
       const siteUrl = getSiteUrl();
-      const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(nextPath)}&first_name=${encodeURIComponent(firstName)}`;
+      const redirectTo = `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}&first_name=${encodeURIComponent(firstName)}`;
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo, captchaToken: captchaToken ?? undefined },

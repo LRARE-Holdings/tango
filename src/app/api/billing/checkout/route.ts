@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     if (checkoutMode() !== "hosted") {
       return NextResponse.json(
         {
-          error: "Hosted checkout is disabled. Use /app/billing/checkout.",
+          error: "Hosted checkout is disabled. Use /checkout.",
         },
         { status: 409 }
       );

@@ -38,6 +38,12 @@ export default function AuthConfirmPage() {
         const next = url.searchParams.get("next") || url.searchParams.get("redirect_to");
         const firstName = (url.searchParams.get("first_name") || "").trim();
         const redirectTo = safeInternalPath(next, "/app");
+        const authError = url.searchParams.get("error_description") || url.searchParams.get("error");
+
+        if (authError) {
+          hardRedirect(`/auth?next=${encodeURIComponent(redirectTo)}&error=${encodeURIComponent(authError)}`);
+          return;
+        }
 
         // 1) New-style links often use token_hash + type (magiclink / recovery / invite)
         const token_hash = url.searchParams.get("token_hash");

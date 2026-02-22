@@ -78,6 +78,10 @@ test.describe("api security controls", () => {
     expect([302, 307, 308]).toContain(appPage.status());
     expect(appPage.headers()["x-robots-tag"]).toContain("noindex");
 
+    const checkoutPage = await request.get("/checkout", { maxRedirects: 0 });
+    expect([302, 307, 308]).toContain(checkoutPage.status());
+    expect(checkoutPage.headers()["x-robots-tag"]).toContain("noindex");
+
     const onboardingPage = await request.get("/onboarding");
     expect([200, 302, 307]).toContain(onboardingPage.status());
     expect(onboardingPage.headers()["x-robots-tag"]).toContain("noindex");

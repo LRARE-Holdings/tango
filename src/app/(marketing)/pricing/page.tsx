@@ -218,9 +218,10 @@ export default function PricingPage() {
           plan,
           billing,
           source: "pricing",
+          return_to: "/pricing",
         });
         if (plan === "team") params.set("seats", String(seats));
-        window.location.href = `/app/billing/checkout?${params.toString()}`;
+        window.location.href = `/checkout?${params.toString()}`;
         return;
       }
 

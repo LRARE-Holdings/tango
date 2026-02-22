@@ -137,7 +137,7 @@ export default function AuthPage() {
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          redirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
           captchaToken: captchaToken ?? undefined,
         },
       });

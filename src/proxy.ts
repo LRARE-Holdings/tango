@@ -10,6 +10,7 @@ export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const isPrivatePath =
     pathname.startsWith("/app") ||
+    pathname.startsWith("/checkout") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/d/");
@@ -26,7 +27,7 @@ export async function proxy(req: NextRequest) {
 
   const res = NextResponse.next();
 
-  if (pathname.startsWith("/app")) {
+  if (pathname.startsWith("/app") || pathname.startsWith("/checkout")) {
     // Prevent browser/proxy caches from serving authenticated app shells after logout.
     res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.headers.set("Pragma", "no-cache");
@@ -59,7 +60,7 @@ export async function proxy(req: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Protect /app routes
-  if (!user && pathname.startsWith("/app")) {
+  if (!user && (pathname.startsWith("/app") || pathname.startsWith("/checkout"))) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/auth";
     const redirect = NextResponse.redirect(redirectUrl);
@@ -77,6 +78,8 @@ export const config = {
   matcher: [
     "/app",
     "/app/:path*",
+    "/checkout",
+    "/checkout/:path*",
     "/auth",
     "/auth/:path*",
     "/get-started",
