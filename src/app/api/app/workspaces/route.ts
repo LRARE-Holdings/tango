@@ -11,6 +11,12 @@ function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Failed";
 }
 
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, column: string) {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  return String(error.message ?? "").toLowerCase().includes(column.toLowerCase());
+}
+
 function normalizeSlug(v: string) {
   return v
     .trim()
@@ -136,9 +142,10 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const { supabase, user } = await requireUser();
-    const body = (await req.json().catch(() => null)) as { name?: string } | null;
+    const body = (await req.json().catch(() => null)) as { name?: string; mfa_required?: boolean } | null;
 
     const name = (body?.name ?? "").trim();
+    const mfaRequired = body?.mfa_required === true;
     if (!name) {
       return NextResponse.json({ error: "Workspace name is required" }, { status: 400 });
     }
@@ -161,17 +168,43 @@ export async function POST(req: Request) {
     }
 
     // Create workspace (RLS allows insert when created_by = auth.uid())
-    const { data: ws, error: wsErr } = await supabase
+    let wsSelect = await supabase
       .from("workspaces")
       .insert({
         name,
         created_by: user.id,
         slug: availableSlug,
+        mfa_required: mfaRequired,
       })
-      .select("id,name,slug,created_at")
+      .select("id,name,slug,created_at,mfa_required")
       .single();
 
+    let ws = wsSelect.data as
+      | { id: string; name: string; slug: string | null; created_at: string; mfa_required?: boolean }
+      | null;
+    let wsErr = wsSelect.error;
+    if (wsErr && isMissingColumnError(wsErr, "mfa_required")) {
+      if (mfaRequired) {
+        return NextResponse.json(
+          { error: "Workspace MFA enforcement is not configured yet. Run the latest SQL migrations first." },
+          { status: 500 }
+        );
+      }
+      wsSelect = await supabase
+        .from("workspaces")
+        .insert({
+          name,
+          created_by: user.id,
+          slug: availableSlug,
+        })
+        .select("id,name,slug,created_at")
+        .single();
+      ws = wsSelect.data as { id: string; name: string; slug: string | null; created_at: string } | null;
+      wsErr = wsSelect.error;
+    }
+
     if (wsErr) throw new Error(wsErr.message);
+    if (!ws) throw new Error("Workspace was not created.");
 
     // Add membership as owner
     const { error: memErr } = await supabase

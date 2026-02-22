@@ -26,6 +26,7 @@ export function OnboardingGate() {
         if (
           pathname.startsWith("/auth") ||
           pathname.startsWith("/onboarding") ||
+          pathname.startsWith("/app/setup/mfa") ||
           pathname.startsWith("/app/billing/checkout")
         ) {
           if (!cancelled) setChecked(true);

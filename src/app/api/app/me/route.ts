@@ -225,13 +225,6 @@ export async function GET() {
     // Keep /me resilient if MFA provider lookups are temporarily unavailable.
   }
 
-  const paidAccountMfaRequired =
-    plan === "personal" ||
-    plan === "pro" ||
-    plan === "team" ||
-    plan === "enterprise" ||
-    (workspaceLicenseActive && (workspacePlan === "team" || workspacePlan === "enterprise"));
-
   let workspacePolicyMfaRequired = false;
   if (primaryWorkspaceId && workspaceLicenseActive) {
     const mfaRes = await admin
@@ -246,7 +239,6 @@ export async function GET() {
   }
 
   const mfaRequiredReasons: MfaRequirementReason[] = [];
-  if (paidAccountMfaRequired) mfaRequiredReasons.push("paid_account");
   if (workspacePolicyMfaRequired) mfaRequiredReasons.push("workspace_policy");
   const mfaRequired = mfaRequiredReasons.length > 0;
 

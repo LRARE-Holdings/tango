@@ -1,6 +1,6 @@
 import type { supabaseAdmin } from "@/lib/supabase/admin";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
-import { getWorkspaceEntitlementsForUser, type EffectivePlan } from "@/lib/workspace-licensing";
+import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 
 type DbErrorLike = {
   code?: string;
@@ -38,7 +38,7 @@ type UserSupabaseQueryClient = {
   from: (table: string) => QueryBuilderLike;
 };
 
-export type MfaRequirementReason = "paid_account" | "workspace_policy";
+export type MfaRequirementReason = "workspace_policy";
 
 export type MfaStatus = {
   enabled: boolean;
@@ -47,17 +47,6 @@ export type MfaStatus = {
 
 function asString(value: unknown) {
   return String(value ?? "").trim();
-}
-
-export function normalizePlan(value: unknown): EffectivePlan {
-  const plan = asString(value).toLowerCase();
-  if (plan === "personal" || plan === "pro" || plan === "team" || plan === "enterprise") return plan;
-  return "free";
-}
-
-export function isPersonalTierOrAbove(plan: unknown) {
-  const normalized = normalizePlan(plan);
-  return normalized === "personal" || normalized === "pro" || normalized === "team" || normalized === "enterprise";
 }
 
 export function isMissingColumnError(error: DbErrorLike | null | undefined, column: string) {
@@ -173,92 +162,47 @@ export async function getWorkspaceMfaRequirementForUser({
   return { required, workspaceId: resolved.id };
 }
 
-export async function getPaidAccountMfaRequirement({
+export async function getPrimaryWorkspaceMfaRequirementForUser({
   supabase,
   admin,
   userId,
-  primaryWorkspaceIdHint,
 }: {
   supabase: unknown;
   admin: ReturnType<typeof supabaseAdmin>;
   userId: string;
-  primaryWorkspaceIdHint?: string | null;
-}): Promise<{
-  required: boolean;
-  personalPlan: EffectivePlan;
-  primaryWorkspaceId: string | null;
-  viaWorkspaceLicense: boolean;
-}> {
+}): Promise<{ required: boolean; workspaceId: string | null }> {
   const client = supabase as UserSupabaseQueryClient;
-  let personalPlan: EffectivePlan = "free";
-  let paidEntitlement = false;
-
-  const entRes = await client
-    .from("profile_entitlements")
-    .select("plan,is_paid")
+  const profileRes = await client
+    .from("profiles")
+    .select("primary_workspace_id")
     .eq("id", userId)
     .maybeSingle();
 
-  if (entRes.error) {
-    const fallback = await client.from("profiles").select("plan").eq("id", userId).maybeSingle();
-    if (fallback.error && !isMissingColumnError(fallback.error as DbErrorLike, "plan")) {
-      throw new Error(fallback.error.message);
-    }
-    personalPlan = normalizePlan((fallback.data as { plan?: unknown } | null)?.plan ?? "free");
-  } else {
-    const row = (entRes.data ?? null) as { plan?: unknown; is_paid?: unknown } | null;
-    personalPlan = normalizePlan(row?.plan ?? "free");
-    paidEntitlement = row?.is_paid === true;
+  if (profileRes.error && !isMissingColumnError(profileRes.error as DbErrorLike, "primary_workspace_id")) {
+    throw new Error(profileRes.error.message);
   }
 
-  const personalTierRequired = isPersonalTierOrAbove(personalPlan) || paidEntitlement;
-
-  let primaryWorkspaceId = asString(primaryWorkspaceIdHint ?? "");
-  if (!primaryWorkspaceId) {
-    const profileRes = await client
-      .from("profiles")
-      .select("primary_workspace_id")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (profileRes.error && !isMissingColumnError(profileRes.error as DbErrorLike, "primary_workspace_id")) {
-      throw new Error(profileRes.error.message);
-    }
-
-    primaryWorkspaceId = asString(
-      (profileRes.data as { primary_workspace_id?: unknown } | null)?.primary_workspace_id ?? ""
-    );
-  }
-
-  if (personalTierRequired) {
-    return {
-      required: true,
-      personalPlan,
-      primaryWorkspaceId: primaryWorkspaceId || null,
-      viaWorkspaceLicense: false,
-    };
-  }
-
-  if (!primaryWorkspaceId) {
-    return {
-      required: false,
-      personalPlan,
-      primaryWorkspaceId: null,
-      viaWorkspaceLicense: false,
-    };
-  }
-
-  const workspaceEntitlements = await getWorkspaceEntitlementsForUser(admin, primaryWorkspaceId, userId);
-  const viaWorkspaceLicense = Boolean(
-    workspaceEntitlements &&
-      workspaceEntitlements.license_active &&
-      (workspaceEntitlements.plan === "team" || workspaceEntitlements.plan === "enterprise")
+  const primaryWorkspaceId = asString(
+    (profileRes.data as { primary_workspace_id?: unknown } | null)?.primary_workspace_id ?? ""
   );
+  if (!primaryWorkspaceId) return { required: false, workspaceId: null };
 
-  return {
-    required: viaWorkspaceLicense,
-    personalPlan,
-    primaryWorkspaceId,
-    viaWorkspaceLicense,
-  };
+  const entitlements = await getWorkspaceEntitlementsForUser(admin, primaryWorkspaceId, userId);
+  if (!entitlements || !entitlements.license_active) {
+    return { required: false, workspaceId: primaryWorkspaceId };
+  }
+
+  const wsRes = await admin
+    .from("workspaces")
+    .select("mfa_required")
+    .eq("id", primaryWorkspaceId)
+    .maybeSingle();
+
+  if (wsRes.error && isMissingColumnError(wsRes.error as DbErrorLike, "mfa_required")) {
+    return { required: false, workspaceId: primaryWorkspaceId };
+  }
+  if (wsRes.error) throw new Error(wsRes.error.message);
+
+  const required = (wsRes.data as { mfa_required?: unknown } | null)?.mfa_required === true;
+  return { required, workspaceId: primaryWorkspaceId };
 }

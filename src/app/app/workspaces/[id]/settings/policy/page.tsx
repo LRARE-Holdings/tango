@@ -158,7 +158,7 @@ export default function WorkspacePolicySettingsPage() {
                   <br />
                   • Uses bulk email plus share-link flow
                   <br />
-                  • Redirects non-MFA users to Account settings before workspace access
+                  • Redirects non-MFA users to the MFA setup screen before workspace access
                 </div>
               </>
             )}

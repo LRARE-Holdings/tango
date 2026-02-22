@@ -7,7 +7,7 @@ import {
 } from "@/lib/launch-access";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
-  getPaidAccountMfaRequirement,
+  getPrimaryWorkspaceMfaRequirementForUser,
   getVerifiedMfaStatus,
   getWorkspaceMfaRequirementForUser,
   workspaceIdentifierFromPath,
@@ -80,6 +80,7 @@ export async function proxy(req: NextRequest) {
   }
 
   const isAccountPath = pathname === "/app/account" || pathname.startsWith("/app/account/");
+  const isMfaSetupPath = pathname === "/app/setup/mfa" || pathname.startsWith("/app/setup/mfa/");
   const isApiPath = pathname.startsWith("/api/");
   const isAppApiPath = pathname.startsWith("/api/app");
   const isMfaBypassApiPath =
@@ -88,6 +89,7 @@ export async function proxy(req: NextRequest) {
     Boolean(user) &&
     (pathname.startsWith("/app") || pathname.startsWith("/checkout") || isAppApiPath) &&
     !isAccountPath &&
+    !isMfaSetupPath &&
     !(isAppApiPath && isMfaBypassApiPath);
 
   if (shouldEvaluateMfa && user) {
@@ -100,17 +102,14 @@ export async function proxy(req: NextRequest) {
       return { enabled: true, verifiedFactorCount: 0 };
     });
 
-    const paidRequirement = await getPaidAccountMfaRequirement({ supabase, admin, userId: user.id }).catch(
-      (error: unknown) => {
-        console.error("Paid-plan MFA requirement lookup failed:", error);
-        return {
-          required: false,
-          personalPlan: "free" as const,
-          primaryWorkspaceId: null,
-          viaWorkspaceLicense: false,
-        };
-      }
-    );
+    const primaryWorkspaceRequirement = await getPrimaryWorkspaceMfaRequirementForUser({
+      supabase,
+      admin,
+      userId: user.id,
+    }).catch((error: unknown) => {
+      console.error("Primary workspace MFA requirement lookup failed:", error);
+      return { required: false, workspaceId: null };
+    });
 
     const workspaceRequirement = workspaceIdentifier
       ? await getWorkspaceMfaRequirementForUser({ admin, userId: user.id, workspaceIdentifier }).catch(
@@ -121,12 +120,14 @@ export async function proxy(req: NextRequest) {
         )
       : { required: false, workspaceId: null };
 
-    const mfaRequired = paidRequirement.required || workspaceRequirement.required;
+    const requiredByWorkspacePath = workspaceRequirement.required;
+    const requiredByPrimaryWorkspace = primaryWorkspaceRequirement.required;
+    const mfaRequired = requiredByWorkspacePath || requiredByPrimaryWorkspace;
     if (mfaRequired && !mfaStatus.enabled) {
       if (isApiPath) {
         const denied = NextResponse.json(
           {
-            error: "Multi-factor authentication is required. Set up MFA in Account settings before continuing.",
+            error: "Multi-factor authentication is required by workspace policy. Complete MFA setup to continue.",
             code: "MFA_REQUIRED",
           },
           { status: 403 }
@@ -139,15 +140,24 @@ export async function proxy(req: NextRequest) {
       }
 
       const redirectUrl = req.nextUrl.clone();
-      redirectUrl.pathname = "/app/account";
+      redirectUrl.pathname = "/app/setup/mfa";
       redirectUrl.searchParams.set("mfa", "required");
-      if (workspaceRequirement.required && paidRequirement.required) {
-        redirectUrl.searchParams.set("mfa_scope", "plan+workspace");
-      } else if (workspaceRequirement.required) {
+      if (requiredByWorkspacePath && requiredByPrimaryWorkspace) {
+        if (
+          workspaceRequirement.workspaceId &&
+          primaryWorkspaceRequirement.workspaceId &&
+          workspaceRequirement.workspaceId !== primaryWorkspaceRequirement.workspaceId
+        ) {
+          redirectUrl.searchParams.set("mfa_scope", "multiple_workspaces");
+        } else {
+          redirectUrl.searchParams.set("mfa_scope", "workspace");
+        }
+      } else if (requiredByWorkspacePath) {
         redirectUrl.searchParams.set("mfa_scope", "workspace");
       } else {
-        redirectUrl.searchParams.set("mfa_scope", "plan");
+        redirectUrl.searchParams.set("mfa_scope", "primary_workspace");
       }
+      redirectUrl.searchParams.set("next", `${pathname}${req.nextUrl.search}`);
 
       const redirect = NextResponse.redirect(redirectUrl);
       redirect.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");

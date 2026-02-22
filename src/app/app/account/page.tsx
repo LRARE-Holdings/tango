@@ -33,7 +33,7 @@ type MeResponse = {
   mfa_enabled?: boolean | null;
   mfa_verified_factor_count?: number | null;
   mfa_required?: boolean | null;
-  mfa_required_reasons?: Array<"paid_account" | "workspace_policy"> | null;
+  mfa_required_reasons?: Array<"workspace_policy"> | null;
   usage?: {
     used: number;
     limit: number | null;
@@ -478,7 +478,6 @@ export default function AccountPage() {
   const isTeam = String(me?.plan ?? "").toLowerCase() === "team";
   const isPaid = String(me?.plan ?? "").toLowerCase() !== "free" && Boolean(status);
   const mfaRequired = me?.mfa_required === true;
-  const mfaReasons = Array.isArray(me?.mfa_required_reasons) ? me.mfa_required_reasons : [];
   const mfaPromptRequired = searchParams.get("mfa") === "required";
   const mfaPromptScope = String(searchParams.get("mfa_scope") ?? "").trim().toLowerCase();
   const verifiedMfaFactors = mfaFactors.filter((factor) => factor.status === "verified");
@@ -488,15 +487,11 @@ export default function AccountPage() {
   const showMfaEnrollmentPrompt = !mfaEnabled && (mfaRequired || mfaPromptRequired);
   const mfaPromptMessage = mfaPromptScope === "workspace"
     ? "This workspace requires MFA before access is restored."
-    : mfaPromptScope === "plan+workspace"
-      ? "Your paid plan and workspace policy require MFA before access is restored."
-      : "MFA is required before you can continue in the app.";
+    : mfaPromptScope === "multiple_workspaces"
+      ? "Multiple workspace policies require MFA before access is restored."
+    : "MFA is required before you can continue in the app.";
   const mfaRequirementMessage = mfaRequired
-    ? mfaReasons.includes("workspace_policy")
-      ? mfaReasons.includes("paid_account")
-        ? "MFA is required by your paid plan and workspace policy."
-        : "MFA is required by your workspace policy."
-      : "MFA is required on paid plans."
+    ? "MFA is required by your workspace policy."
     : "MFA is optional on your current plan.";
 
   useEffect(() => {
@@ -1137,6 +1132,10 @@ export default function AccountPage() {
                   {mfaEnabled
                     ? `${mfaVerifiedCount} verified factor${mfaVerifiedCount === 1 ? "" : "s"} configured.`
                     : "No verified factor yet. Add an authenticator app to protect your account."}
+                </div>
+                <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+                  Primary flow: <Link href="/app/setup/mfa" className="underline underline-offset-4">Security setup</Link>.
+                  {" "}This settings section remains available as backup.
                 </div>
                 <div
                   className="mt-2 text-xs leading-relaxed"

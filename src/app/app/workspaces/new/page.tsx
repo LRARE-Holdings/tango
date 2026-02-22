@@ -7,6 +7,7 @@ import Link from "next/link";
 export default function NewWorkspacePage() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,7 +18,7 @@ export default function NewWorkspacePage() {
       const res = await fetch("/api/app/workspaces", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, mfa_required: mfaRequired }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to create workspace");
@@ -63,6 +64,18 @@ export default function NewWorkspacePage() {
           className="mt-2 w-full border px-4 py-3 text-sm bg-transparent focus-ring"
           style={{ borderColor: "var(--border)", borderRadius: 10 }}
         />
+
+        <label className="mt-4 flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={mfaRequired}
+            onChange={(e) => setMfaRequired(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span style={{ color: "var(--muted)" }}>
+            Enforce MFA for licensed workspace members after creation. You can change this later in Policy & MFA.
+          </span>
+        </label>
 
         <div className="mt-4 flex gap-2">
           <button
