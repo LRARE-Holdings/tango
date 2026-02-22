@@ -431,9 +431,6 @@ export default function BillingCheckoutPage() {
                 RECEIPT BILLING
               </div>
               <h1 className="mt-3 marketing-serif text-4xl leading-none tracking-tight">Complete payment</h1>
-              <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-                This is a dedicated checkout state. Subscription management remains in Stripe&apos;s hosted customer portal.
-              </p>
 
               {query ? (
                 <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
