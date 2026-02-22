@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { PlanMenu } from "@/components/app/plan-menu";
 import { SettingsCog } from "@/components/app/settings-cog";
 import { canAccessAdminSettings, canAccessKeySettings, canUseStackDelivery, canViewAnalytics } from "@/lib/workspace-permissions";
+import { canAccessFeatureByPlan } from "@/lib/workspace-features";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 type WorkspaceRole = "owner" | "admin" | "member";
@@ -139,11 +140,25 @@ export function TopbarNav({
         activePlan
       )
   );
+  const showTemplates = Boolean(
+    idForLinks &&
+      currentMember &&
+      currentMember.license_active !== false &&
+      canAccessFeatureByPlan(activeWorkspaceCtx?.licensing?.plan ?? "free", "templates")
+  );
+  const showContacts = Boolean(
+    idForLinks &&
+      currentMember &&
+      currentMember.license_active !== false &&
+      canAccessFeatureByPlan(activeWorkspaceCtx?.licensing?.plan ?? "free", "contacts")
+  );
 
   const items = [
     { href: homeHref, label: "Home" },
     { href: sendHref, label: "Send" },
     { href: filesHref, label: "Files" },
+    ...(showTemplates ? [{ href: "/app/templates", label: "Templates" }] : []),
+    ...(showContacts ? [{ href: "/app/contacts", label: "Contacts" }] : []),
     ...(showStacks && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/stacks`, label: "Stacks" }] : []),
     ...(showAnalytics && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/analytics`, label: "Analytics" }] : []),
   ];

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
 import { InlineNotice, SectionDisclosure } from "@/components/ui/calm-core";
+import { normalizeTemplateSettings, type ReceiptTemplateSettings } from "@/lib/template-settings";
 
 type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 type SendMode = "single_upload" | "selected_documents" | "full_stack";
@@ -14,6 +15,26 @@ type Recipient = {
   name: string;
   email: string;
   save: boolean; // Pro+ only
+};
+
+type WorkspaceContact = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+type ContactGroup = {
+  id: string;
+  name: string;
+  member_count: number;
+  members: Array<{ contact_id: string; name: string; email: string }>;
+};
+
+type WorkspaceTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  settings: ReceiptTemplateSettings;
 };
 
 function uid() {
@@ -27,6 +48,19 @@ function normalizeEmail(s: string) {
 function isEmail(s: string) {
   const v = normalizeEmail(s);
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+function fallbackRecipientName(name: string, email: string) {
+  const trimmed = name.trim();
+  if (trimmed) return trimmed;
+  const localPart = normalizeEmail(email).split("@")[0] ?? "";
+  const clean = localPart.replace(/[._-]+/g, " ").trim();
+  return clean || normalizeEmail(email);
+}
+
+function serializeLabels(labels: string[] | undefined) {
+  if (!labels || labels.length === 0) return "";
+  return labels.join(", ");
 }
 
 function planRank(p: Plan) {
@@ -266,6 +300,7 @@ export default function NewReceipt() {
   const searchParams = useSearchParams();
   const toast = useToast();
   const nudgesShownRef = useRef<Record<string, boolean>>({});
+  const lastAppliedTemplateIdRef = useRef<string | null>(null);
 
   const [plan, setPlan] = useState<Plan>("free");
   const [primaryWorkspaceId, setPrimaryWorkspaceId] = useState<string | null>(null);
@@ -274,6 +309,7 @@ export default function NewReceipt() {
   const personalPlus = can(plan, "personal");
   const proPlus = can(plan, "pro");
   const canStackSend = can(plan, "pro");
+  const workspaceProFeaturesEnabled = proPlus && Boolean(primaryWorkspaceId);
 
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<"low" | "normal" | "high">("normal");
@@ -294,7 +330,7 @@ export default function NewReceipt() {
   const [password, setPassword] = useState("");
 
   const [useTemplate, setUseTemplate] = useState(false);
-  const [templateId, setTemplateId] = useState<string>("default");
+  const [templateId, setTemplateId] = useState<string>("");
   const [saveAsDefault, setSaveAsDefault] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -307,6 +343,16 @@ export default function NewReceipt() {
   const [availableStacks, setAvailableStacks] = useState<Array<{ id: string; name: string; item_count: number }>>([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [selectedStackId, setSelectedStackId] = useState("");
+  const [workspaceContacts, setWorkspaceContacts] = useState<WorkspaceContact[]>([]);
+  const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [selectedContactGroupIds, setSelectedContactGroupIds] = useState<string[]>([]);
+  const [contactPickerQuery, setContactPickerQuery] = useState("");
+  const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  const [contactsError, setContactsError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadMe() {
@@ -362,7 +408,14 @@ export default function NewReceipt() {
             : null;
           const licenseActive = memberRow?.license_active !== false;
           const workspacePlan = String(wsJson2?.licensing?.plan ?? "").toLowerCase();
-          if (licenseActive && (workspacePlan === "team" || workspacePlan === "enterprise")) {
+          if (
+            licenseActive &&
+            (workspacePlan === "free" ||
+              workspacePlan === "personal" ||
+              workspacePlan === "pro" ||
+              workspacePlan === "team" ||
+              workspacePlan === "enterprise")
+          ) {
             setPlan(workspacePlan as Plan);
             return;
           }
@@ -370,6 +423,14 @@ export default function NewReceipt() {
           setWorkspaceTagFields([]);
           setTagValues({});
           setPolicyModeEnabled(false);
+          setWorkspaceContacts([]);
+          setContactGroups([]);
+          setTemplates([]);
+          setSelectedContactIds([]);
+          setSelectedContactGroupIds([]);
+          setContactsError(null);
+          setTemplatesError(null);
+          setTemplateId("");
         }
 
         const p = String(json.plan ?? json.tier ?? json.subscription_plan ?? "").toLowerCase();
@@ -467,6 +528,120 @@ export default function NewReceipt() {
     };
   }, [primaryWorkspaceId, canStackSend]);
 
+  useEffect(() => {
+    if (!workspaceProFeaturesEnabled || !primaryWorkspaceId) {
+      setWorkspaceContacts([]);
+      setContactGroups([]);
+      setTemplates([]);
+      setSelectedContactIds([]);
+      setSelectedContactGroupIds([]);
+      setContactPickerQuery("");
+      setContactsLoading(false);
+      setTemplatesLoading(false);
+      setContactsError(null);
+      setTemplatesError(null);
+      setUseTemplate(false);
+      setTemplateId("");
+      return;
+    }
+
+    const workspaceId = primaryWorkspaceId;
+    let cancelled = false;
+
+    async function loadWorkspaceAssets() {
+      setContactsLoading(true);
+      setTemplatesLoading(true);
+      setContactsError(null);
+      setTemplatesError(null);
+
+      try {
+        const [contactsRes, groupsRes, templatesRes] = await Promise.all([
+          fetch(`/api/app/workspaces/${encodeURIComponent(workspaceId)}/contacts?limit=400`, { cache: "no-store" }),
+          fetch(`/api/app/workspaces/${encodeURIComponent(workspaceId)}/contact-groups?include_members=true&limit=200`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/app/workspaces/${encodeURIComponent(workspaceId)}/templates?limit=150`, { cache: "no-store" }),
+        ]);
+
+        const contactsJson = (await contactsRes.json().catch(() => null)) as
+          | { contacts?: WorkspaceContact[]; error?: string }
+          | null;
+        const groupsJson = (await groupsRes.json().catch(() => null)) as
+          | { groups?: ContactGroup[]; error?: string }
+          | null;
+        const templatesJson = (await templatesRes.json().catch(() => null)) as
+          | { templates?: WorkspaceTemplate[]; error?: string }
+          | null;
+
+        if (!cancelled) {
+          if (contactsRes.status === 403 || groupsRes.status === 403) {
+            setWorkspaceContacts([]);
+            setContactGroups([]);
+            setSelectedContactIds([]);
+            setSelectedContactGroupIds([]);
+            setContactsError("Contacts and groups require a Pro+ workspace plan.");
+          } else if (!contactsRes.ok || !groupsRes.ok) {
+            throw new Error(
+              contactsJson?.error ??
+                groupsJson?.error ??
+                "Failed to load workspace contacts and groups."
+            );
+          } else {
+            const nextContacts = Array.isArray(contactsJson?.contacts) ? contactsJson.contacts : [];
+            const nextGroups = Array.isArray(groupsJson?.groups) ? groupsJson.groups : [];
+            setWorkspaceContacts(nextContacts);
+            setContactGroups(nextGroups);
+            setSelectedContactIds((current) => current.filter((id) => nextContacts.some((contact) => contact.id === id)));
+            setSelectedContactGroupIds((current) =>
+              current.filter((id) => nextGroups.some((group) => group.id === id))
+            );
+            setContactsError(null);
+          }
+
+          if (templatesRes.status === 403) {
+            setTemplates([]);
+            setUseTemplate(false);
+            setTemplateId("");
+            setTemplatesError("Templates require a Pro+ workspace plan.");
+          } else if (!templatesRes.ok) {
+            throw new Error(templatesJson?.error ?? "Failed to load workspace templates.");
+          } else {
+            const nextTemplates = Array.isArray(templatesJson?.templates)
+              ? templatesJson.templates.map((template) => ({
+                  ...template,
+                  settings: normalizeTemplateSettings(template.settings),
+                }))
+              : [];
+            setTemplates(nextTemplates);
+            setTemplateId((current) => (current && nextTemplates.some((template) => template.id === current)
+              ? current
+              : (nextTemplates[0]?.id ?? "")));
+            setTemplatesError(null);
+          }
+        }
+      } catch (loadError: unknown) {
+        if (!cancelled) {
+          const message = loadError instanceof Error ? loadError.message : "Failed to load workspace assets.";
+          setContactsError(message);
+          setTemplatesError(message);
+          setWorkspaceContacts([]);
+          setContactGroups([]);
+          setTemplates([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setContactsLoading(false);
+          setTemplatesLoading(false);
+        }
+      }
+    }
+
+    void loadWorkspaceAssets();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceProFeaturesEnabled, primaryWorkspaceId]);
+
   function maybeNudgeUpgrade(key: string, title: string, description: string) {
     if (plan !== "free") return;
     if (nudgesShownRef.current[key]) return;
@@ -525,7 +700,6 @@ export default function NewReceipt() {
         ? Boolean(selectedStackId)
         : selectedDocumentIds.length > 0;
 
-  const recipientsCount = useMemo(() => recipients.filter((r) => r.name.trim() || r.email.trim()).length, [recipients]);
   const flowStep = useMemo(() => {
     if (shareUrl) return 3;
     if (hasSource) return 2;
@@ -545,16 +719,6 @@ export default function NewReceipt() {
     }
   }, [hasSource, shareUrl, wizardStep]);
 
-  const recipientsValid = useMemo(() => {
-    if (!sendEmails) return true;
-    const filled = recipients.filter((r) => r.name.trim() || r.email.trim());
-    if (filled.length === 0) return false;
-    for (const r of filled) {
-      if (!r.email.trim() || !isEmail(r.email)) return false;
-    }
-    return true;
-  }, [recipients, sendEmails]);
-
   const configuredRecipients = useMemo(() => {
     return recipients
       .filter((r) => r.name.trim() || r.email.trim())
@@ -564,6 +728,87 @@ export default function NewReceipt() {
         save: Boolean(r.save) && proPlus,
       }));
   }, [recipients, proPlus]);
+
+  const manualRecipientsHaveInvalidEmail = useMemo(() => {
+    const filled = recipients.filter((r) => r.name.trim() || r.email.trim());
+    return filled.some((recipient) => !recipient.email.trim() || !isEmail(recipient.email));
+  }, [recipients]);
+
+  const filteredWorkspaceContacts = useMemo(() => {
+    const needle = contactPickerQuery.trim().toLowerCase();
+    if (!needle) return workspaceContacts;
+    return workspaceContacts.filter((contact) =>
+      `${contact.name} ${contact.email}`.toLowerCase().includes(needle)
+    );
+  }, [workspaceContacts, contactPickerQuery]);
+
+  const filteredContactGroups = useMemo(() => {
+    const needle = contactPickerQuery.trim().toLowerCase();
+    if (!needle) return contactGroups;
+    return contactGroups.filter((group) => group.name.toLowerCase().includes(needle));
+  }, [contactGroups, contactPickerQuery]);
+
+  const contactById = useMemo(
+    () => new Map(workspaceContacts.map((contact) => [contact.id, contact])),
+    [workspaceContacts]
+  );
+
+  const groupById = useMemo(
+    () => new Map(contactGroups.map((group) => [group.id, group])),
+    [contactGroups]
+  );
+
+  const expandedRecipientPreview = useMemo(() => {
+    const dedup = new Map<string, { name: string; email: string }>();
+
+    for (const recipient of configuredRecipients) {
+      if (!isEmail(recipient.email)) continue;
+      const email = normalizeEmail(recipient.email);
+      dedup.set(email, {
+        email,
+        name: fallbackRecipientName(recipient.name, email),
+      });
+    }
+
+    for (const contactId of selectedContactIds) {
+      const contact = contactById.get(contactId);
+      if (!contact || !isEmail(contact.email)) continue;
+      const email = normalizeEmail(contact.email);
+      dedup.set(email, {
+        email,
+        name: fallbackRecipientName(contact.name, email),
+      });
+    }
+
+    for (const groupId of selectedContactGroupIds) {
+      const group = groupById.get(groupId);
+      if (!group) continue;
+      for (const member of group.members) {
+        const email = normalizeEmail(member.email);
+        if (!isEmail(email)) continue;
+        dedup.set(email, {
+          email,
+          name: fallbackRecipientName(member.name, email),
+        });
+      }
+    }
+
+    return Array.from(dedup.values());
+  }, [configuredRecipients, selectedContactIds, selectedContactGroupIds, contactById, groupById]);
+
+  const recipientsCount = expandedRecipientPreview.length;
+  const recipientPreviewHead = expandedRecipientPreview.slice(0, 5);
+
+  const recipientsValid = useMemo(() => {
+    if (!sendEmails) return true;
+    if (manualRecipientsHaveInvalidEmail) return false;
+    return expandedRecipientPreview.length > 0;
+  }, [sendEmails, manualRecipientsHaveInvalidEmail, expandedRecipientPreview.length]);
+
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === templateId) ?? null,
+    [templates, templateId]
+  );
 
   function setRecipient(id: string, patch: Partial<Recipient>) {
     setRecipients((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -582,6 +827,81 @@ export default function NewReceipt() {
     setRecipients((rs) => rs.filter((r) => r.id !== id));
   }
 
+  function toggleSelectedContact(contactId: string) {
+    setSelectedContactIds((current) =>
+      current.includes(contactId) ? current.filter((id) => id !== contactId) : [...current, contactId]
+    );
+  }
+
+  function toggleSelectedContactGroup(groupId: string) {
+    setSelectedContactGroupIds((current) =>
+      current.includes(groupId) ? current.filter((id) => id !== groupId) : [...current, groupId]
+    );
+  }
+
+  useEffect(() => {
+    if (!useTemplate || !workspaceProFeaturesEnabled) {
+      lastAppliedTemplateIdRef.current = null;
+      return;
+    }
+
+    if (!templateId) {
+      const firstTemplateId = templates[0]?.id ?? "";
+      if (firstTemplateId) setTemplateId(firstTemplateId);
+      return;
+    }
+
+    const template = templates.find((row) => row.id === templateId);
+    if (!template) return;
+    if (lastAppliedTemplateIdRef.current === template.id) return;
+    lastAppliedTemplateIdRef.current = template.id;
+
+    const settings = normalizeTemplateSettings(template.settings);
+    if (settings.priority) setPriority(settings.priority);
+    if (settings.labels) setLabelsInput(serializeLabels(settings.labels));
+
+    if (settings.tags) {
+      setTagValues(() => {
+        const next: Record<string, string> = {};
+        for (const field of workspaceTagFields) {
+          next[field.key] = String(settings.tags?.[field.key] ?? "");
+        }
+        return next;
+      });
+    }
+
+    if (settings.send_emails !== undefined) {
+      setSendEmails(policyModeEnabled ? true : (settings.send_emails === true && personalPlus));
+    }
+    if (settings.require_recipient_identity !== undefined) {
+      setRequireRecipientIdentity(
+        policyModeEnabled ? true : (settings.require_recipient_identity === true && plan !== "free")
+      );
+    }
+
+    if (settings.password_enabled !== undefined) {
+      setPasswordEnabled(settings.password_enabled === true && personalPlus);
+      setPassword("");
+    }
+
+    if (!policyModeEnabled && settings.max_acknowledgers_enabled !== undefined) {
+      const enabled = settings.max_acknowledgers_enabled === true;
+      setMaxAcknowledgersEnabled(enabled);
+      if (enabled) {
+        setMaxAcknowledgers(Math.max(1, Math.min(999, Number(settings.max_acknowledgers ?? 1) || 1)));
+      }
+    }
+  }, [
+    useTemplate,
+    workspaceProFeaturesEnabled,
+    templateId,
+    templates,
+    workspaceTagFields,
+    personalPlus,
+    policyModeEnabled,
+    plan,
+  ]);
+
   function validate(): string | null {
     if (needsWorkspaceSelection) {
       return "Choose an active workspace from the top selector before creating a receipt.";
@@ -599,6 +919,9 @@ export default function NewReceipt() {
     if (sendMode !== "single_upload" && !primaryWorkspaceId) {
       return "Select an active workspace before sending a stack.";
     }
+    if (!workspaceProFeaturesEnabled && (selectedContactIds.length > 0 || selectedContactGroupIds.length > 0)) {
+      return "Contacts and groups require an active Pro+ workspace.";
+    }
     if (sendEmails && !personalPlus) return "Email sending is available on Personal plans and above.";
     if (!recipientsValid) return "Please add valid recipient emails (or turn off email sending).";
     if (passwordEnabled && !personalPlus) return "Password protection is available on Personal plans and above.";
@@ -606,7 +929,12 @@ export default function NewReceipt() {
     if (maxAcknowledgersEnabled && (!Number.isFinite(maxAcknowledgers) || maxAcknowledgers < 1)) {
       return "Acknowledger limit must be at least 1.";
     }
-    if (useTemplate && !proPlus) return "Templates and defaults are available on Pro plans and above.";
+    if (useTemplate && !workspaceProFeaturesEnabled) {
+      return "Templates require an active Pro+ workspace.";
+    }
+    if (useTemplate && workspaceProFeaturesEnabled && !templateId) {
+      return "Choose a workspace template before continuing.";
+    }
     return null;
   }
 
@@ -641,9 +969,15 @@ export default function NewReceipt() {
         form.append("tags", JSON.stringify(tagValues));
         form.append("priority", priority);
         form.append("labels", labelsInput);
-        form.append("template_enabled", String(useTemplate && proPlus));
-        form.append("template_id", useTemplate && proPlus ? templateId : "");
+        form.append("template_enabled", String(useTemplate && workspaceProFeaturesEnabled));
+        form.append("template_id", useTemplate && workspaceProFeaturesEnabled ? templateId : "");
         form.append("save_default", String(saveAsDefault && proPlus));
+        if (workspaceProFeaturesEnabled && selectedContactIds.length > 0) {
+          form.append("contact_ids", JSON.stringify(selectedContactIds));
+        }
+        if (workspaceProFeaturesEnabled && selectedContactGroupIds.length > 0) {
+          form.append("contact_group_ids", JSON.stringify(selectedContactGroupIds));
+        }
         res = await fetch("/api/app/documents/create-from-source", { method: "POST", body: form });
       } else {
         res = await fetch(`/api/app/workspaces/${encodeURIComponent(primaryWorkspaceId ?? "")}/send`, {
@@ -656,6 +990,11 @@ export default function NewReceipt() {
             title: title || undefined,
             send_emails: sendEmails && personalPlus,
             recipients: configuredRecipients,
+            contact_ids: workspaceProFeaturesEnabled && selectedContactIds.length > 0 ? selectedContactIds : undefined,
+            contact_group_ids:
+              workspaceProFeaturesEnabled && selectedContactGroupIds.length > 0
+                ? selectedContactGroupIds
+                : undefined,
           }),
         });
       }
@@ -728,7 +1067,9 @@ export default function NewReceipt() {
     const emailState = sendEmails && personalPlus ? "On" : "Off";
     const passState = passwordEnabled && personalPlus ? "On" : "Off";
     const ackState = maxAcknowledgersEnabled ? `Max ${maxAcknowledgers}` : "Unlimited";
-    const templateState = useTemplate && proPlus ? templateId : "Off";
+    const templateState = useTemplate && workspaceProFeaturesEnabled
+      ? (selectedTemplate?.name ?? "Not selected")
+      : "Off";
     return [
       { k: "Plan", v: plan.toUpperCase() },
       {
@@ -782,8 +1123,8 @@ export default function NewReceipt() {
     maxAcknowledgersEnabled,
     maxAcknowledgers,
     useTemplate,
-    proPlus,
-    templateId,
+    workspaceProFeaturesEnabled,
+    selectedTemplate?.name,
   ]);
 
   return (
@@ -1273,9 +1614,133 @@ export default function NewReceipt() {
                     </button>
                   </div>
 
+                  <div
+                    className="space-y-3 p-4"
+                    style={{ borderRadius: 14, border: "1px solid var(--border)", background: "var(--card)" }}
+                  >
+                    <div className="flex items-start justify-between gap-3 flex-col sm:flex-row">
+                      <div>
+                        <div className="text-sm font-semibold">Directory recipients</div>
+                        <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                          Select contacts and groups for mass sending. Recipients are deduped automatically at send-time.
+                        </div>
+                      </div>
+                      <Pill>
+                        {selectedContactIds.length} contacts • {selectedContactGroupIds.length} groups
+                      </Pill>
+                    </div>
+
+                    {!workspaceProFeaturesEnabled ? (
+                      <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                        {primaryWorkspaceId
+                          ? "Upgrade this workspace to Pro+ to use contacts and groups."
+                          : "Select an active Pro+ workspace to use contacts and groups."}
+                      </div>
+                    ) : contactsLoading ? (
+                      <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                        Loading contacts and groups…
+                      </div>
+                    ) : contactsError ? (
+                      <div className="text-xs" style={{ color: "#ff3b30" }}>
+                        {contactsError}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <Input
+                          value={contactPickerQuery}
+                          onChange={setContactPickerQuery}
+                          placeholder="Search contacts or groups"
+                        />
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>CONTACTS</Label>
+                            <div className="max-h-44 space-y-1 overflow-auto rounded-xl border p-3" style={{ borderColor: "var(--border)" }}>
+                              {filteredWorkspaceContacts.length === 0 ? (
+                                <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                                  No contacts found.
+                                </div>
+                              ) : (
+                                filteredWorkspaceContacts.map((contact) => (
+                                  <label key={contact.id} className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedContactIds.includes(contact.id)}
+                                      onChange={() => toggleSelectedContact(contact.id)}
+                                    />
+                                    <span className="truncate">{contact.name}</span>
+                                    <span className="truncate text-xs" style={{ color: "var(--muted2)" }}>
+                                      {contact.email}
+                                    </span>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>GROUPS</Label>
+                            <div className="max-h-44 space-y-1 overflow-auto rounded-xl border p-3" style={{ borderColor: "var(--border)" }}>
+                              {filteredContactGroups.length === 0 ? (
+                                <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                                  No groups found.
+                                </div>
+                              ) : (
+                                filteredContactGroups.map((group) => (
+                                  <label key={group.id} className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedContactGroupIds.includes(group.id)}
+                                      onChange={() => toggleSelectedContactGroup(group.id)}
+                                    />
+                                    <span className="truncate">{group.name}</span>
+                                    <span className="truncate text-xs" style={{ color: "var(--muted2)" }}>
+                                      {group.member_count} member{group.member_count === 1 ? "" : "s"}
+                                    </span>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div
+                      className="space-y-2 rounded-xl border p-3"
+                      style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--bg) 88%, var(--card2))" }}
+                    >
+                      <div className="text-xs font-semibold" style={{ color: "var(--muted2)" }}>
+                        Recipient preview
+                      </div>
+                      <div className="text-sm font-semibold">
+                        {recipientsCount} unique recipient{recipientsCount === 1 ? "" : "s"}
+                      </div>
+                      <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                        Manual ({configuredRecipients.length}) + Contacts ({selectedContactIds.length}) + Groups ({selectedContactGroupIds.length})
+                      </div>
+                      {recipientPreviewHead.length > 0 ? (
+                        <div className="space-y-1">
+                          {recipientPreviewHead.map((recipient) => (
+                            <div key={recipient.email} className="text-xs" style={{ color: "var(--muted)" }}>
+                              {recipient.name} · {recipient.email}
+                            </div>
+                          ))}
+                          {recipientsCount > recipientPreviewHead.length ? (
+                            <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                              +{recipientsCount - recipientPreviewHead.length} more
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                          Add a manual recipient, contact, or group to preview recipients.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {sendEmails && !recipientsValid ? (
                     <div className="text-xs" style={{ color: "#ff3b30" }}>
-                      If email sending is on, at least one valid recipient email is required.
+                      If email sending is on, add at least one valid recipient email, contact, or group.
                     </div>
                   ) : null}
                 </div>
@@ -1406,7 +1871,7 @@ export default function NewReceipt() {
                   title="Templates"
                   subtitle="Use presets and save defaults (Pro+)."
                   right={
-                    !proPlus ? (
+                    !workspaceProFeaturesEnabled ? (
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
                           PRO+
@@ -1428,25 +1893,48 @@ export default function NewReceipt() {
                       <div className="min-w-0">
                         <div className="text-sm font-semibold">Use a template</div>
                         <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                          {proPlus ? "Pick a preset for this receipt." : "Upgrade to Pro to use templates."}
+                          {workspaceProFeaturesEnabled
+                            ? "Pick a workspace template for this receipt."
+                            : "Templates require an active Pro+ workspace."}
                         </div>
                       </div>
-                      <Toggle checked={useTemplate} setChecked={setUseTemplate} disabled={!proPlus} />
+                      <Toggle checked={useTemplate} setChecked={setUseTemplate} disabled={!workspaceProFeaturesEnabled} />
                     </div>
 
                     {useTemplate ? (
-                      <div className="space-y-2">
-                        <Label>TEMPLATE</Label>
-                        <Select value={templateId} onChange={setTemplateId} disabled={!proPlus}>
-                          <option value="default">Default</option>
-                          <option value="client-care-letter">Client Care Letter</option>
-                          <option value="terms-of-business">Terms of Business</option>
-                          <option value="completion-statement">Completion Statement</option>
-                        </Select>
+                      !workspaceProFeaturesEnabled ? (
                         <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                          Choose the template that best matches this document.
+                          Select an active Pro+ workspace to load templates.
                         </div>
-                      </div>
+                      ) : templatesLoading ? (
+                        <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                          Loading templates…
+                        </div>
+                      ) : templatesError ? (
+                        <div className="text-xs" style={{ color: "#ff3b30" }}>
+                          {templatesError}
+                        </div>
+                      ) : templates.length === 0 ? (
+                        <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                          No templates found. Create one in the Templates page.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label>TEMPLATE</Label>
+                          <Select value={templateId} onChange={setTemplateId} disabled={!workspaceProFeaturesEnabled}>
+                            {templates.map((template) => (
+                              <option key={template.id} value={template.id}>
+                                {template.name}
+                              </option>
+                            ))}
+                          </Select>
+                          <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                            {selectedTemplate?.description
+                              ? selectedTemplate.description
+                              : "Selecting a template applies its settings. You can still override manually."}
+                          </div>
+                        </div>
+                      )
                     ) : null}
 
                     <div

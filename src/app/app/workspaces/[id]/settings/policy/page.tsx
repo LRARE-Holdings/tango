@@ -8,6 +8,7 @@ type Workspace = {
   name: string;
   slug: string | null;
   policy_mode_enabled?: boolean;
+  mfa_required?: boolean;
 };
 
 type Licensing = {
@@ -27,6 +28,7 @@ export default function WorkspacePolicySettingsPage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [licensing, setLicensing] = useState<Licensing | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   const policyEligible = useMemo(() => {
     const plan = String(licensing?.plan ?? "").toLowerCase();
@@ -57,6 +59,7 @@ export default function WorkspacePolicySettingsPage() {
         setWorkspace(ws);
         setLicensing(lic);
         setEnabled(ws?.policy_mode_enabled === true);
+        setMfaRequired(ws?.mfa_required === true);
       } catch (e: unknown) {
         if (alive) setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {
@@ -83,6 +86,7 @@ export default function WorkspacePolicySettingsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           policy_mode_enabled: enabled,
+          mfa_required: mfaRequired,
         }),
       });
       const json = await res.json().catch(() => null);
@@ -91,7 +95,8 @@ export default function WorkspacePolicySettingsPage() {
       const ws = (json?.workspace ?? null) as Workspace | null;
       setWorkspace(ws);
       setEnabled(ws?.policy_mode_enabled === true);
-      setMessage("Policy mode settings saved.");
+      setMfaRequired(ws?.mfa_required === true);
+      setMessage("Policy and security settings saved.");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save policy settings");
     } finally {
@@ -107,7 +112,7 @@ export default function WorkspacePolicySettingsPage() {
       >
         <div className="text-lg font-semibold">Policy mode</div>
         <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Team/Enterprise workflow presets for workplace policy acknowledgements.
+          Team/Enterprise workflow presets and security controls for this workspace.
         </div>
 
         {loading ? (
@@ -134,6 +139,15 @@ export default function WorkspacePolicySettingsPage() {
                   <span>Enable Policy mode for this workspace</span>
                 </label>
 
+                <label className="flex items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={mfaRequired}
+                    onChange={(e) => setMfaRequired(e.target.checked)}
+                  />
+                  <span>Require MFA for licensed workspace members</span>
+                </label>
+
                 <div
                   className="text-xs border px-4 py-3"
                   style={{ borderColor: "var(--border)", borderRadius: 10, color: "var(--muted2)" }}
@@ -143,6 +157,8 @@ export default function WorkspacePolicySettingsPage() {
                   • No maximum acknowledgements (unlimited)
                   <br />
                   • Uses bulk email plus share-link flow
+                  <br />
+                  • Redirects non-MFA users to Account settings before workspace access
                 </div>
               </>
             )}

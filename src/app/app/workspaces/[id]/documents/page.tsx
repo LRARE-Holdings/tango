@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type WorkspaceInfo = {
   id: string;
@@ -31,6 +31,21 @@ type ResponsibilityMember = {
   user_id: string;
   email: string | null;
   role: ViewerRole;
+  display_name?: string | null;
+  license_active?: boolean;
+  hint?: string | null;
+  is_owner?: boolean;
+};
+
+type CoOwnershipSearchResult = {
+  user_id: string;
+  email: string | null;
+  display_name: string | null;
+  role: ViewerRole;
+  license_active: boolean;
+  hint: string | null;
+  selected: boolean;
+  is_owner: boolean;
 };
 
 type StackSummary = {
@@ -66,6 +81,18 @@ function formatDate(iso: string | null) {
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const mi = String(d.getUTCMinutes()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
+}
+
+function coOwnerName(input: {
+  display_name?: string | null;
+  email?: string | null;
+  user_id: string;
+}) {
+  const displayName = String(input.display_name ?? "").trim();
+  if (displayName) return displayName;
+  const email = String(input.email ?? "").trim();
+  if (email) return email;
+  return input.user_id;
 }
 
 function StatusBadge({ status }: { status: DocItem["status"] }) {
@@ -125,6 +152,15 @@ export default function WorkspaceDocumentsPage() {
   const [ownershipSelectedUserIds, setOwnershipSelectedUserIds] = useState<string[]>([]);
   const [ownershipOwnerUserId, setOwnershipOwnerUserId] = useState<string | null>(null);
   const [ownershipCanManage, setOwnershipCanManage] = useState(false);
+  const [ownershipSearchQuery, setOwnershipSearchQuery] = useState("");
+  const [ownershipSearchResults, setOwnershipSearchResults] = useState<CoOwnershipSearchResult[]>([]);
+  const [ownershipSearchLoading, setOwnershipSearchLoading] = useState(false);
+  const [ownershipSearchError, setOwnershipSearchError] = useState<string | null>(null);
+  const [ownershipSearchNextOffset, setOwnershipSearchNextOffset] = useState<number | null>(null);
+  const [ownershipHighlightedIndex, setOwnershipHighlightedIndex] = useState(0);
+  const [ownershipConfirmOpen, setOwnershipConfirmOpen] = useState(false);
+  const ownershipDialogRef = useRef<HTMLDivElement | null>(null);
+  const ownershipSearchInputRef = useRef<HTMLInputElement | null>(null);
   const [tagEditorDoc, setTagEditorDoc] = useState<DocItem | null>(null);
   const [tagEditorValues, setTagEditorValues] = useState<Record<string, string>>({});
   const [tagEditorSaving, setTagEditorSaving] = useState(false);
@@ -356,6 +392,84 @@ export default function WorkspaceDocumentsPage() {
       .slice(0, 8);
   }, [documents]);
 
+  const ownershipSelectedSet = useMemo(
+    () => new Set(ownershipSelectedUserIds),
+    [ownershipSelectedUserIds]
+  );
+
+  const ownershipSelectedMembers = useMemo(() => {
+    const byId = new Map<string, ResponsibilityMember>();
+    for (const member of ownershipMembers) {
+      byId.set(member.user_id, member);
+    }
+    for (const result of ownershipSearchResults) {
+      if (!byId.has(result.user_id)) {
+        byId.set(result.user_id, {
+          user_id: result.user_id,
+          email: result.email,
+          role: result.role,
+          display_name: result.display_name,
+          license_active: result.license_active,
+          hint: result.hint,
+          is_owner: result.is_owner,
+        });
+      }
+    }
+    return ownershipSelectedUserIds
+      .map((id) => byId.get(id))
+      .filter((row): row is ResponsibilityMember => Boolean(row));
+  }, [ownershipMembers, ownershipSearchResults, ownershipSelectedUserIds]);
+
+  const selectedCoOwnerCount = Math.max(
+    0,
+    ownershipSelectedUserIds.length - (ownershipOwnerUserId ? 1 : 0)
+  );
+
+  const ownershipDocId = ownershipDoc?.id ?? null;
+
+  const fetchOwnershipSearch = useCallback(async (offset: number, append: boolean) => {
+    if (!ownershipDocId) return;
+    const query = ownershipSearchQuery.trim();
+    if (query.length < 2) return;
+
+    setOwnershipSearchLoading(true);
+    setOwnershipSearchError(null);
+    try {
+      const res = await fetch(
+        `/api/app/documents/${ownershipDocId}/responsibilities?search=1&q=${encodeURIComponent(query)}&limit=12&offset=${offset}`,
+        { cache: "no-store" }
+      );
+      const json = (await res.json().catch(() => null)) as
+        | { error?: string; results?: CoOwnershipSearchResult[]; next_offset?: number | null }
+        | null;
+      if (!res.ok) throw new Error(json?.error ?? "Failed to search workspace members.");
+
+      const rows = Array.isArray(json?.results) ? json.results : [];
+      setOwnershipSearchResults((current) => {
+        const merged = append ? [...current, ...rows] : rows;
+        const seen = new Set<string>();
+        const deduped: CoOwnershipSearchResult[] = [];
+        for (const row of merged) {
+          const userId = String(row.user_id);
+          if (seen.has(userId)) continue;
+          deduped.push({ ...row, user_id: userId });
+          seen.add(userId);
+        }
+        return deduped;
+      });
+      setOwnershipSearchNextOffset(
+        typeof json?.next_offset === "number" ? json.next_offset : null
+      );
+      setOwnershipHighlightedIndex(0);
+    } catch (searchError: unknown) {
+      setOwnershipSearchError(
+        searchError instanceof Error ? searchError.message : "Failed to search workspace members."
+      );
+    } finally {
+      setOwnershipSearchLoading(false);
+    }
+  }, [ownershipDocId, ownershipSearchQuery]);
+
   async function openOwnership(doc: DocItem) {
     setOwnershipDoc(doc);
     setOwnershipLoading(true);
@@ -365,19 +479,33 @@ export default function WorkspaceDocumentsPage() {
     setOwnershipSelectedUserIds([]);
     setOwnershipOwnerUserId(null);
     setOwnershipCanManage(false);
+    setOwnershipSearchQuery("");
+    setOwnershipSearchResults([]);
+    setOwnershipSearchError(null);
+    setOwnershipSearchNextOffset(null);
+    setOwnershipHighlightedIndex(0);
+    setOwnershipConfirmOpen(false);
     try {
-      const res = await fetch(`/api/app/documents/${doc.id}/responsibilities`, { cache: "no-store" });
+      const res = await fetch(`/api/app/documents/${doc.id}/responsibilities?summary=1`, { cache: "no-store" });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error ?? "Failed to load ownership settings.");
+      if (!res.ok) throw new Error(json?.error ?? "Failed to load co-ownership settings.");
 
-      const members = (json?.members ?? []) as ResponsibilityMember[];
-      const selected = ((json?.responsibilities ?? []) as Array<{ user_id: string }>).map((r) => String(r.user_id));
+      const members = (json?.selected_users ?? []) as ResponsibilityMember[];
+      const selectedRaw = Array.isArray((json as { responsible_user_ids?: unknown } | null)?.responsible_user_ids)
+        ? ((json as { responsible_user_ids?: unknown[] }).responsible_user_ids ?? [])
+        : [];
+      const selected: string[] = Array.from(
+        new Set(selectedRaw.map((id) => String(id).trim()).filter(Boolean))
+      );
       setOwnershipMembers(members);
       setOwnershipSelectedUserIds(selected);
       setOwnershipOwnerUserId(typeof json?.owner_user_id === "string" ? json.owner_user_id : null);
       setOwnershipCanManage(Boolean(json?.can_manage));
+      window.setTimeout(() => {
+        ownershipSearchInputRef.current?.focus();
+      }, 0);
     } catch (e: unknown) {
-      setOwnershipError(e instanceof Error ? e.message : "Failed to load ownership settings.");
+      setOwnershipError(e instanceof Error ? e.message : "Failed to load co-ownership settings.");
     } finally {
       setOwnershipLoading(false);
     }
@@ -392,12 +520,46 @@ export default function WorkspaceDocumentsPage() {
     setOwnershipSelectedUserIds([]);
     setOwnershipOwnerUserId(null);
     setOwnershipCanManage(false);
+    setOwnershipSearchQuery("");
+    setOwnershipSearchResults([]);
+    setOwnershipSearchLoading(false);
+    setOwnershipSearchError(null);
+    setOwnershipSearchNextOffset(null);
+    setOwnershipHighlightedIndex(0);
+    setOwnershipConfirmOpen(false);
   }
 
   function toggleOwnershipUser(userId: string) {
+    if (userId === ownershipOwnerUserId) return;
+    setOwnershipConfirmOpen(false);
     setOwnershipSelectedUserIds((list) =>
       list.includes(userId) ? list.filter((x) => x !== userId) : [...list, userId]
     );
+  }
+
+  function toggleOwnershipResult(result: CoOwnershipSearchResult) {
+    if (result.is_owner) return;
+    setOwnershipMembers((current) => {
+      if (current.some((member) => member.user_id === result.user_id)) return current;
+      return [
+        ...current,
+        {
+          user_id: result.user_id,
+          email: result.email,
+          role: result.role,
+          display_name: result.display_name,
+          license_active: result.license_active,
+          hint: result.hint,
+          is_owner: result.is_owner,
+        },
+      ];
+    });
+    toggleOwnershipUser(result.user_id);
+  }
+
+  async function loadMoreOwnershipSearch() {
+    if (ownershipSearchNextOffset === null || ownershipSearchLoading) return;
+    await fetchOwnershipSearch(ownershipSearchNextOffset, true);
   }
 
   async function saveOwnership() {
@@ -411,12 +573,84 @@ export default function WorkspaceDocumentsPage() {
         body: JSON.stringify({ user_ids: ownershipSelectedUserIds }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error ?? "Failed to save ownership settings.");
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save co-ownership settings.");
       closeOwnership();
     } catch (e: unknown) {
-      setOwnershipError(e instanceof Error ? e.message : "Failed to save ownership settings.");
+      setOwnershipError(e instanceof Error ? e.message : "Failed to save co-ownership settings.");
     } finally {
       setOwnershipSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!ownershipDocId) return;
+    const query = ownershipSearchQuery.trim();
+    if (query.length < 2) {
+      setOwnershipSearchResults([]);
+      setOwnershipSearchError(null);
+      setOwnershipSearchNextOffset(null);
+      setOwnershipHighlightedIndex(0);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void fetchOwnershipSearch(0, false);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [ownershipDocId, ownershipSearchQuery, fetchOwnershipSearch]);
+
+  function handleOwnershipDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!ownershipDoc) return;
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!ownershipSaving) closeOwnership();
+      return;
+    }
+
+    if (event.key === "Tab") {
+      const dialog = ownershipDialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((node) => node.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      }
+      return;
+    }
+
+    if (ownershipConfirmOpen) return;
+    if (ownershipSearchResults.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOwnershipHighlightedIndex((index) => Math.min(index + 1, ownershipSearchResults.length - 1));
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setOwnershipHighlightedIndex((index) => Math.max(index - 1, 0));
+      return;
+    }
+
+    if (event.key === "Enter") {
+      const candidate = ownershipSearchResults[ownershipHighlightedIndex];
+      if (!candidate) return;
+      event.preventDefault();
+      toggleOwnershipResult(candidate);
     }
   }
 
@@ -1103,7 +1337,7 @@ export default function WorkspaceDocumentsPage() {
                         className="focus-ring px-3 py-2 text-sm hover:opacity-80"
                         style={{ border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)" }}
                       >
-                        Ownership
+                        Co-ownership
                       </button>
                     ) : null}
                     <Link
@@ -1129,49 +1363,163 @@ export default function WorkspaceDocumentsPage() {
       )}
 
       {ownershipDoc ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "color-mix(in srgb, var(--bg) 86%, transparent)" }}>
           <div
-            className="w-full max-w-xl border p-5 md:p-6"
+            ref={ownershipDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Co-ownership"
+            onKeyDown={handleOwnershipDialogKeyDown}
+            className="w-full max-w-2xl border p-5 md:p-6"
             style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
           >
             <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
-              CROSS-OWNERSHIP
+              CO-OWNERSHIP
             </div>
             <h3 className="mt-1 text-lg font-semibold">{ownershipDoc.title}</h3>
             <div className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-              Assign shared responsibility across team members to maintain department coverage.
+              Co-owners share document responsibility and can maintain department-level coverage.
+            </div>
+            <div className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+              Search workspace members by name, email, or user ID. The document owner is always included.
             </div>
 
             {ownershipLoading ? (
               <div className="mt-4 text-sm" style={{ color: "var(--muted)" }}>
-                Loading ownership settings…
+                Loading co-ownership settings…
               </div>
             ) : (
-              <div className="mt-4 max-h-64 overflow-auto space-y-2">
-                {ownershipMembers.map((m) => {
-                  const isDocumentOwner = ownershipOwnerUserId === m.user_id;
-                  const checked = isDocumentOwner || ownershipSelectedUserIds.includes(m.user_id);
-                  return (
-                    <label key={m.user_id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleOwnershipUser(m.user_id)}
-                        disabled={!ownershipCanManage || isDocumentOwner || ownershipSaving}
-                      />
-                      <span>{m.email ?? m.user_id}</span>
-                      <span className="text-xs" style={{ color: "var(--muted2)" }}>
-                        ({m.role}{isDocumentOwner ? ", owner" : ""})
-                      </span>
-                    </label>
-                  );
-                })}
+              <div className="mt-4 space-y-3">
+                <input
+                  ref={ownershipSearchInputRef}
+                  value={ownershipSearchQuery}
+                  onChange={(event) => {
+                    setOwnershipSearchQuery(event.target.value);
+                    setOwnershipConfirmOpen(false);
+                  }}
+                  placeholder="Search members (min 2 characters)"
+                  className="focus-ring w-full border px-3 py-2 text-sm bg-transparent"
+                  style={{ borderColor: "var(--border)", borderRadius: 10 }}
+                  disabled={!ownershipCanManage}
+                />
+
+                <div className="max-h-56 overflow-auto rounded-xl border p-2" style={{ borderColor: "var(--border)" }}>
+                  {ownershipSearchQuery.trim().length < 2 ? (
+                    <div className="p-2 text-sm" style={{ color: "var(--muted2)" }}>
+                      Start typing to search for co-owners.
+                    </div>
+                  ) : ownershipSearchLoading && ownershipSearchResults.length === 0 ? (
+                    <div className="p-2 text-sm" style={{ color: "var(--muted2)" }}>
+                      Searching workspace members…
+                    </div>
+                  ) : ownershipSearchError ? (
+                    <div className="p-2 text-sm" style={{ color: "#ff3b30" }}>
+                      {ownershipSearchError}
+                    </div>
+                  ) : ownershipSearchResults.length === 0 ? (
+                    <div className="p-2 text-sm" style={{ color: "var(--muted2)" }}>
+                      No matching members found.
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {ownershipSearchResults.map((result, index) => {
+                        const isSelected = ownershipSelectedSet.has(result.user_id) || result.is_owner;
+                        const isHighlighted = ownershipHighlightedIndex === index;
+                        const disabled = !ownershipCanManage || ownershipSaving || result.is_owner;
+                        return (
+                          <button
+                            key={result.user_id}
+                            type="button"
+                            onClick={() => toggleOwnershipResult(result)}
+                            disabled={disabled}
+                            className="focus-ring w-full rounded-lg border px-3 py-2 text-left transition disabled:opacity-60"
+                            style={{
+                              borderColor: isHighlighted ? "var(--fg)" : "var(--border)",
+                              background: isSelected
+                                ? "color-mix(in srgb, var(--card2) 72%, transparent)"
+                                : "transparent",
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold truncate">
+                                  {coOwnerName(result)}
+                                </div>
+                                <div className="text-xs truncate" style={{ color: "var(--muted2)" }}>
+                                  {result.email ?? result.user_id}
+                                </div>
+                                {result.hint ? (
+                                  <div className="text-[11px]" style={{ color: "var(--muted2)" }}>
+                                    {result.hint}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="text-xs font-semibold" style={{ color: isSelected ? "var(--fg)" : "var(--muted2)" }}>
+                                {result.is_owner ? "Owner" : isSelected ? "Selected" : "Select"}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                      {ownershipSearchNextOffset !== null ? (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => void loadMoreOwnershipSearch()}
+                            disabled={ownershipSearchLoading}
+                            className="focus-ring w-full rounded-lg border px-3 py-2 text-xs font-semibold"
+                            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                          >
+                            {ownershipSearchLoading ? "Loading…" : "Load more"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--card2)" }}>
+                  <div className="text-xs font-semibold" style={{ color: "var(--muted2)" }}>
+                    Selected co-owners
+                  </div>
+                  <div className="mt-1 text-sm font-semibold">
+                    {selectedCoOwnerCount} additional member
+                    {selectedCoOwnerCount === 1 ? "" : "s"}
+                  </div>
+                  <div className="mt-2 max-h-28 space-y-1 overflow-auto">
+                    {ownershipSelectedMembers.map((member) => {
+                      const isOwner = member.user_id === ownershipOwnerUserId || member.is_owner === true;
+                      return (
+                        <div key={member.user_id} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="truncate">
+                            {coOwnerName(member)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => toggleOwnershipUser(member.user_id)}
+                            disabled={!ownershipCanManage || ownershipSaving || isOwner}
+                            className="focus-ring rounded-md border px-2 py-0.5 disabled:opacity-60"
+                            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                          >
+                            {isOwner ? "Owner" : "Remove"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
             {ownershipError ? (
               <div className="mt-3 text-sm" style={{ color: "#ff3b30" }}>
                 {ownershipError}
+              </div>
+            ) : null}
+
+            {ownershipConfirmOpen ? (
+              <div className="mt-3 rounded-xl border p-3 text-xs" style={{ borderColor: "var(--border)", background: "var(--card2)" }}>
+                Confirm co-ownership update for this document. Selected members will share responsibility with the owner.
               </div>
             ) : null}
 
@@ -1186,15 +1534,27 @@ export default function WorkspaceDocumentsPage() {
                 Close
               </button>
               {ownershipCanManage ? (
-                <button
-                  type="button"
-                  onClick={() => void saveOwnership()}
-                  disabled={ownershipSaving || ownershipLoading}
-                  className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-                  style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
-                >
-                  {ownershipSaving ? "Saving…" : "Save ownership"}
-                </button>
+                ownershipConfirmOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => void saveOwnership()}
+                    disabled={ownershipSaving || ownershipLoading}
+                    className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                    style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+                  >
+                    {ownershipSaving ? "Saving…" : "Confirm co-ownership"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setOwnershipConfirmOpen(true)}
+                    disabled={ownershipSaving || ownershipLoading}
+                    className="focus-ring px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                    style={{ background: "var(--fg)", color: "var(--bg)", borderRadius: 10 }}
+                  >
+                    Review changes
+                  </button>
+                )
               ) : null}
             </div>
           </div>

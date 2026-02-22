@@ -71,6 +71,10 @@ function parsePolicyModeEnabled(input: unknown): boolean {
   return input === true;
 }
 
+function parseMfaRequired(input: unknown): boolean {
+  return input === true;
+}
+
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> | { id: string } }
@@ -104,7 +108,7 @@ export async function GET(
     const withSlug = await supabase
       .from("workspaces")
       .select(
-        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,billing_owner_user_id,policy_mode_enabled"
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,billing_owner_user_id,policy_mode_enabled,mfa_required"
       )
       .eq("id", resolved.id)
       .maybeSingle();
@@ -117,6 +121,7 @@ export async function GET(
       (isMissingColumnError(wsErr, "slug") ||
         isMissingColumnError(wsErr, "billing_owner_user_id") ||
         isMissingColumnError(wsErr, "policy_mode_enabled") ||
+        isMissingColumnError(wsErr, "mfa_required") ||
         isMissingColumnError(wsErr, "brand_logo_width_px"))
     ) {
       const fallback = await supabase
@@ -131,6 +136,7 @@ export async function GET(
         workspace.document_tag_fields = [];
         workspace.billing_owner_user_id = workspace.created_by;
         workspace.policy_mode_enabled = false;
+        workspace.mfa_required = false;
         workspace.brand_logo_width_px = 104;
       }
     }
@@ -165,6 +171,7 @@ export async function GET(
         policy_mode_enabled: parsePolicyModeEnabled(
           (workspace as { policy_mode_enabled?: unknown }).policy_mode_enabled
         ),
+        mfa_required: parseMfaRequired((workspace as { mfa_required?: unknown }).mfa_required),
       },
       licensing,
       members: membersWithEmails,
@@ -215,6 +222,7 @@ export async function PATCH(
       slug?: string | null;
       document_tag_fields?: unknown;
       policy_mode_enabled?: boolean;
+      mfa_required?: boolean;
     } | null;
     const nextName = typeof body?.name === "string" ? body.name.trim() : undefined;
     const slugRaw = typeof body?.slug === "string" ? body.slug : undefined;
@@ -238,6 +246,15 @@ export async function PATCH(
         );
       }
       payload.policy_mode_enabled = body.policy_mode_enabled === true;
+    }
+    if (body && "mfa_required" in body) {
+      if (licensing.plan !== "team" && licensing.plan !== "enterprise") {
+        return NextResponse.json(
+          { error: "Workspace MFA enforcement is available on Team and Enterprise workspaces only." },
+          { status: 403 }
+        );
+      }
+      payload.mfa_required = body.mfa_required === true;
     }
 
     const { data: existingWorkspace, error: existingErr } = await admin
@@ -282,7 +299,7 @@ export async function PATCH(
       .update(payload)
       .eq("id", resolved.id)
       .select(
-        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,policy_mode_enabled"
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,policy_mode_enabled,mfa_required"
       )
       .single();
 
@@ -291,11 +308,12 @@ export async function PATCH(
       (isMissingColumnError(result.error, "slug") ||
         isMissingColumnError(result.error, "document_tag_fields") ||
         isMissingColumnError(result.error, "policy_mode_enabled") ||
+        isMissingColumnError(result.error, "mfa_required") ||
         isMissingColumnError(result.error, "brand_logo_width_px"))
     ) {
-      if (body && "policy_mode_enabled" in body) {
+      if (body && ("policy_mode_enabled" in body || "mfa_required" in body)) {
         return NextResponse.json(
-          { error: "Policy mode settings are not configured yet. Run the latest SQL migrations first." },
+          { error: "Workspace security settings are not configured yet. Run the latest SQL migrations first." },
           { status: 500 }
         );
       }
@@ -325,6 +343,7 @@ export async function PATCH(
           brand_logo_width_px: 104,
           document_tag_fields: [],
           policy_mode_enabled: false,
+          mfa_required: false,
         },
       });
     }
@@ -345,6 +364,7 @@ export async function PATCH(
         policy_mode_enabled: parsePolicyModeEnabled(
           (result.data as { policy_mode_enabled?: unknown } | null)?.policy_mode_enabled
         ),
+        mfa_required: parseMfaRequired((result.data as { mfa_required?: unknown } | null)?.mfa_required),
       },
     });
   } catch (e: unknown) {

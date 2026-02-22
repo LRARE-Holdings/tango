@@ -40,7 +40,7 @@ export default async function WorkspaceSettingsLayout({
     { href: `/app/workspaces/${id}/settings/branding`, label: "Branding" },
     { href: `/app/workspaces/${id}/settings/members`, label: "Members" },
     { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
-    { href: `/app/workspaces/${id}/settings/policy`, label: "Policy mode" },
+    { href: `/app/workspaces/${id}/settings/policy`, label: "Policy & MFA" },
     { href: `/app/workspaces/${id}/settings/usage`, label: "Usage" },
     { href: `/app/workspaces/${id}/settings/domains`, label: "Domains" },
   ];
@@ -50,7 +50,7 @@ export default async function WorkspaceSettingsLayout({
       <AppHero
         kicker="WORKSPACE"
         title="Settings"
-        description="Manage members, policy mode, branding, domains, and workspace defaults from one place."
+        description="Manage members, policy mode, MFA enforcement, branding, domains, and workspace defaults from one place."
         actions={
           <>
             <Link href="/app/account" className="focus-ring app-btn-secondary">

@@ -5,6 +5,13 @@ import {
   RECEIPT_LAUNCH_UNLOCK_COOKIE,
   isReceiptLaunchLive,
 } from "@/lib/launch-access";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import {
+  getPaidAccountMfaRequirement,
+  getVerifiedMfaStatus,
+  getWorkspaceMfaRequirementForUser,
+  workspaceIdentifierFromPath,
+} from "@/lib/security/mfa-enforcement";
 
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
@@ -13,7 +20,8 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/d/");
+    pathname.startsWith("/d/") ||
+    pathname.startsWith("/api/app");
 
   if (!isReceiptLaunchLive() && (pathname === "/auth" || pathname === "/get-started")) {
     const hasLaunchAccess = req.cookies.get(RECEIPT_LAUNCH_UNLOCK_COOKIE)?.value === "1";
@@ -27,7 +35,7 @@ export async function proxy(req: NextRequest) {
 
   const res = NextResponse.next();
 
-  if (pathname.startsWith("/app") || pathname.startsWith("/checkout")) {
+  if (pathname.startsWith("/app") || pathname.startsWith("/checkout") || pathname.startsWith("/api/app")) {
     // Prevent browser/proxy caches from serving authenticated app shells after logout.
     res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.headers.set("Pragma", "no-cache");
@@ -71,6 +79,85 @@ export async function proxy(req: NextRequest) {
     return redirect;
   }
 
+  const isAccountPath = pathname === "/app/account" || pathname.startsWith("/app/account/");
+  const isApiPath = pathname.startsWith("/api/");
+  const isAppApiPath = pathname.startsWith("/api/app");
+  const isMfaBypassApiPath =
+    pathname === "/api/app/me" || pathname === "/api/app/account" || pathname.startsWith("/api/app/account/");
+  const shouldEvaluateMfa =
+    Boolean(user) &&
+    (pathname.startsWith("/app") || pathname.startsWith("/checkout") || isAppApiPath) &&
+    !isAccountPath &&
+    !(isAppApiPath && isMfaBypassApiPath);
+
+  if (shouldEvaluateMfa && user) {
+    const admin = supabaseAdmin();
+    const workspaceIdentifier = workspaceIdentifierFromPath(pathname);
+
+    const mfaStatus = await getVerifiedMfaStatus(supabase).catch((error: unknown) => {
+      console.error("MFA status lookup failed:", error);
+      // Fail open if the auth provider MFA status check fails.
+      return { enabled: true, verifiedFactorCount: 0 };
+    });
+
+    const paidRequirement = await getPaidAccountMfaRequirement({ supabase, admin, userId: user.id }).catch(
+      (error: unknown) => {
+        console.error("Paid-plan MFA requirement lookup failed:", error);
+        return {
+          required: false,
+          personalPlan: "free" as const,
+          primaryWorkspaceId: null,
+          viaWorkspaceLicense: false,
+        };
+      }
+    );
+
+    const workspaceRequirement = workspaceIdentifier
+      ? await getWorkspaceMfaRequirementForUser({ admin, userId: user.id, workspaceIdentifier }).catch(
+          (error: unknown) => {
+            console.error("Workspace MFA requirement lookup failed:", error);
+            return { required: false, workspaceId: null };
+          }
+        )
+      : { required: false, workspaceId: null };
+
+    const mfaRequired = paidRequirement.required || workspaceRequirement.required;
+    if (mfaRequired && !mfaStatus.enabled) {
+      if (isApiPath) {
+        const denied = NextResponse.json(
+          {
+            error: "Multi-factor authentication is required. Set up MFA in Account settings before continuing.",
+            code: "MFA_REQUIRED",
+          },
+          { status: 403 }
+        );
+        denied.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        denied.headers.set("Pragma", "no-cache");
+        denied.headers.set("Expires", "0");
+        denied.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+        return denied;
+      }
+
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = "/app/account";
+      redirectUrl.searchParams.set("mfa", "required");
+      if (workspaceRequirement.required && paidRequirement.required) {
+        redirectUrl.searchParams.set("mfa_scope", "plan+workspace");
+      } else if (workspaceRequirement.required) {
+        redirectUrl.searchParams.set("mfa_scope", "workspace");
+      } else {
+        redirectUrl.searchParams.set("mfa_scope", "plan");
+      }
+
+      const redirect = NextResponse.redirect(redirectUrl);
+      redirect.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+      redirect.headers.set("Pragma", "no-cache");
+      redirect.headers.set("Expires", "0");
+      redirect.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+      return redirect;
+    }
+  }
+
   return res;
 }
 
@@ -86,6 +173,8 @@ export const config = {
     "/get-started/:path*",
     "/onboarding",
     "/onboarding/:path*",
+    "/api/app",
+    "/api/app/:path*",
     "/d",
     "/d/:path*",
     "/launch-access",

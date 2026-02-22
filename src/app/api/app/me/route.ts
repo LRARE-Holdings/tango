@@ -3,6 +3,7 @@ import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
+import { getVerifiedMfaStatus, type MfaRequirementReason } from "@/lib/security/mfa-enforcement";
 
 export const dynamic = "force-dynamic";
 
@@ -158,13 +159,13 @@ export async function GET() {
   const profRow = (prof ?? null) as ProfileCoreRow | null;
   const plan = normalizeEffectivePlan(entRow?.plan ?? "free");
   const primaryWorkspaceId = String(profRow?.primary_workspace_id ?? "").trim() || null;
+  const admin = supabaseAdmin();
   let workspaceLicenseActive = false;
   let workspacePlan: string | null = null;
   let workspaceSeatLimit = 1;
 
   if (primaryWorkspaceId) {
     try {
-      const admin = supabaseAdmin();
       const wsEnt = await getWorkspaceEntitlementsForUser(admin, primaryWorkspaceId, userId);
       if (wsEnt && wsEnt.license_active) {
         workspaceLicenseActive = true;
@@ -214,6 +215,41 @@ export async function GET() {
   const usageNearLimit = usageLimit != null && usageUsed >= Math.floor(usageLimit * 0.8);
   const usageAtLimit = usageLimit != null && usageUsed >= usageLimit;
 
+  let mfaEnabled = false;
+  let mfaVerifiedFactorCount = 0;
+  try {
+    const status = await getVerifiedMfaStatus(supabase);
+    mfaEnabled = status.enabled;
+    mfaVerifiedFactorCount = status.verifiedFactorCount;
+  } catch {
+    // Keep /me resilient if MFA provider lookups are temporarily unavailable.
+  }
+
+  const paidAccountMfaRequired =
+    plan === "personal" ||
+    plan === "pro" ||
+    plan === "team" ||
+    plan === "enterprise" ||
+    (workspaceLicenseActive && (workspacePlan === "team" || workspacePlan === "enterprise"));
+
+  let workspacePolicyMfaRequired = false;
+  if (primaryWorkspaceId && workspaceLicenseActive) {
+    const mfaRes = await admin
+      .from("workspaces")
+      .select("mfa_required")
+      .eq("id", primaryWorkspaceId)
+      .maybeSingle();
+    if (mfaRes.error && !isMissingColumnError(mfaRes.error as DbErrorLike, "mfa_required")) {
+      return NextResponse.json({ error: mfaRes.error.message }, { status: 500 });
+    }
+    workspacePolicyMfaRequired = (mfaRes.data as { mfa_required?: unknown } | null)?.mfa_required === true;
+  }
+
+  const mfaRequiredReasons: MfaRequirementReason[] = [];
+  if (paidAccountMfaRequired) mfaRequiredReasons.push("paid_account");
+  if (workspacePolicyMfaRequired) mfaRequiredReasons.push("workspace_policy");
+  const mfaRequired = mfaRequiredReasons.length > 0;
+
   return NextResponse.json({
     id: userId,
     email: userRes.user.email ?? null,
@@ -243,6 +279,10 @@ export async function GET() {
     marketing_opt_in: prefs.marketing_opt_in,
     default_ack_limit: prefs.default_ack_limit,
     default_password_enabled: prefs.default_password_enabled,
+    mfa_enabled: mfaEnabled,
+    mfa_verified_factor_count: mfaVerifiedFactorCount,
+    mfa_required: mfaRequired,
+    mfa_required_reasons: mfaRequiredReasons,
     usage:
       displayPlan === "licensed"
         ? null

@@ -7,6 +7,8 @@ import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
 import { sendWithResend } from "@/lib/email/resend";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "@/lib/document-limits";
+import { canAccessFeatureByPlan } from "@/lib/workspace-features";
+import { parseIdList, resolveWorkspaceRecipients } from "@/lib/workspace-contacts";
 
 const MAX_MB = 20;
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -122,6 +124,15 @@ function parseRecipients(raw: FormDataEntryValue | null): ParsedRecipient[] {
   const dedup = new Map<string, ParsedRecipient>();
   for (const r of out) dedup.set(r.email, r);
   return [...dedup.values()].slice(0, 50);
+}
+
+function parseRecipientIdList(raw: FormDataEntryValue | null): string[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    return parseIdList(JSON.parse(raw) as unknown, 500);
+  } catch {
+    return [];
+  }
 }
 
 function appBaseUrl(req: Request) {
@@ -241,7 +252,9 @@ export async function POST(req: Request) {
       ? clampInt(Number.isFinite(maxAcknowledgersRaw) ? maxAcknowledgersRaw : 1, 1, 1000)
       : null;
     const sendEmailsRaw = String(form.get("send_emails") ?? "false").toLowerCase() === "true";
-    const recipients = parseRecipients(form.get("recipients"));
+    const manualRecipients = parseRecipients(form.get("recipients"));
+    const contactIds = parseRecipientIdList(form.get("contact_ids"));
+    const contactGroupIds = parseRecipientIdList(form.get("contact_group_ids"));
     const rawTags = parseRawTags(form.get("tags"));
     const priority = parsePriority(form.get("priority"));
     const labels = parseLabels(form.get("labels"));
@@ -422,6 +435,33 @@ export async function POST(req: Request) {
         { status: 403 }
       );
     }
+
+    let recipients = manualRecipients;
+    if (contactIds.length > 0 || contactGroupIds.length > 0) {
+      if (!workspace_id) {
+        return NextResponse.json(
+          { error: "Contact groups and saved contacts are available in workspace context only." },
+          { status: 400 }
+        );
+      }
+      if (!canAccessFeatureByPlan(effectivePlan, "contacts")) {
+        return NextResponse.json(
+          { error: "Contact selections are available on Pro, Team, and Enterprise plans." },
+          { status: 403 }
+        );
+      }
+
+      const resolvedRecipients = await resolveWorkspaceRecipients({
+        client: supabase,
+        workspaceId: workspace_id,
+        manualRecipients,
+        contactIds,
+        contactGroupIds,
+        maxRecipients: 200,
+      });
+      recipients = resolvedRecipients.recipients;
+    }
+
     if (sendEmails && !personalPlus) {
       return NextResponse.json(
         { error: "Email sending is available on Personal plans and above." },

@@ -3,6 +3,8 @@ import { requireWorkspaceMember } from "@/lib/workspace-access";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { canUseStackDelivery } from "@/lib/workspace-permissions";
 import { createStackDelivery, parseRecipients } from "@/lib/stack-deliveries";
+import { canAccessFeatureByPlan } from "@/lib/workspace-features";
+import { parseIdList, resolveWorkspaceRecipients } from "@/lib/workspace-contacts";
 
 type Body = {
   mode?: "single_upload" | "selected_documents" | "full_stack";
@@ -11,6 +13,8 @@ type Body = {
   title?: string;
   send_emails?: boolean;
   recipients?: Array<{ name?: string; email?: string }>;
+  contact_ids?: string[];
+  contact_group_ids?: string[];
 };
 
 export async function POST(
@@ -41,6 +45,33 @@ export async function POST(
       );
     }
 
+    const manualRecipients = parseRecipients(body?.recipients);
+    const contactIds = parseIdList(body?.contact_ids);
+    const contactGroupIds = parseIdList(body?.contact_group_ids);
+
+    if ((contactIds.length > 0 || contactGroupIds.length > 0) && !canAccessFeatureByPlan(ent.plan, "contacts")) {
+      return NextResponse.json(
+        { error: "Contact selections are available on Pro, Team, and Enterprise plans." },
+        { status: 403 }
+      );
+    }
+
+    const resolvedRecipients = await resolveWorkspaceRecipients({
+      client: supabase,
+      workspaceId,
+      manualRecipients,
+      contactIds,
+      contactGroupIds,
+      maxRecipients: 200,
+    });
+
+    if (body?.send_emails === true && resolvedRecipients.recipients.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one valid recipient email or contact." },
+        { status: 400 }
+      );
+    }
+
     const result = await createStackDelivery({
       req,
       supabase,
@@ -50,7 +81,7 @@ export async function POST(
       stackId: body?.stack_id ?? null,
       documentIds: Array.isArray(body?.document_ids) ? body?.document_ids : [],
       title: body?.title ?? null,
-      recipients: parseRecipients(body?.recipients),
+      recipients: resolvedRecipients.recipients,
       sendEmails: body?.send_emails === true,
     });
 

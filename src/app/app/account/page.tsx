@@ -29,6 +29,10 @@ type MeResponse = {
   recommended_plan?: string | null;
 
   primary_workspace_id?: string | null;
+  mfa_enabled?: boolean | null;
+  mfa_verified_factor_count?: number | null;
+  mfa_required?: boolean | null;
+  mfa_required_reasons?: Array<"paid_account" | "workspace_policy"> | null;
   usage?: {
     used: number;
     limit: number | null;
@@ -45,6 +49,14 @@ type UsageDoc = {
   createdAt: string;
   acknowledgements: number;
   status: "Acknowledged" | "Pending";
+};
+
+type MfaFactor = {
+  id: string;
+  factor_type: string;
+  status: string;
+  friendly_name: string | null;
+  created_at: string | null;
 };
 
 type AccountPatch = {
@@ -103,6 +115,28 @@ function firstNameFromDisplayName(input: string | null | undefined) {
   const clean = String(input ?? "").trim().replace(/\s+/g, " ");
   if (!clean) return "";
   return clean.split(" ")[0] ?? "";
+}
+
+function normalizeMfaFactor(input: unknown): MfaFactor | null {
+  if (!input || typeof input !== "object") return null;
+  const row = input as Record<string, unknown>;
+  const id = String(row.id ?? "").trim();
+  if (!id) return null;
+  return {
+    id,
+    factor_type: String(row.factor_type ?? "").trim().toLowerCase(),
+    status: String(row.status ?? "").trim().toLowerCase(),
+    friendly_name: row.friendly_name ? String(row.friendly_name).trim() : null,
+    created_at: row.created_at ? String(row.created_at) : null,
+  };
+}
+
+function mfaFactorLabel(factor: MfaFactor) {
+  if (factor.friendly_name) return factor.friendly_name;
+  if (factor.factor_type === "totp") return "Authenticator app";
+  if (factor.factor_type === "phone") return "Phone";
+  if (factor.factor_type === "webauthn") return "Passkey";
+  return factor.factor_type || "MFA factor";
 }
 
 function Button({
@@ -321,6 +355,15 @@ export default function AccountPage() {
 
   // Security actions
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaEnrollLoading, setMfaEnrollLoading] = useState(false);
+  const [mfaVerifyLoading, setMfaVerifyLoading] = useState(false);
+  const [mfaRemoveFactorId, setMfaRemoveFactorId] = useState<string | null>(null);
+  const [mfaFactors, setMfaFactors] = useState<MfaFactor[]>([]);
+  const [pendingMfaFactorId, setPendingMfaFactorId] = useState<string | null>(null);
+  const [pendingTotpQrCode, setPendingTotpQrCode] = useState<string | null>(null);
+  const [pendingTotpSecret, setPendingTotpSecret] = useState<string | null>(null);
+  const [totpCode, setTotpCode] = useState("");
 
   // Danger zone
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -386,8 +429,32 @@ export default function AccountPage() {
     }
   }
 
+  async function loadMfaFactors() {
+    setMfaLoading(true);
+    try {
+      const { data, error } = await supabase.auth.mfa.listFactors();
+      if (error) throw error;
+      if (!mountedRef.current) return;
+
+      const allFactors: unknown[] = Array.isArray(data?.all) ? (data.all as unknown[]) : [];
+      const list = allFactors
+        .map((factor) => normalizeMfaFactor(factor))
+        .filter((factor): factor is MfaFactor => Boolean(factor));
+
+      setMfaFactors(list);
+    } catch (error: unknown) {
+      if (!mountedRef.current) return;
+      toast.error("MFA", errorMessage(error, "Could not load MFA factors."));
+    } finally {
+      if (!mountedRef.current) return;
+      setMfaLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadMe();
+    void loadMfaFactors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const email = me?.email ?? null;
@@ -404,6 +471,18 @@ export default function AccountPage() {
   const seats = Number(me?.seats ?? 1);
   const isTeam = String(me?.plan ?? "").toLowerCase() === "team";
   const isPaid = String(me?.plan ?? "").toLowerCase() !== "free" && Boolean(status);
+  const mfaRequired = me?.mfa_required === true;
+  const mfaReasons = Array.isArray(me?.mfa_required_reasons) ? me.mfa_required_reasons : [];
+  const verifiedMfaFactors = mfaFactors.filter((factor) => factor.status === "verified");
+  const mfaEnabled = me?.mfa_enabled === true || verifiedMfaFactors.length > 0;
+  const mfaVerifiedCount = Math.max(Number(me?.mfa_verified_factor_count ?? 0), verifiedMfaFactors.length);
+  const mfaRequirementMessage = mfaRequired
+    ? mfaReasons.includes("workspace_policy")
+      ? mfaReasons.includes("paid_account")
+        ? "MFA is required by your paid plan and workspace policy."
+        : "MFA is required by your workspace policy."
+      : "MFA is required on paid plans."
+    : "MFA is optional on your current plan.";
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -471,6 +550,111 @@ export default function AccountPage() {
       toast.error("Password", errorMessage(error, "Something went wrong"));
     } finally {
       setPasswordLoading(false);
+    }
+  }
+
+  async function startTotpEnrollment() {
+    if (pendingMfaFactorId) return;
+
+    setMfaEnrollLoading(true);
+    try {
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "Receipt Authenticator",
+      });
+      if (error) throw error;
+      if (!data || data.type !== "totp") {
+        throw new Error("Could not start authenticator enrollment.");
+      }
+
+      setPendingMfaFactorId(data.id);
+      setPendingTotpQrCode(data.totp.qr_code ?? null);
+      setPendingTotpSecret(data.totp.secret ?? null);
+      setTotpCode("");
+      toast.success("MFA", "Scan the QR code and enter a 6-digit code to finish setup.");
+      await loadMfaFactors();
+    } catch (error: unknown) {
+      toast.error("MFA", errorMessage(error, "Could not start MFA setup."));
+    } finally {
+      setMfaEnrollLoading(false);
+    }
+  }
+
+  async function cancelPendingEnrollment() {
+    const factorId = pendingMfaFactorId;
+    if (!factorId) {
+      setPendingTotpQrCode(null);
+      setPendingTotpSecret(null);
+      setTotpCode("");
+      return;
+    }
+
+    setMfaRemoveFactorId(factorId);
+    try {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId });
+      if (error) throw error;
+      setPendingMfaFactorId(null);
+      setPendingTotpQrCode(null);
+      setPendingTotpSecret(null);
+      setTotpCode("");
+      await loadMfaFactors();
+    } catch (error: unknown) {
+      toast.error("MFA", errorMessage(error, "Could not cancel pending MFA setup."));
+    } finally {
+      setMfaRemoveFactorId(null);
+    }
+  }
+
+  async function verifyTotpEnrollment() {
+    const factorId = pendingMfaFactorId;
+    if (!factorId) {
+      toast.error("MFA", "Start MFA setup first.");
+      return;
+    }
+
+    const code = totpCode.replace(/\s+/g, "");
+    if (!/^[0-9]{6}$/.test(code)) {
+      toast.error("MFA", "Enter a valid 6-digit code.");
+      return;
+    }
+
+    setMfaVerifyLoading(true);
+    try {
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+      if (error) throw error;
+
+      setPendingMfaFactorId(null);
+      setPendingTotpQrCode(null);
+      setPendingTotpSecret(null);
+      setTotpCode("");
+      toast.success("MFA enabled", "Multi-factor authentication is now active.");
+      await Promise.all([loadMfaFactors(), loadMe()]);
+    } catch (error: unknown) {
+      toast.error("MFA", errorMessage(error, "Could not verify MFA code."));
+    } finally {
+      setMfaVerifyLoading(false);
+    }
+  }
+
+  async function removeMfaFactor(factorId: string) {
+    setMfaRemoveFactorId(factorId);
+    try {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId });
+      if (error) throw error;
+
+      if (pendingMfaFactorId === factorId) {
+        setPendingMfaFactorId(null);
+        setPendingTotpQrCode(null);
+        setPendingTotpSecret(null);
+        setTotpCode("");
+      }
+
+      toast.success("MFA", "Factor removed.");
+      await Promise.all([loadMfaFactors(), loadMe()]);
+    } catch (error: unknown) {
+      toast.error("MFA", errorMessage(error, "Could not remove MFA factor."));
+    } finally {
+      setMfaRemoveFactorId(null);
     }
   }
 
@@ -863,10 +1047,117 @@ export default function AccountPage() {
               </Link>
             </div>
           </div>
-        </div>
 
-        <div className="mt-4 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-          Future: 2FA, passkeys, and SSO for Team/Enterprise.
+          <div
+            className="border p-5 md:col-span-2"
+            style={{ borderColor: "var(--border)", borderRadius: 16, background: "var(--card)" }}
+          >
+            <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
+              <div>
+                <div className="text-sm font-semibold">Multi-factor authentication (MFA)</div>
+                <div className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+                  {mfaEnabled
+                    ? `${mfaVerifiedCount} verified factor${mfaVerifiedCount === 1 ? "" : "s"} configured.`
+                    : "No verified factor yet. Add an authenticator app to protect your account."}
+                </div>
+                <div
+                  className="mt-2 text-xs leading-relaxed"
+                  style={{ color: mfaRequired && !mfaEnabled ? "#ff3b30" : "var(--muted2)" }}
+                >
+                  {mfaRequirementMessage}
+                </div>
+              </div>
+
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="ghost" onClick={loadMfaFactors} disabled={mfaLoading}>
+                  {mfaLoading ? "Refreshing…" : "Refresh factors"}
+                </Button>
+                <Button
+                  onClick={startTotpEnrollment}
+                  disabled={mfaEnrollLoading || mfaVerifyLoading || Boolean(pendingMfaFactorId)}
+                >
+                  {mfaEnrollLoading ? "Starting…" : "Add authenticator app"}
+                </Button>
+              </div>
+            </div>
+
+            {pendingTotpQrCode ? (
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[220px,1fr]">
+                <div
+                  className="border p-3 flex items-center justify-center"
+                  style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--bg)" }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pendingTotpQrCode}
+                    alt="Authenticator QR code"
+                    style={{ width: 180, height: 180, maxWidth: "100%" }}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+                    Scan this QR code with your authenticator app, then enter a current 6-digit code to verify.
+                  </div>
+                  {pendingTotpSecret ? (
+                    <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+                      Manual setup key: <span style={{ color: "var(--fg)" }}>{pendingTotpSecret}</span>
+                    </div>
+                  ) : null}
+                  <TextInput
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                    placeholder="123456"
+                  />
+                  <div className="flex gap-2 flex-wrap">
+                    <Button onClick={verifyTotpEnrollment} disabled={mfaVerifyLoading}>
+                      {mfaVerifyLoading ? "Verifying…" : "Verify and enable MFA"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={cancelPendingEnrollment}
+                      disabled={mfaRemoveFactorId === pendingMfaFactorId}
+                    >
+                      {mfaRemoveFactorId === pendingMfaFactorId ? "Cancelling…" : "Cancel setup"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 space-y-2">
+              {mfaFactors.length === 0 ? (
+                <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                  No factors enrolled yet.
+                </div>
+              ) : (
+                mfaFactors.map((factor) => (
+                  <div
+                    key={factor.id}
+                    className="border px-3 py-2 flex items-center justify-between gap-3"
+                    style={{ borderColor: "var(--border)", borderRadius: 10, background: "var(--bg)" }}
+                  >
+                    <div>
+                      <div className="text-sm font-medium">{mfaFactorLabel(factor)}</div>
+                      <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                        {factor.status === "verified" ? "Verified" : "Not verified"}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      onClick={() => void removeMfaFactor(factor.id)}
+                      disabled={mfaRemoveFactorId === factor.id}
+                    >
+                      {mfaRemoveFactorId === factor.id ? "Removing…" : "Remove"}
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </Section>
 
