@@ -61,8 +61,12 @@ export default function BillingSuccessPage() {
     async function run() {
       try {
         if (sessionId) {
-          // Refresh app state (plan/tier) so UI updates immediately after Stripe redirect.
-          await fetch("/api/app/me", { cache: "no-store" }).catch(() => {});
+          // Fallback sync for cases where webhook delivery is delayed or misconfigured.
+          await fetch("/api/billing/sync-session", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+          }).catch(() => null);
         }
 
         const meRes = await fetch("/api/app/me", { cache: "no-store" });

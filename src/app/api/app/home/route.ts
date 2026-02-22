@@ -2,10 +2,31 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-function firstName(displayName: string | null | undefined, email: string | null | undefined) {
-  const clean = String(displayName ?? "").trim().replace(/\s+/g, " ");
-  if (clean) return clean.split(" ")[0] ?? "";
-  return String(email ?? "").trim().split("@")[0] || "there";
+function firstToken(value: unknown) {
+  const clean = String(value ?? "").trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  return clean.split(" ")[0] ?? "";
+}
+
+function firstName(
+  displayName: string | null | undefined,
+  email: string | null | undefined,
+  userMetadata: unknown
+) {
+  const fromDisplayName = firstToken(displayName);
+  if (fromDisplayName) return fromDisplayName;
+
+  const meta = (userMetadata ?? {}) as Record<string, unknown>;
+  const fromMetaFirstName = firstToken(meta.first_name);
+  if (fromMetaFirstName) return fromMetaFirstName;
+
+  const fromMetaFullName = firstToken(meta.full_name);
+  if (fromMetaFullName) return fromMetaFullName;
+
+  const fromMetaName = firstToken(meta.name);
+  if (fromMetaName) return fromMetaName;
+
+  return firstToken(String(email ?? "").trim().split("@")[0] ?? "") || "there";
 }
 
 function greetingForNow() {
@@ -133,7 +154,11 @@ export async function GET() {
     return NextResponse.json({
       greeting: {
         text: greetingForNow(),
-        first_name: firstName(profile?.display_name ?? null, userData.user.email ?? null),
+        first_name: firstName(
+          profile?.display_name ?? null,
+          userData.user.email ?? null,
+          userData.user.user_metadata
+        ),
       },
       recent_files: recentFiles,
       while_away: { ...whileAway, since },

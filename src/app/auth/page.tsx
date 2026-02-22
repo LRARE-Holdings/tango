@@ -33,11 +33,18 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+function normalizeFirstName(input: string) {
+  const clean = input.trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  return (clean.split(" ")[0] ?? "").slice(0, 80);
+}
+
 export default function AuthPage() {
   const router = useRouter();
   const supabase = supabaseBrowser();
 
   const [mode, setMode] = useState<Mode>("signin");
+  const [firstNameInput, setFirstNameInput] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -72,7 +79,7 @@ export default function AuthPage() {
     () =>
       mode === "signin"
         ? "Sign in with email and password."
-        : "Create an account to start using Receipt.",
+        : "Create an account to start using Receipt. We’ll use your first name in-app.",
     [mode]
   );
 
@@ -100,6 +107,10 @@ export default function AuthPage() {
 
       // signup
       const siteUrl = getSiteUrl();
+      const firstName = normalizeFirstName(firstNameInput);
+      if (!firstName) {
+        throw new Error("Enter your first name to continue.");
+      }
 
       const { error: signUpErr } = await supabase.auth.signUp({
         email,
@@ -108,14 +119,18 @@ export default function AuthPage() {
           captchaToken: captchaToken ?? undefined,
           // After email confirmation, Supabase can send the user here.
           // (If confirmations are disabled, the user will be immediately authenticated anyway.)
-          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
+          emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}&first_name=${encodeURIComponent(firstName)}`,
+          data: {
+            first_name: firstName,
+            full_name: firstName,
+          },
         },
       });
       if (signUpErr) throw signUpErr;
 
       // Gate new users on verification using the simple holding page.
       router.replace(
-        `/auth/check-email?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(email)}`
+        `/auth/check-email?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(email)}&first_name=${encodeURIComponent(firstName)}`
       );
     } catch (error: unknown) {
       setError(errorMessage(error, "Could not continue"));
@@ -133,11 +148,17 @@ export default function AuthPage() {
         throw new Error("Please complete the security check.");
       }
       const siteUrl = getSiteUrl();
+      const firstName = normalizeFirstName(firstNameInput);
+      if (mode === "signup" && !firstName) {
+        throw new Error("Enter your first name before continuing with Google.");
+      }
 
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
+          redirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}${
+            firstName ? `&first_name=${encodeURIComponent(firstName)}` : ""
+          }`,
           captchaToken: captchaToken ?? undefined,
         },
       });
@@ -216,6 +237,18 @@ export default function AuthPage() {
         </div>
 
         <form onSubmit={onSubmit} className="space-y-3">
+          {mode === "signup" ? (
+            <input
+              type="text"
+              required
+              value={firstNameInput}
+              onChange={(e) => setFirstNameInput(e.target.value)}
+              placeholder="First name"
+              className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
+              style={{ borderColor: "var(--border)" }}
+            />
+          ) : null}
+
           <input
             type="email"
             required

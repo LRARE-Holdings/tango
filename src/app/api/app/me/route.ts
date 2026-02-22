@@ -63,6 +63,23 @@ function isMissingColumnError(error: DbErrorLike | null | undefined, column: str
   );
 }
 
+function firstToken(value: unknown) {
+  const clean = String(value ?? "").trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  return clean.split(" ")[0] ?? "";
+}
+
+function displayNameFromUserMetadata(user: { user_metadata?: unknown; email?: string | null } | null | undefined) {
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const fromFirstName = firstToken(meta.first_name);
+  if (fromFirstName) return fromFirstName;
+  const fromFullName = firstToken(meta.full_name);
+  if (fromFullName) return fromFullName;
+  const fromName = firstToken(meta.name);
+  if (fromName) return fromName;
+  return firstToken(String(user?.email ?? "").split("@")[0] ?? "");
+}
+
 async function readOptionalPrefs(
   supabase: Awaited<ReturnType<typeof supabaseServer>>,
   userId: string
@@ -135,6 +152,7 @@ export async function GET() {
 
   const { prefs, error: prefsErr } = await readOptionalPrefs(supabase, userId);
   if (prefsErr) return NextResponse.json({ error: prefsErr }, { status: 500 });
+  const resolvedDisplayName = firstToken(prefs.display_name) || displayNameFromUserMetadata(userRes.user) || null;
 
   const entRow = (ent ?? null) as EntitlementsRow | null;
   const profRow = (prof ?? null) as ProfileCoreRow | null;
@@ -221,7 +239,7 @@ export async function GET() {
     created_at: profRow?.created_at ?? null,
     updated_at: profRow?.updated_at ?? null,
 
-    display_name: prefs.display_name,
+    display_name: resolvedDisplayName,
     marketing_opt_in: prefs.marketing_opt_in,
     default_ack_limit: prefs.default_ack_limit,
     default_password_enabled: prefs.default_password_enabled,

@@ -34,6 +34,13 @@ test.describe("api security controls", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("billing session sync endpoint rejects unauthenticated requests", async ({ request }) => {
+    const res = await request.post("/api/billing/sync-session", {
+      data: { sessionId: "cs_test_example" },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test("debug endpoints are gated by env flag", async ({ request }) => {
     const enabled = isTruthy(process.env.ENABLE_DEBUG_ENDPOINTS);
 

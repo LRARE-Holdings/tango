@@ -4,11 +4,31 @@ import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-function firstName(displayName: string | null | undefined, email: string | null | undefined) {
-  const clean = String(displayName ?? "").trim().replace(/\s+/g, " ");
-  if (clean) return clean.split(" ")[0] ?? "";
-  const fromEmail = String(email ?? "").trim().split("@")[0];
-  return fromEmail || "there";
+function firstToken(value: unknown) {
+  const clean = String(value ?? "").trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  return clean.split(" ")[0] ?? "";
+}
+
+function firstName(
+  displayName: string | null | undefined,
+  email: string | null | undefined,
+  userMetadata: unknown
+) {
+  const fromDisplayName = firstToken(displayName);
+  if (fromDisplayName) return fromDisplayName;
+
+  const meta = (userMetadata ?? {}) as Record<string, unknown>;
+  const fromMetaFirstName = firstToken(meta.first_name);
+  if (fromMetaFirstName) return fromMetaFirstName;
+
+  const fromMetaFullName = firstToken(meta.full_name);
+  if (fromMetaFullName) return fromMetaFullName;
+
+  const fromMetaName = firstToken(meta.name);
+  if (fromMetaName) return fromMetaName;
+
+  return firstToken(String(email ?? "").trim().split("@")[0] ?? "") || "there";
 }
 
 function greetingForNow() {
@@ -242,7 +262,11 @@ export async function GET(
       },
       greeting: {
         text: greetingForNow(),
-        first_name: firstName(profile?.display_name ?? null, userData.user.email ?? null),
+        first_name: firstName(
+          profile?.display_name ?? null,
+          userData.user.email ?? null,
+          userData.user.user_metadata
+        ),
       },
       recent_files: recentDocs,
       while_away: {

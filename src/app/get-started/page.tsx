@@ -22,17 +22,17 @@ function getSiteUrl() {
   return raw ? raw.replace(/\/$/, "") : window.location.origin;
 }
 
-function extractFirstName(fullName: string) {
-  const clean = fullName.trim().replace(/\s+/g, " ");
+function normalizeFirstName(input: string) {
+  const clean = input.trim().replace(/\s+/g, " ");
   if (!clean) return "";
-  return clean.split(" ")[0] ?? "";
+  return (clean.split(" ")[0] ?? "").slice(0, 80);
 }
 
 export default function GetStartedPage() {
   const router = useRouter();
   const supabase = supabaseBrowser();
 
-  const [fullName, setFullName] = useState("");
+  const [firstNameInput, setFirstNameInput] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nextPath, setNextPath] = useState("/onboarding");
@@ -46,7 +46,7 @@ export default function GetStartedPage() {
     setNextPath(getSafeNextFromHref(window.location.href));
   }, []);
 
-  const firstName = useMemo(() => extractFirstName(fullName), [fullName]);
+  const firstName = useMemo(() => normalizeFirstName(firstNameInput), [firstNameInput]);
 
   async function signUpWithEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -56,9 +56,7 @@ export default function GetStartedPage() {
       if (captchaEnabled && !captchaToken) {
         throw new Error("Please complete the security check.");
       }
-      const name = fullName.trim();
-      if (!name) throw new Error("Enter your full name to continue.");
-      if (!firstName) throw new Error("Enter your full name to continue.");
+      if (!firstName) throw new Error("Enter your first name to continue.");
 
       const siteUrl = getSiteUrl();
       const confirmUrl = `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}&first_name=${encodeURIComponent(firstName)}`;
@@ -70,7 +68,7 @@ export default function GetStartedPage() {
           captchaToken: captchaToken ?? undefined,
           emailRedirectTo: confirmUrl,
           data: {
-            full_name: name,
+            full_name: firstName,
             first_name: firstName,
           },
         },
@@ -127,9 +125,9 @@ export default function GetStartedPage() {
           <input
             type="text"
             required
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Full name"
+            value={firstNameInput}
+            onChange={(e) => setFirstNameInput(e.target.value)}
+            placeholder="First name"
             className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
             style={{ borderColor: "var(--border)" }}
           />
