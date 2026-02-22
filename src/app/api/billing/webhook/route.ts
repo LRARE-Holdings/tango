@@ -213,6 +213,81 @@ async function maybeSendTrialEnrollmentEmail(params: {
   }
 }
 
+async function syncProfileFromSubscription(params: {
+  admin: ReturnType<typeof supabaseAdmin>;
+  sub: Stripe.Subscription;
+  context: string;
+}) {
+  const { admin, sub, context } = params;
+  const userId = subscriptionUserId(sub);
+  const customerId = typeof sub.customer === "string" ? sub.customer : null;
+
+  if (!userId) {
+    console.error("⚠️ Subscription missing metadata.supabase_user_id", {
+      context,
+      subId: sub.id,
+      customerId,
+      metadata: sub.metadata,
+    });
+    return NextResponse.json({ received: true });
+  }
+
+  const priceId = sub.items.data[0]?.price?.id ?? null;
+  const plan = priceToPlan(priceId);
+  const billing = sub.items.data[0]?.price?.recurring?.interval === "year" ? "annual" : "monthly";
+
+  const cpe = numField(sub, "current_period_end");
+  const te = numField(sub, "trial_end");
+  const hasTrial = !!te && te > 0;
+
+  const payload = {
+    stripe_customer_id: customerId ?? undefined,
+    stripe_subscription_id: sub.id,
+    plan,
+    subscription_status: sub.status,
+    billing_interval: sub.items.data[0]?.price?.recurring?.interval ?? null,
+    seats: sub.items.data[0]?.quantity ?? 1,
+    current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
+    cancel_at_period_end: sub.cancel_at_period_end,
+    has_had_trial: hasTrial ? true : undefined,
+    trial_end: te ? new Date(te * 1000).toISOString() : null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error, data } = await admin
+    .from("profiles")
+    .update(payload)
+    .eq("id", userId)
+    .select("id, plan, subscription_status, stripe_customer_id, stripe_subscription_id")
+    .maybeSingle();
+
+  if (error) {
+    console.error(`🔥 Supabase update failed (${context}):`, error);
+    return NextResponse.json(
+      { error: "Supabase update failed", detail: error.message, hint: error.hint ?? undefined },
+      { status: 500 }
+    );
+  }
+
+  if (!data) {
+    console.error("🔥 No profile row matched id for userId:", userId);
+    return NextResponse.json(
+      { error: "No profile row found for user", userId },
+      { status: 500 }
+    );
+  }
+
+  await maybeSendTrialEnrollmentEmail({
+    sub,
+    userId,
+    customerId,
+    plan,
+    billing,
+  });
+
+  return NextResponse.json({ received: true });
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const sig = request.headers.get("stripe-signature");
@@ -322,73 +397,33 @@ export async function POST(request: Request) {
 
     if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
       const sub = event.data.object as Stripe.Subscription;
+      return syncProfileFromSubscription({
+        admin,
+        sub,
+        context: event.type,
+      });
+    }
 
-      const userId = subscriptionUserId(sub);
-      const customerId = typeof sub.customer === "string" ? sub.customer : null;
+    if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const parentSub = invoice.parent?.subscription_details?.subscription;
+      const subscriptionId =
+        typeof parentSub === "string"
+          ? parentSub
+          : parentSub && typeof parentSub === "object"
+            ? parentSub.id
+            : null;
 
-      if (!userId) {
-        console.error("⚠️ Subscription missing metadata.supabase_user_id", {
-          subId: sub.id,
-          customerId,
-          metadata: sub.metadata,
-        });
+      if (!subscriptionId) {
         return NextResponse.json({ received: true });
       }
 
-      const priceId = sub.items.data[0]?.price?.id ?? null;
-      const plan = priceToPlan(priceId);
-      const billing = sub.items.data[0]?.price?.recurring?.interval === "year" ? "annual" : "monthly";
-
-      const cpe = numField(sub, "current_period_end");
-      const te = numField(sub, "trial_end");
-      const hasTrial = !!te && te > 0;
-
-      const payload = {
-        stripe_customer_id: customerId ?? undefined,
-        stripe_subscription_id: sub.id,
-        plan,
-        subscription_status: sub.status,
-        billing_interval: sub.items.data[0]?.price?.recurring?.interval ?? null,
-        seats: sub.items.data[0]?.quantity ?? 1,
-        current_period_end: cpe ? new Date(cpe * 1000).toISOString() : null,
-        cancel_at_period_end: sub.cancel_at_period_end,
-        has_had_trial: hasTrial ? true : undefined,
-        trial_end: te ? new Date(te * 1000).toISOString() : null,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error, data } = await admin
-        .from("profiles")
-        .update(payload)
-        .eq("id", userId)
-        .select("id, plan, subscription_status, stripe_customer_id, stripe_subscription_id")
-        .maybeSingle();
-
-      if (error) {
-        console.error("🔥 Supabase update failed (subscription.*):", error);
-        return NextResponse.json(
-          { error: "Supabase update failed", detail: error.message, hint: error.hint ?? undefined },
-          { status: 500 }
-        );
-      }
-
-      if (!data) {
-        console.error("🔥 No profile row matched id for userId:", userId);
-        return NextResponse.json(
-          { error: "No profile row found for user", userId },
-          { status: 500 }
-        );
-      }
-
-      await maybeSendTrialEnrollmentEmail({
+      const sub = await stripe.subscriptions.retrieve(subscriptionId);
+      return syncProfileFromSubscription({
+        admin,
         sub,
-        userId,
-        customerId,
-        plan,
-        billing,
+        context: event.type,
       });
-
-      return NextResponse.json({ received: true });
     }
 
     return NextResponse.json({ received: true });

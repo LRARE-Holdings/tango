@@ -3,6 +3,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DOCUMENT_LIMITS } from "@/lib/document-limits";
 type Billing = "monthly" | "annual";
+const CHECKOUT_MODE = String(process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_MODE ?? "custom")
+  .trim()
+  .toLowerCase() === "hosted"
+  ? "hosted"
+  : "custom";
 const TRIAL_DAYS = { monthly: 7, annual: 14 } as const;
 const ANNUAL_DISCOUNT = 0.15;
 const DOC_LIMITS = DOCUMENT_LIMITS;
@@ -208,6 +213,17 @@ export default function PricingPage() {
     }
     setCheckoutLoading(plan);
     try {
+      if (CHECKOUT_MODE === "custom") {
+        const params = new URLSearchParams({
+          plan,
+          billing,
+          source: "pricing",
+        });
+        if (plan === "team") params.set("seats", String(seats));
+        window.location.href = `/app/billing/checkout?${params.toString()}`;
+        return;
+      }
+
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },

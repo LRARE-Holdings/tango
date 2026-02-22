@@ -23,7 +23,11 @@ export function OnboardingGate() {
     async function run() {
       try {
         // Don’t gate auth routes or the onboarding route itself
-        if (pathname.startsWith("/auth") || pathname.startsWith("/onboarding")) {
+        if (
+          pathname.startsWith("/auth") ||
+          pathname.startsWith("/onboarding") ||
+          pathname.startsWith("/app/billing/checkout")
+        ) {
           if (!cancelled) setChecked(true);
           return;
         }

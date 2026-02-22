@@ -10,8 +10,10 @@
 ## 2) Dedicated QA billing validation (Live config)
 - Use a dedicated internal QA account/workspace only.
 - Execute:
-- Checkout session creation for each targeted plan path.
+- Custom checkout session creation for each targeted plan path.
+- Custom checkout confirm flow (success + 3DS + decline test cards).
 - Billing portal open and return flow.
+- Billing portal deep-link flows (payment method update, subscription update, cancellation).
 - Webhook validation with invalid signature (must return `400`).
 - Post-validation cleanup:
 - Cancel active QA subscription(s).
@@ -41,4 +43,3 @@
 - Revert to last known good deployment.
 - Re-run `qa:smoke` and targeted security checks.
 - Open incident channel and assign owner for fix-forward.
-

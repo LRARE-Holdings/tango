@@ -12,6 +12,7 @@ const cspDirectives = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   [
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "https://js.stripe.com",
     "https://www.googletagmanager.com",
     "https://www.google-analytics.com",
     "https://challenges.cloudflare.com",
@@ -21,6 +22,8 @@ const cspDirectives = [
     "connect-src 'self'",
     "https://*.supabase.co",
     "https://api.stripe.com",
+    "https://m.stripe.network",
+    "https://r.stripe.com",
     "https://api.resend.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
@@ -28,7 +31,7 @@ const cspDirectives = [
     "https://*.ingest.sentry.io",
     "https://challenges.cloudflare.com",
   ].join(" "),
-  "frame-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com",
+  "frame-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com",
   "worker-src 'self' blob:",
 ];
 

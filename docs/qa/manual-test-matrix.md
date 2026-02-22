@@ -47,12 +47,14 @@
 - [ ] PDF evidence export works.
 
 ## Billing
-- [ ] Checkout starts with valid plan.
+- [ ] Custom checkout loads in-app for valid plan/billing query.
+- [ ] Promotion code applies/removes in custom checkout.
+- [ ] Checkout confirms and redirects to `/app/billing/success`.
 - [ ] Portal opens for active subscriber.
+- [ ] Portal deep links open for payment method update, subscription update, and cancellation.
 - [ ] Webhook events update profile plan/status.
 
 ## Gate D: UAT signoff
 - [ ] Owner/admin signoff captured.
 - [ ] Member signoff captured.
 - [ ] No P0/P1 issues open.
-

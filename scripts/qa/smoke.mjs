@@ -26,6 +26,7 @@ const checks = [
   { name: "Public doc missing", path: "/api/public/not-a-real-id", expect: [404] },
   { name: "API me (auth-aware)", path: "/api/app/me", expect: [200, 401, 500] },
   { name: "API documents list (auth-aware)", path: "/api/app/documents", expect: [200, 401, 500] },
+  { name: "Checkout session API", path: "/api/billing/checkout/session", expect: [405] },
   { name: "Billing portal (auth-aware)", path: "/api/billing/portal", expect: [200, 401, 405, 500] },
 ];
 

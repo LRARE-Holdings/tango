@@ -28,6 +28,11 @@ type NeedKey =
 
 type RecommendedPlan = "free" | "personal" | "pro" | "team" | "enterprise";
 type Billing = "monthly" | "annual";
+const CHECKOUT_MODE = String(process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_MODE ?? "custom")
+  .trim()
+  .toLowerCase() === "hosted"
+  ? "hosted"
+  : "custom";
 
 type Answers = {
   intent: UsageIntent | null;
@@ -205,6 +210,17 @@ export default function OnboardingPage() {
 
     // Only Team uses seats.
     if (plan === "team") body.seats = seats;
+
+    if (CHECKOUT_MODE === "custom") {
+      const params = new URLSearchParams({
+        plan,
+        billing,
+        source: "onboarding",
+      });
+      if (plan === "team") params.set("seats", String(seats));
+      router.replace(`/app/billing/checkout?${params.toString()}`);
+      return;
+    }
 
     const res = await fetch("/api/billing/checkout", {
       method: "POST",

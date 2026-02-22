@@ -5,7 +5,6 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   assertBilling,
   assertCheckoutPlan,
-  checkoutCancelUrl,
   checkoutMode,
   checkoutSuccessReturnUrl,
   normalizeSeats,
@@ -21,6 +20,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+function normalizeSource(value: unknown) {
+  const source = String(value ?? "").trim().toLowerCase();
+  if (!source) return null;
+  return source.slice(0, 64);
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await supabaseServer();
@@ -31,37 +36,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (checkoutMode() !== "hosted") {
+    if (checkoutMode() !== "custom") {
       return NextResponse.json(
         {
-          error: "Hosted checkout is disabled. Use /app/billing/checkout.",
+          error: "Custom checkout is disabled for this environment.",
         },
         { status: 409 }
       );
     }
 
-    const userId = auth.user.id;
-    const email = auth.user.email ?? undefined;
-
     const body = await req.json();
     const plan = body.plan;
     const billing = body.billing;
     const seatsRaw = body.seats;
+    const source = normalizeSource(body.source);
 
     assertCheckoutPlan(plan);
     assertBilling(billing);
 
+    const publishableKey = requireEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
     const seats = normalizeSeats(plan, seatsRaw);
-
     const priceId = requireEnv(priceEnvKey(plan, billing));
 
-    // Load profile (your schema uses `id`)
+    const userId = auth.user.id;
+    const email = auth.user.email ?? undefined;
+
     const { data: profile, error: profErr } = await admin
       .from("profiles")
       .select("id, stripe_customer_id, has_had_trial")
       .eq("id", userId)
       .maybeSingle();
-
     if (profErr) throw profErr;
 
     let customerId = profile?.stripe_customer_id ?? null;
@@ -74,7 +78,6 @@ export async function POST(req: Request) {
 
       customerId = customer.id;
 
-      // Use admin to avoid any RLS footguns
       const { error: upErr } = await admin
         .from("profiles")
         .upsert(
@@ -86,11 +89,9 @@ export async function POST(req: Request) {
           },
           { onConflict: "id" }
         );
-
       if (upErr) throw upErr;
     }
 
-    // Trial policy
     const desiredTrialDays = billing === "annual" ? 14 : 7;
 
     const existingSubs = await stripe.subscriptions.list({
@@ -101,45 +102,48 @@ export async function POST(req: Request) {
 
     const hasEverSubscribed = existingSubs.data.length > 0;
     const hasHadTrial = Boolean(profile?.has_had_trial);
-
     const trialPeriodDays = hasEverSubscribed || hasHadTrial ? undefined : desiredTrialDays;
 
     const siteUrl = siteBaseUrl();
-    const successUrl = checkoutSuccessReturnUrl(siteUrl);
-    const cancelUrl = checkoutCancelUrl(siteUrl);
+    const returnUrl = checkoutSuccessReturnUrl(siteUrl);
+
+    const metadata: Record<string, string> = {
+      supabase_user_id: userId,
+      plan,
+      billing,
+    };
+    if (source) metadata.source = source;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      ui_mode: "custom",
+      return_url: returnUrl,
       customer: customerId,
-
-      // ✅ makes webhook mapping reliable
       client_reference_id: userId,
-
       line_items: [{ price: priceId, quantity: seats }],
       allow_promotion_codes: true,
-
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-
       subscription_data: {
         ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
-        metadata: {
-          supabase_user_id: userId,
-          plan,
-          billing,
-        },
+        metadata,
       },
-
-      metadata: {
-        supabase_user_id: userId,
-        plan,
-        billing,
-      },
+      metadata,
     });
 
-    return NextResponse.json({ url: session.url }, { status: 200 });
+    if (!session.client_secret) {
+      throw new Error("Stripe did not return a checkout client secret");
+    }
+
+    return NextResponse.json(
+      {
+        checkoutSessionId: session.id,
+        clientSecret: session.client_secret,
+        returnUrl,
+        publishableKey,
+      },
+      { status: 200 }
+    );
   } catch (error: unknown) {
-    console.error("❌ Checkout error:", error);
-    return NextResponse.json({ error: errorMessage(error, "Checkout failed") }, { status: 500 });
+    console.error("❌ Custom checkout session error:", error);
+    return NextResponse.json({ error: errorMessage(error, "Checkout session failed") }, { status: 500 });
   }
 }

@@ -19,6 +19,7 @@ const required = [
   "NEXT_PUBLIC_SENTRY_DSN",
   "SENTRY_DSN",
   "STRIPE_SECRET_KEY",
+  "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
   "STRIPE_WEBHOOK_SECRET",
   "STRIPE_PRICE_PERSONAL_MONTHLY",
   "STRIPE_PRICE_PERSONAL_ANNUAL",
@@ -64,6 +65,14 @@ const debugEnabled = String(process.env.ENABLE_DEBUG_ENDPOINTS || "")
   .toLowerCase();
 if (isProduction && (debugEnabled === "1" || debugEnabled === "true" || debugEnabled === "yes" || debugEnabled === "on")) {
   console.error("ENABLE_DEBUG_ENDPOINTS must be false in production.");
+  process.exit(1);
+}
+
+const checkoutMode = String(process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_MODE || "custom")
+  .trim()
+  .toLowerCase();
+if (checkoutMode !== "custom" && checkoutMode !== "hosted") {
+  console.error("NEXT_PUBLIC_STRIPE_CHECKOUT_MODE must be either 'custom' or 'hosted'.");
   process.exit(1);
 }
 

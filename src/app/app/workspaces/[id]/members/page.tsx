@@ -45,6 +45,7 @@ export default function WorkspaceMembersPage() {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [licensing, setLicensing] = useState<LicensingSummary | null>(null);
   const [licenseSavingUserId, setLicenseSavingUserId] = useState<string | null>(null);
+  const [billingPortalLoading, setBillingPortalLoading] = useState(false);
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"member" | "admin">("member");
@@ -210,6 +211,25 @@ export default function WorkspaceMembersPage() {
     }
   }
 
+  async function openBillingPortalForSeats() {
+    setInviteMsg(null);
+    setBillingPortalLoading(true);
+    try {
+      const res = await fetch("/api/billing/portal", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ flow: "subscription_update" }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Could not open billing portal.");
+      if (!json?.url) throw new Error("No portal URL returned.");
+      window.location.href = json.url;
+    } catch (e: unknown) {
+      setInviteMsg(e instanceof Error ? e.message : "Could not open billing portal.");
+      setBillingPortalLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
@@ -310,13 +330,20 @@ export default function WorkspaceMembersPage() {
               ) : null}
               {canManageMembers ? (
                 <div className="mt-3">
-                  <a
-                    href="/app/account"
+                  <button
+                    type="button"
+                    onClick={() => void openBillingPortalForSeats()}
+                    disabled={billingPortalLoading}
                     className="focus-ring inline-flex px-3 py-2 text-xs font-medium hover:opacity-80"
-                    style={{ border: "1px solid var(--border)", borderRadius: 8, color: "var(--muted)" }}
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      color: "var(--muted)",
+                      opacity: billingPortalLoading ? 0.6 : 1,
+                    }}
                   >
-                    Manage billing
-                  </a>
+                    {billingPortalLoading ? "Opening…" : "Manage seats in billing"}
+                  </button>
                 </div>
               ) : null}
             </div>

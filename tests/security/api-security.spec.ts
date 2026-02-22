@@ -17,6 +17,23 @@ test.describe("api security controls", () => {
     expect(res.status()).toBe(400);
   });
 
+  test("custom checkout session endpoint rejects unauthenticated requests", async ({ request }) => {
+    const res = await request.post("/api/billing/checkout/session", {
+      data: {
+        plan: "personal",
+        billing: "monthly",
+      },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test("billing portal deep-link endpoint rejects unauthenticated requests", async ({ request }) => {
+    const res = await request.post("/api/billing/portal", {
+      data: { flow: "subscription_update" },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test("debug endpoints are gated by env flag", async ({ request }) => {
     const enabled = isTruthy(process.env.ENABLE_DEBUG_ENDPOINTS);
 

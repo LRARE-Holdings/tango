@@ -23,7 +23,7 @@ export function EmailVerificationGate() {
     async function run() {
       try {
         // If we’re already on auth pages, don’t gate.
-        if (pathname.startsWith("/auth")) {
+        if (pathname.startsWith("/auth") || pathname.startsWith("/app/billing/checkout")) {
           if (!cancelled) setChecked(true);
           return;
         }

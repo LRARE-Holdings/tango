@@ -55,6 +55,8 @@ type AccountPatch = {
   default_password_enabled?: boolean | null;
 };
 
+type BillingPortalFlow = "default" | "payment_method_update" | "subscription_cancel" | "subscription_update";
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -315,7 +317,7 @@ export default function AccountPage() {
   const [defaultPasswordEnabled, setDefaultPasswordEnabled] = useState(false);
 
   // Billing portal
-  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingLoadingFlow, setBillingLoadingFlow] = useState<BillingPortalFlow | null>(null);
 
   // Security actions
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -408,13 +410,13 @@ export default function AccountPage() {
     window.location.replace("/auth");
   }
 
-  async function openBillingPortal() {
-    setBillingLoading(true);
+  async function openBillingPortal(flow: BillingPortalFlow = "default") {
+    setBillingLoadingFlow(flow);
     try {
       const res = await fetch("/api/billing/portal", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(flow === "default" ? {} : { flow }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? "Could not open billing portal");
@@ -422,7 +424,7 @@ export default function AccountPage() {
       window.location.href = json.url;
     } catch (error: unknown) {
       toast.error("Billing", errorMessage(error, "Something went wrong"));
-      setBillingLoading(false);
+      setBillingLoadingFlow(null);
     }
   }
 
@@ -641,8 +643,29 @@ export default function AccountPage() {
         <Divider />
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={openBillingPortal} disabled={billingLoading}>
-            {billingLoading ? "Opening…" : "Manage billing"}
+          <Button onClick={() => void openBillingPortal("default")} disabled={billingLoadingFlow !== null}>
+            {billingLoadingFlow === "default" ? "Opening…" : "Manage billing"}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => void openBillingPortal("payment_method_update")}
+            disabled={billingLoadingFlow !== null}
+          >
+            {billingLoadingFlow === "payment_method_update" ? "Opening…" : "Update payment method"}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => void openBillingPortal("subscription_update")}
+            disabled={billingLoadingFlow !== null}
+          >
+            {billingLoadingFlow === "subscription_update" ? "Opening…" : "Change plan or seats"}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => void openBillingPortal("subscription_cancel")}
+            disabled={billingLoadingFlow !== null}
+          >
+            {billingLoadingFlow === "subscription_cancel" ? "Opening…" : "Cancel subscription"}
           </Button>
           <Link
             href="/app"
@@ -885,8 +908,8 @@ export default function AccountPage() {
         </div>
 
         <div className="mt-4 flex gap-2 flex-wrap">
-          <Button onClick={openBillingPortal} disabled={billingLoading}>
-            {billingLoading ? "Opening…" : "Open customer portal"}
+          <Button onClick={() => void openBillingPortal("default")} disabled={billingLoadingFlow !== null}>
+            {billingLoadingFlow === "default" ? "Opening…" : "Open customer portal"}
           </Button>
           <Link
             href="/pricing"
