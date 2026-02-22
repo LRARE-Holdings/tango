@@ -13,6 +13,7 @@ type WorkspaceContact = {
   workspace_id: string;
   name: string;
   email: string;
+  source: "workspace_member" | "external";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -461,6 +462,9 @@ export default function ContactsPage() {
                       <span className="truncate text-xs" style={{ color: "var(--muted2)" }}>
                         {contact.email}
                       </span>
+                      <span className="truncate text-[11px]" style={{ color: "var(--muted2)" }}>
+                        {contact.source === "workspace_member" ? "Member" : "External"}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -517,6 +521,9 @@ export default function ContactsPage() {
               </div>
 
               <div className="mt-4 space-y-2">
+                <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                  Workspace members are included automatically. External contacts can be added manually.
+                </div>
                 {filteredContacts.length === 0 ? (
                   <div className="app-empty">No contacts found.</div>
                 ) : (
@@ -529,16 +536,21 @@ export default function ContactsPage() {
                             {contact.email}
                           </div>
                           <div className="text-[11px]" style={{ color: "var(--muted2)" }}>
+                            {contact.source === "workspace_member" ? "Workspace member" : "External contact"}
+                          </div>
+                          <div className="text-[11px]" style={{ color: "var(--muted2)" }}>
                             Updated {formatUtc(contact.updated_at)}
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => void deleteContact(contact.id)}
-                          disabled={contactDeleteBusyId === contact.id}
+                          disabled={contact.source === "workspace_member" || contactDeleteBusyId === contact.id}
                           className="focus-ring app-btn-secondary disabled:opacity-50"
                         >
-                          {contactDeleteBusyId === contact.id ? "Removing…" : "Delete"}
+                          {contact.source === "workspace_member"
+                            ? "Managed"
+                            : (contactDeleteBusyId === contact.id ? "Removing…" : "Delete")}
                         </button>
                       </div>
                     </div>
@@ -621,6 +633,9 @@ export default function ContactsPage() {
                         <span className="truncate">{contact.name}</span>
                         <span className="truncate text-xs" style={{ color: "var(--muted2)" }}>
                           {contact.email}
+                        </span>
+                        <span className="truncate text-[11px]" style={{ color: "var(--muted2)" }}>
+                          {contact.source === "workspace_member" ? "Member" : "External"}
                         </span>
                       </label>
                     ))}

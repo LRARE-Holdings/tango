@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { useToast } from "@/components/toast";
 
@@ -290,11 +291,13 @@ function Toggle({
 }
 
 function Section({
+  id,
   title,
   subtitle,
   right,
   children,
 }: {
+  id?: string;
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
@@ -302,6 +305,7 @@ function Section({
 }) {
   return (
     <section
+      id={id}
       className="border p-6 md:p-7"
       style={{
         borderColor: "var(--border)",
@@ -332,6 +336,7 @@ function Divider() {
 export default function AccountPage() {
   const toast = useToast();
   const supabase = supabaseBrowser();
+  const searchParams = useSearchParams();
 
   const [me, setMe] = useState<MeResponse | null>(null);
   const [meLoading, setMeLoading] = useState(true);
@@ -370,6 +375,7 @@ export default function AccountPage() {
   const [confirmDelete, setConfirmDelete] = useState("");
 
   const mountedRef = useRef(true);
+  const promptedMfaRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -473,9 +479,18 @@ export default function AccountPage() {
   const isPaid = String(me?.plan ?? "").toLowerCase() !== "free" && Boolean(status);
   const mfaRequired = me?.mfa_required === true;
   const mfaReasons = Array.isArray(me?.mfa_required_reasons) ? me.mfa_required_reasons : [];
+  const mfaPromptRequired = searchParams.get("mfa") === "required";
+  const mfaPromptScope = String(searchParams.get("mfa_scope") ?? "").trim().toLowerCase();
   const verifiedMfaFactors = mfaFactors.filter((factor) => factor.status === "verified");
   const mfaEnabled = me?.mfa_enabled === true || verifiedMfaFactors.length > 0;
   const mfaVerifiedCount = Math.max(Number(me?.mfa_verified_factor_count ?? 0), verifiedMfaFactors.length);
+  const canRemoveVerifiedFactor = !mfaRequired || mfaVerifiedCount > 1;
+  const showMfaEnrollmentPrompt = !mfaEnabled && (mfaRequired || mfaPromptRequired);
+  const mfaPromptMessage = mfaPromptScope === "workspace"
+    ? "This workspace requires MFA before access is restored."
+    : mfaPromptScope === "plan+workspace"
+      ? "Your paid plan and workspace policy require MFA before access is restored."
+      : "MFA is required before you can continue in the app.";
   const mfaRequirementMessage = mfaRequired
     ? mfaReasons.includes("workspace_policy")
       ? mfaReasons.includes("paid_account")
@@ -483,6 +498,22 @@ export default function AccountPage() {
         : "MFA is required by your workspace policy."
       : "MFA is required on paid plans."
     : "MFA is optional on your current plan.";
+
+  useEffect(() => {
+    if (!showMfaEnrollmentPrompt || promptedMfaRef.current) return;
+    promptedMfaRef.current = true;
+    window.requestAnimationFrame(() => {
+      const node = document.getElementById("mfa-enrollment");
+      if (!node) return;
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [showMfaEnrollmentPrompt]);
+
+  function focusMfaEnrollment() {
+    const node = document.getElementById("mfa-enrollment");
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -629,6 +660,13 @@ export default function AccountPage() {
       setTotpCode("");
       toast.success("MFA enabled", "Multi-factor authentication is now active.");
       await Promise.all([loadMfaFactors(), loadMe()]);
+      const current = new URL(window.location.href);
+      if (current.searchParams.get("mfa") === "required") {
+        current.searchParams.delete("mfa");
+        current.searchParams.delete("mfa_scope");
+        const nextSearch = current.searchParams.toString();
+        window.history.replaceState({}, "", `${current.pathname}${nextSearch ? `?${nextSearch}` : ""}${current.hash}`);
+      }
     } catch (error: unknown) {
       toast.error("MFA", errorMessage(error, "Could not verify MFA code."));
     } finally {
@@ -637,6 +675,12 @@ export default function AccountPage() {
   }
 
   async function removeMfaFactor(factorId: string) {
+    const factor = mfaFactors.find((row) => row.id === factorId) ?? null;
+    if (factor && factor.status === "verified" && !canRemoveVerifiedFactor) {
+      toast.error("MFA", "A verified factor is required before you can continue.");
+      return;
+    }
+
     setMfaRemoveFactorId(factorId);
     try {
       const { error } = await supabase.auth.mfa.unenroll({ factorId });
@@ -756,6 +800,32 @@ export default function AccountPage() {
         </div>
       ) : null}
 
+      {showMfaEnrollmentPrompt ? (
+        <div
+          className="border p-4"
+          style={{
+            borderColor: "color-mix(in srgb, #ff3b30 38%, var(--border))",
+            borderRadius: 14,
+            background: "color-mix(in srgb, var(--bg) 90%, rgba(255,59,48,0.10))",
+          }}
+        >
+          <div className="flex items-start justify-between gap-3 flex-col md:flex-row">
+            <div>
+              <div className="text-sm font-semibold">MFA enrollment required</div>
+              <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+                {mfaPromptMessage}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={focusMfaEnrollment}>Set up MFA now</Button>
+              <Button variant="ghost" onClick={() => void loadMfaFactors()} disabled={mfaLoading}>
+                {mfaLoading ? "Refreshing…" : "Refresh factors"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Overview */}
       <Section
         title="Overview"
@@ -813,7 +883,7 @@ export default function AccountPage() {
               {workspaceId ? (
                 <>
                   Primary workspace set.{" "}
-                  <Link className="underline underline-offset-4" href="/app/workspace">
+                  <Link className="underline underline-offset-4" href="/app/workspaces">
                     Manage workspace
                   </Link>
                 </>
@@ -998,6 +1068,7 @@ export default function AccountPage() {
 
       {/* Security */}
       <Section
+        id="security"
         title="Security"
         subtitle="Control how you sign in. Keep it simple, keep it safe."
         right={
@@ -1049,8 +1120,15 @@ export default function AccountPage() {
           </div>
 
           <div
+            id="mfa-enrollment"
             className="border p-5 md:col-span-2"
-            style={{ borderColor: "var(--border)", borderRadius: 16, background: "var(--card)" }}
+            style={{
+              borderColor: showMfaEnrollmentPrompt
+                ? "color-mix(in srgb, #ff3b30 38%, var(--border))"
+                : "var(--border)",
+              borderRadius: 16,
+              background: "var(--card)",
+            }}
           >
             <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
               <div>
@@ -1066,6 +1144,11 @@ export default function AccountPage() {
                 >
                   {mfaRequirementMessage}
                 </div>
+                {mfaRequired && !canRemoveVerifiedFactor ? (
+                  <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
+                    Keep at least one verified factor enrolled to satisfy policy.
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex gap-2 flex-wrap">
@@ -1149,9 +1232,16 @@ export default function AccountPage() {
                     <Button
                       variant="ghost"
                       onClick={() => void removeMfaFactor(factor.id)}
-                      disabled={mfaRemoveFactorId === factor.id}
+                      disabled={
+                        mfaRemoveFactorId === factor.id ||
+                        (factor.status === "verified" && !canRemoveVerifiedFactor)
+                      }
                     >
-                      {mfaRemoveFactorId === factor.id ? "Removing…" : "Remove"}
+                      {factor.status === "verified" && !canRemoveVerifiedFactor
+                        ? "Required factor"
+                        : mfaRemoveFactorId === factor.id
+                          ? "Removing…"
+                          : "Remove"}
                     </Button>
                   </div>
                 ))

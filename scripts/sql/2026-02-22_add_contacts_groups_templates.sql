@@ -502,23 +502,37 @@ $$;
 do $$
 begin
   if to_regclass('public.recipients') is not null and to_regclass('public.documents') is not null then
+    with deduped_recipients as (
+      select distinct on (d.workspace_id, lower(trim(r.email)))
+        d.workspace_id,
+        coalesce(nullif(trim(r.name), ''), split_part(lower(trim(r.email)), '@', 1)) as name,
+        lower(trim(r.email)) as email,
+        d.owner_id as created_by
+      from public.recipients r
+      join public.documents d
+        on d.id = r.document_id
+      where d.workspace_id is not null
+        and trim(coalesce(r.email, '')) <> ''
+      order by
+        d.workspace_id,
+        lower(trim(r.email)),
+        (nullif(trim(r.name), '') is not null) desc,
+        lower(coalesce(r.name, '')) desc
+    )
     insert into public.workspace_contacts (workspace_id, name, email, created_by)
     select
-      d.workspace_id,
-      coalesce(nullif(trim(r.name), ''), split_part(lower(trim(r.email)), '@', 1)) as name,
-      lower(trim(r.email)) as email,
-      d.owner_id as created_by
-    from public.recipients r
-    join public.documents d
-      on d.id = r.document_id
-    where d.workspace_id is not null
-      and trim(coalesce(r.email, '')) <> ''
-      and not exists (
-        select 1
-        from public.workspace_contacts wc
-        where wc.workspace_id = d.workspace_id
-          and lower(wc.email) = lower(trim(r.email))
-      );
+      dr.workspace_id,
+      dr.name,
+      dr.email,
+      dr.created_by
+    from deduped_recipients dr
+    where not exists (
+      select 1
+      from public.workspace_contacts wc
+      where wc.workspace_id = dr.workspace_id
+        and lower(wc.email) = dr.email
+    )
+    on conflict do nothing;
   end if;
 end
 $$;

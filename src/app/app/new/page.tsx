@@ -21,6 +21,7 @@ type WorkspaceContact = {
   id: string;
   name: string;
   email: string;
+  source?: "workspace_member" | "external";
 };
 
 type ContactGroup = {
@@ -1670,6 +1671,9 @@ export default function NewReceipt() {
                                     <span className="truncate">{contact.name}</span>
                                     <span className="truncate text-xs" style={{ color: "var(--muted2)" }}>
                                       {contact.email}
+                                    </span>
+                                    <span className="truncate text-[11px]" style={{ color: "var(--muted2)" }}>
+                                      {contact.source === "workspace_member" ? "Member" : "External"}
                                     </span>
                                   </label>
                                 ))

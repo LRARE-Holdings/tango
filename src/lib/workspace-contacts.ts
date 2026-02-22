@@ -22,6 +22,20 @@ type ContactGroupMemberRow = {
   contact_id: string;
 };
 
+type WorkspaceMemberRow = {
+  user_id: string;
+};
+
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+};
+
+type AuthUserRow = {
+  id: string;
+  email: string | null;
+};
+
 function normalizeEmail(input: string) {
   return input.trim().toLowerCase();
 }
@@ -32,12 +46,137 @@ function fallbackNameFromEmail(email: string) {
   return clean || email;
 }
 
+function normalizeDisplayName(input: string | null | undefined) {
+  return String(input ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
+}
+
 export function parseIdList(input: unknown, max = 100): string[] {
   if (!Array.isArray(input)) return [];
   const cleaned = input
     .map((item) => String(item ?? "").trim())
     .filter(Boolean);
   return Array.from(new Set(cleaned)).slice(0, max);
+}
+
+export type WorkspaceContactSource = "workspace_member" | "external";
+
+export async function listWorkspaceMemberDirectory(
+  admin: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string
+): Promise<Array<{ user_id: string; email: string; display_name: string | null }>> {
+  const membersRes = await admin
+    .from("workspace_members")
+    .select("user_id")
+    .eq("workspace_id", workspaceId);
+
+  if (membersRes.error) throw new Error(membersRes.error.message);
+
+  const memberRows = (membersRes.data ?? []) as WorkspaceMemberRow[];
+  const userIds = Array.from(new Set(memberRows.map((row) => String(row.user_id)).filter(Boolean)));
+  if (userIds.length === 0) return [];
+
+  const profileRes = await admin
+    .from("profiles")
+    .select("id,display_name")
+    .in("id", userIds);
+  if (profileRes.error) throw new Error(profileRes.error.message);
+
+  const displayNameByUserId = new Map<string, string | null>(
+    ((profileRes.data ?? []) as ProfileRow[]).map((row) => [String(row.id), normalizeDisplayName(row.display_name) || null])
+  );
+
+  const memberEmails = new Map<string, string>();
+  const authUsersRes = await admin
+    .schema("auth")
+    .from("users")
+    .select("id,email")
+    .in("id", userIds);
+
+  if (!authUsersRes.error) {
+    for (const row of (authUsersRes.data ?? []) as AuthUserRow[]) {
+      const userId = String(row.id);
+      const email = normalizeEmail(String(row.email ?? ""));
+      if (!email) continue;
+      memberEmails.set(userId, email);
+    }
+  } else {
+    await Promise.all(
+      userIds.map(async (userId) => {
+        const userRes = await admin.auth.admin.getUserById(userId);
+        if (userRes.error) return;
+        const email = normalizeEmail(String(userRes.data.user?.email ?? ""));
+        if (!email) return;
+        memberEmails.set(userId, email);
+      })
+    );
+  }
+
+  return userIds
+    .map((userId) => {
+      const email = memberEmails.get(userId);
+      if (!email) return null;
+      return {
+        user_id: userId,
+        email,
+        display_name: displayNameByUserId.get(userId) ?? null,
+      };
+    })
+    .filter((row): row is { user_id: string; email: string; display_name: string | null } => Boolean(row));
+}
+
+export async function ensureWorkspaceMemberContacts(args: {
+  admin: ReturnType<typeof supabaseAdmin>;
+  workspaceId: string;
+  actorUserId?: string | null;
+}): Promise<{ inserted: number; memberEmails: Set<string> }> {
+  const members = await listWorkspaceMemberDirectory(args.admin, args.workspaceId);
+  const memberEmails = new Set<string>(members.map((member) => normalizeEmail(member.email)).filter(Boolean));
+  const memberEmailList = Array.from(memberEmails);
+
+  if (members.length === 0 || memberEmailList.length === 0) {
+    return { inserted: 0, memberEmails };
+  }
+
+  const existingRes = await args.admin
+    .from("workspace_contacts")
+    .select("email")
+    .eq("workspace_id", args.workspaceId)
+    .in("email", memberEmailList);
+
+  if (existingRes.error) throw new Error(existingRes.error.message);
+
+  const existingEmails = new Set(
+    ((existingRes.data ?? []) as Array<{ email: string | null }>)
+      .map((row) => normalizeEmail(String(row.email ?? "")))
+      .filter(Boolean)
+  );
+
+  let inserted = 0;
+  for (const member of members) {
+    const email = normalizeEmail(member.email);
+    if (!email || existingEmails.has(email)) continue;
+
+    const name = normalizeDisplayName(member.display_name) || fallbackNameFromEmail(email);
+    const insertRes = await args.admin.from("workspace_contacts").insert({
+      workspace_id: args.workspaceId,
+      name,
+      email,
+      created_by: args.actorUserId ?? null,
+    });
+
+    if (insertRes.error) {
+      if (insertRes.error.code === "23505") {
+        existingEmails.add(email);
+        continue;
+      }
+      throw new Error(insertRes.error.message);
+    }
+
+    existingEmails.add(email);
+    inserted += 1;
+  }
+
+  return { inserted, memberEmails };
 }
 
 function addRecipient(map: Map<string, ParsedRecipient>, recipient: ParsedRecipient) {

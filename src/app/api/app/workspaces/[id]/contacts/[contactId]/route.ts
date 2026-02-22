@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireWorkspaceMember } from "@/lib/workspace-access";
 import { canAccessFeatureByPlan } from "@/lib/workspace-features";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
+import { listWorkspaceMemberDirectory } from "@/lib/workspace-contacts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -39,6 +40,26 @@ export async function PATCH(
       return NextResponse.json({ error: "No updates provided." }, { status: 400 });
     }
 
+    const currentRes = await supabase
+      .from("workspace_contacts")
+      .select("id,email")
+      .eq("workspace_id", workspaceId)
+      .eq("id", contactId)
+      .maybeSingle();
+
+    if (currentRes.error) return NextResponse.json({ error: currentRes.error.message }, { status: 500 });
+    if (!currentRes.data) return NextResponse.json({ error: "Contact not found." }, { status: 404 });
+
+    const memberDirectory = await listWorkspaceMemberDirectory(admin, workspaceId);
+    const memberEmails = new Set(memberDirectory.map((row) => normalizeEmail(row.email)));
+    const currentEmail = normalizeEmail(String((currentRes.data as { email?: string | null }).email ?? ""));
+    if (memberEmails.has(currentEmail)) {
+      return NextResponse.json(
+        { error: "Workspace member contacts are managed automatically and cannot be edited." },
+        { status: 403 }
+      );
+    }
+
     const updates: Record<string, string> = {};
 
     if (body.name !== undefined) {
@@ -51,6 +72,12 @@ export async function PATCH(
       const email = normalizeEmail(String(body.email));
       if (!EMAIL_REGEX.test(email)) {
         return NextResponse.json({ error: "A valid contact email is required." }, { status: 400 });
+      }
+      if (memberEmails.has(email) && email !== currentEmail) {
+        return NextResponse.json(
+          { error: "That email belongs to a workspace member and is managed automatically." },
+          { status: 409 }
+        );
       }
       updates.email = email;
     }
@@ -72,7 +99,12 @@ export async function PATCH(
 
     if (!update.data) return NextResponse.json({ error: "Contact not found." }, { status: 404 });
 
-    return NextResponse.json({ contact: update.data });
+    return NextResponse.json({
+      contact: {
+        ...update.data,
+        source: "external",
+      },
+    });
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to update contact." }, { status: 500 });
   }
@@ -94,6 +126,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Contacts are available on Pro, Team, and Enterprise plans." }, { status: 403 });
     }
 
+    const currentRes = await supabase
+      .from("workspace_contacts")
+      .select("id,email")
+      .eq("workspace_id", workspaceId)
+      .eq("id", contactId)
+      .maybeSingle();
+
+    if (currentRes.error) return NextResponse.json({ error: currentRes.error.message }, { status: 500 });
+    if (!currentRes.data) return NextResponse.json({ error: "Contact not found." }, { status: 404 });
+
+    const memberDirectory = await listWorkspaceMemberDirectory(admin, workspaceId);
+    const memberEmails = new Set(memberDirectory.map((row) => normalizeEmail(row.email)));
+    const currentEmail = normalizeEmail(String((currentRes.data as { email?: string | null }).email ?? ""));
+    if (memberEmails.has(currentEmail)) {
+      return NextResponse.json(
+        { error: "Workspace member contacts are managed automatically and cannot be deleted." },
+        { status: 403 }
+      );
+    }
+
     const remove = await supabase
       .from("workspace_contacts")
       .delete()
@@ -103,7 +155,6 @@ export async function DELETE(
       .maybeSingle();
 
     if (remove.error) return NextResponse.json({ error: remove.error.message }, { status: 500 });
-    if (!remove.data) return NextResponse.json({ error: "Contact not found." }, { status: 404 });
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {

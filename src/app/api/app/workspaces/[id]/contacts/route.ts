@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireWorkspaceMember } from "@/lib/workspace-access";
 import { canAccessFeatureByPlan } from "@/lib/workspace-features";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
+import { ensureWorkspaceMemberContacts, type WorkspaceContactSource } from "@/lib/workspace-contacts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -45,6 +46,12 @@ export async function GET(
     if (!canAccessFeatureByPlan(ent.plan, "contacts")) {
       return NextResponse.json({ error: "Contacts are available on Pro, Team, and Enterprise plans." }, { status: 403 });
     }
+
+    const { memberEmails } = await ensureWorkspaceMemberContacts({
+      admin,
+      workspaceId,
+      actorUserId: userId,
+    });
 
     const reqUrl = new URL(req.url);
     const q = String(reqUrl.searchParams.get("q") ?? "").trim();
@@ -109,6 +116,7 @@ export async function GET(
         created_by: row.created_by,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        source: (memberEmails.has(normalizeEmail(row.email)) ? "workspace_member" : "external") as WorkspaceContactSource,
       })),
       next_offset: hasMore ? offset + limit : null,
     });
@@ -132,6 +140,12 @@ export async function POST(
     if (!canAccessFeatureByPlan(ent.plan, "contacts")) {
       return NextResponse.json({ error: "Contacts are available on Pro, Team, and Enterprise plans." }, { status: 403 });
     }
+
+    await ensureWorkspaceMemberContacts({
+      admin,
+      workspaceId,
+      actorUserId: userId,
+    });
 
     const body = (await req.json().catch(() => null)) as CreateContactBody | null;
     const name = normalizeName(String(body?.name ?? ""));
@@ -162,7 +176,12 @@ export async function POST(
       return NextResponse.json({ error: insert.error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ contact: insert.data }, { status: 201 });
+    return NextResponse.json({
+      contact: {
+        ...insert.data,
+        source: "external" as WorkspaceContactSource,
+      },
+    }, { status: 201 });
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to create contact." }, { status: 500 });
   }
