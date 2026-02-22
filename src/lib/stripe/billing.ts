@@ -2,6 +2,9 @@ export type Billing = "monthly" | "annual";
 export type CheckoutPlan = "personal" | "pro" | "team";
 export type CheckoutMode = "custom" | "hosted";
 export type BillingPortalFlow = "default" | "payment_method_update" | "subscription_cancel" | "subscription_update";
+type CheckoutPaymentMethodType = "card" | "revolut_pay";
+
+const REVOLUT_PAY_SUPPORTED_CURRENCIES = new Set(["eur", "gbp", "ron", "huf", "pln", "dkk"]);
 
 export function requireEnv(name: string) {
   const value = process.env[name];
@@ -59,6 +62,18 @@ export function checkoutSuccessReturnUrl(baseUrl: string) {
 
 export function checkoutCancelUrl(baseUrl: string) {
   return `${baseUrl}/pricing`;
+}
+
+export function checkoutPaymentMethodTypes(currency: string | null | undefined): CheckoutPaymentMethodType[] {
+  const normalizedCurrency = String(currency ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (REVOLUT_PAY_SUPPORTED_CURRENCIES.has(normalizedCurrency)) {
+    return ["card", "revolut_pay"];
+  }
+
+  return ["card"];
 }
 
 export function parseBillingPortalFlow(input: unknown): BillingPortalFlow {

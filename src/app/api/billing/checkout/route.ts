@@ -7,6 +7,7 @@ import {
   assertCheckoutPlan,
   checkoutCancelUrl,
   checkoutMode,
+  checkoutPaymentMethodTypes,
   checkoutSuccessReturnUrl,
   normalizeSeats,
   priceEnvKey,
@@ -54,6 +55,8 @@ export async function POST(req: Request) {
     const seats = normalizeSeats(plan, seatsRaw);
 
     const priceId = requireEnv(priceEnvKey(plan, billing));
+    const price = await stripe.prices.retrieve(priceId);
+    const paymentMethodTypes = checkoutPaymentMethodTypes(price.currency);
 
     // Load profile (your schema uses `id`)
     const { data: profile, error: profErr } = await admin
@@ -116,6 +119,7 @@ export async function POST(req: Request) {
       client_reference_id: userId,
 
       line_items: [{ price: priceId, quantity: seats }],
+      payment_method_types: paymentMethodTypes,
       allow_promotion_codes: true,
 
       success_url: successUrl,

@@ -6,6 +6,7 @@ import {
   assertBilling,
   assertCheckoutPlan,
   checkoutMode,
+  checkoutPaymentMethodTypes,
   checkoutSuccessReturnUrl,
   normalizeSeats,
   priceEnvKey,
@@ -57,6 +58,8 @@ export async function POST(req: Request) {
     const publishableKey = requireEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
     const seats = normalizeSeats(plan, seatsRaw);
     const priceId = requireEnv(priceEnvKey(plan, billing));
+    const price = await stripe.prices.retrieve(priceId);
+    const paymentMethodTypes = checkoutPaymentMethodTypes(price.currency);
 
     const userId = auth.user.id;
     const email = auth.user.email ?? undefined;
@@ -121,6 +124,7 @@ export async function POST(req: Request) {
       customer: customerId,
       client_reference_id: userId,
       line_items: [{ price: priceId, quantity: seats }],
+      payment_method_types: paymentMethodTypes,
       allow_promotion_codes: true,
       subscription_data: {
         ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),

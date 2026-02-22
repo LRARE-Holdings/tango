@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { CheckoutProvider, PaymentElement, useCheckout } from "@stripe/react-stripe-js/checkout";
 import { isSafeInternalPath } from "@/lib/safe-redirect";
+import { TermsOfServiceContent } from "@/components/legal/terms-of-service-content";
 
 type CheckoutPlan = "personal" | "pro" | "team";
 type Billing = "monthly" | "annual";
@@ -15,7 +16,6 @@ type CheckoutSource = "onboarding" | "pricing" | "custom_checkout";
 type CheckoutSessionResponse = {
   checkoutSessionId: string;
   clientSecret: string;
-  returnUrl: string;
   publishableKey: string;
 };
 
@@ -90,17 +90,17 @@ function CheckoutForm({
   plan,
   billing,
   seats,
-  returnUrl,
   source,
   onExit,
+  onOpenTerms,
 }: {
   sessionId: string;
   plan: CheckoutPlan;
   billing: Billing;
   seats: number;
-  returnUrl: string;
   source: CheckoutSource;
   onExit: () => void;
+  onOpenTerms: () => void;
 }) {
   const checkoutState = useCheckout();
   const [submitting, setSubmitting] = useState(false);
@@ -164,10 +164,7 @@ function CheckoutForm({
 
     setSubmitting(true);
     try {
-      const result = await checkoutState.checkout.confirm({
-        returnUrl,
-        redirect: "if_required",
-      });
+      const result = await checkoutState.checkout.confirm();
 
       if (result.type === "error") {
         setSubmitError(result.error.message || "Payment could not be confirmed.");
@@ -270,6 +267,22 @@ function CheckoutForm({
           Exit checkout
         </button>
       </div>
+
+      <div
+        className="rounded-2xl border p-3 text-xs leading-relaxed"
+        style={{ borderColor: "var(--border)", background: "var(--card2)", color: "var(--muted)" }}
+      >
+        By confirming, you agree to Receipt&apos;s{" "}
+        <button
+          type="button"
+          onClick={onOpenTerms}
+          className="focus-ring underline underline-offset-2"
+          style={{ color: "var(--fg)" }}
+        >
+          Terms of Service
+        </button>
+        . Billing is provided by Stripe and encrypted in transit. We do not store payment card details.
+      </div>
     </form>
   );
 }
@@ -282,6 +295,7 @@ export default function BillingCheckoutPage() {
   const [session, setSession] = useState<CheckoutSessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [termsOpen, setTermsOpen] = useState(false);
 
   useEffect(() => {
     const parsed = parseQuery(new URLSearchParams(window.location.search));
@@ -327,7 +341,7 @@ export default function BillingCheckoutPage() {
         if (!res.ok) {
           throw new Error(json?.error ?? "Could not initialize checkout.");
         }
-        if (!json?.clientSecret || !json?.publishableKey || !json?.checkoutSessionId || !json?.returnUrl) {
+        if (!json?.clientSecret || !json?.publishableKey || !json?.checkoutSessionId) {
           throw new Error("Incomplete checkout session response.");
         }
         if (cancelled) return;
@@ -335,7 +349,6 @@ export default function BillingCheckoutPage() {
           checkoutSessionId: json.checkoutSessionId,
           clientSecret: json.clientSecret,
           publishableKey: json.publishableKey,
-          returnUrl: json.returnUrl,
         });
       } catch (e: unknown) {
         if (!cancelled) setError(errorMessage(e, "Could not initialize checkout."));
@@ -480,9 +493,9 @@ export default function BillingCheckoutPage() {
                     plan={query.plan}
                     billing={query.billing}
                     seats={query.plan === "team" ? query.seats ?? 2 : 1}
-                    returnUrl={session.returnUrl}
                     source={query.source}
                     onExit={exitCheckout}
+                    onOpenTerms={() => setTermsOpen(true)}
                   />
                 </CheckoutProvider>
               ) : null}
@@ -490,6 +503,49 @@ export default function BillingCheckoutPage() {
           </div>
         </div>
       </section>
+
+      {termsOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close terms popup"
+            className="absolute inset-0"
+            style={{ background: "rgba(0,0,0,0.55)" }}
+            onClick={() => setTermsOpen(false)}
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkout-terms-title"
+            className="relative z-[91] w-full max-w-4xl overflow-hidden border"
+            style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}
+          >
+            <div
+              className="flex items-center justify-between border-b px-5 py-4"
+              style={{ borderColor: "var(--border)", background: "var(--card2)" }}
+            >
+              <h2 id="checkout-terms-title" className="text-sm font-semibold">
+                Terms of Service
+              </h2>
+              <button
+                type="button"
+                onClick={() => setTermsOpen(false)}
+                className="focus-ring inline-flex h-8 w-8 items-center justify-center rounded-full border text-lg leading-none hover:opacity-85"
+                style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="max-h-[72vh] overflow-y-auto px-5 py-4">
+              <div className="marketing-shell bg-transparent">
+                <TermsOfServiceContent />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
