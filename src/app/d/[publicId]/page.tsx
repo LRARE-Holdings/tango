@@ -513,6 +513,24 @@ export default function PublicDocPage({
               </label>
             </div>
 
+            <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+              By clicking acknowledge you agree to our{" "}
+              <Link href="/terms" target="_blank" className="underline underline-offset-4 hover:opacity-80">
+                terms of service
+              </Link>
+              ,{" "}
+              <Link href="/privacy" target="_blank" className="underline underline-offset-4 hover:opacity-80">
+                privacy policy
+              </Link>
+              {" "}and our{" "}
+              <Link href="/dpa" target="_blank" className="underline underline-offset-4 hover:opacity-80">
+                DPA
+              </Link>
+              . We use Supabase (AWS) hosted in London for all data.
+              Cloudflare is there for CAPTCHA purposes only and only tracks
+              relevant activity.
+            </p>
+
             <div className="mt-5 flex flex-col sm:flex-row gap-3">
               <TurnstileWidget
                 ref={turnstileRef}

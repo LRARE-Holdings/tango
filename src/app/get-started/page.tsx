@@ -201,6 +201,26 @@ export default function GetStartedPage() {
           </div>
         ) : null}
 
+        <div className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+          By creating an account, you agree to our{" "}
+          <Link href="/terms" className="underline underline-offset-4 hover:opacity-80">
+            Terms of Service
+          </Link>
+          ,{" "}
+          <Link href="/privacy" className="underline underline-offset-4 hover:opacity-80">
+            Privacy Policy
+          </Link>
+          , and{" "}
+          <Link href="/dpa" className="underline underline-offset-4 hover:opacity-80">
+            DPA
+          </Link>
+          , and{" "}
+          <Link href="/data-retention" className="underline underline-offset-4 hover:opacity-80">
+            Data Retention Policy
+          </Link>
+          .
+        </div>
+
         <div className="text-xs" style={{ color: "var(--muted)" }}>
           Already have an account?{" "}
           <Link href={`/auth?next=${encodeURIComponent(nextPath)}`} className="underline underline-offset-4 hover:opacity-80">

@@ -79,6 +79,16 @@ export function MarketingFooter() {
                     Privacy
                   </Link>
                 </li>
+                <li>
+                  <Link href="/dpa" className="marketing-link">
+                    DPA
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/data-retention" className="marketing-link">
+                    Data retention
+                  </Link>
+                </li>
               </ul>
             </div>
 

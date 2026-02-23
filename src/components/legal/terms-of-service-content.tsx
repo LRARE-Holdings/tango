@@ -160,7 +160,35 @@ export function TermsOfServiceContent() {
       </section>
 
       <section className="mt-10 space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight">13. Contact</h2>
+        <h2 className="text-lg font-semibold tracking-tight">
+          13. Data Processing Addendum
+        </h2>
+        <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
+          Where Receipt processes personal data on your behalf, our Data
+          Processing Addendum applies and forms part of these terms. The DPA is
+          available at <a href="/dpa" className="underline underline-offset-4 hover:opacity-80">/dpa</a>.
+        </p>
+      </section>
+
+      <section className="mt-10 space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">
+          14. Data retention policy
+        </h2>
+        <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
+          Retention periods for service data are set out in our Data Retention
+          Policy at{" "}
+          <a
+            href="/data-retention"
+            className="underline underline-offset-4 hover:opacity-80"
+          >
+            /data-retention
+          </a>
+          .
+        </p>
+      </section>
+
+      <section className="mt-10 space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">15. Contact</h2>
         <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
           For questions about these terms, contact:
         </p>

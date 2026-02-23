@@ -13,5 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: absoluteUrl("/security"), lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: absoluteUrl("/privacy"), lastModified: now, changeFrequency: "yearly", priority: 0.4 },
     { url: absoluteUrl("/terms"), lastModified: now, changeFrequency: "yearly", priority: 0.4 },
+    { url: absoluteUrl("/dpa"), lastModified: now, changeFrequency: "yearly", priority: 0.4 },
+    { url: absoluteUrl("/data-retention"), lastModified: now, changeFrequency: "yearly", priority: 0.4 },
   ];
 }

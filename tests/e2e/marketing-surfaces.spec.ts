@@ -9,12 +9,14 @@ const marketingRoutes = [
   "/enterprise",
   "/privacy",
   "/terms",
+  "/dpa",
+  "/data-retention",
   "/get-started",
   "/auth",
   "/maintenance",
 ];
 
-const canonicalRoutes = ["/", "/product", "/pricing", "/use-cases", "/security", "/enterprise", "/privacy", "/terms"];
+const canonicalRoutes = ["/", "/product", "/pricing", "/use-cases", "/security", "/enterprise", "/privacy", "/terms", "/dpa", "/data-retention"];
 const protectedAppRoutes = ["/app", "/app/new", "/app/files", "/app/account", "/app/workspaces"];
 
 test.describe("marketing and public surfaces", () => {

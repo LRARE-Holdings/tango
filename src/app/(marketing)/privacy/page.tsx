@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { buildMarketingMetadata } from "@/lib/seo";
+import Link from "next/link";
 
 export const metadata: Metadata = buildMarketingMetadata({
   title: "Privacy Policy",
@@ -131,8 +132,12 @@ export default function PrivacyPage() {
               <strong>Vercel</strong>, application hosting and infrastructure
             </li>
             <li>
-              <strong>Supabase</strong>, database, authentication and file
-              storage
+              <strong>Supabase</strong> (AWS, London), database,
+              authentication and file storage
+            </li>
+            <li>
+              <strong>Cloudflare Turnstile</strong>, CAPTCHA protection only,
+              limited to relevant security activity
             </li>
             <li>
               <strong>Google</strong>, optional authentication via Google
@@ -160,9 +165,17 @@ export default function PrivacyPage() {
             8. Data retention
           </h2>
           <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
-            Personal data is retained only for as long as necessary to provide
-            the service, comply with legal obligations, or as determined by the
-            user’s configuration and internal policies.
+            Retention depends on account type and customer policy. For Team and
+            Enterprise, the sending organisation defines retention and this is
+            often one audit cycle or longer where required. For Individual
+            accounts, standard retention is one year from acknowledgement date.
+          </p>
+          <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
+            Full policy:{" "}
+            <Link href="/data-retention" className="underline underline-offset-4 hover:opacity-80">
+              /data-retention
+            </Link>
+            .
           </p>
         </section>
         {/* 9. Rights */}
@@ -178,7 +191,21 @@ export default function PrivacyPage() {
         </section>
         {/* 10. Contact */}
         <section className="mt-10 space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight">10. Contact</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            10. Data Processing Addendum (DPA)
+          </h2>
+          <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
+            Our DPA sets out processor terms for customer personal data under
+            UK GDPR and EU GDPR. Read it here:{" "}
+            <Link href="/dpa" className="underline underline-offset-4 hover:opacity-80">
+              /dpa
+            </Link>
+            .
+          </p>
+        </section>
+        {/* 11. Contact */}
+        <section className="mt-10 space-y-3">
+          <h2 className="text-lg font-semibold tracking-tight">11. Contact</h2>
           <p className="text-sm leading-relaxed text-[var(--mk-muted)]">
             For privacy-related enquiries, contact:
           </p>

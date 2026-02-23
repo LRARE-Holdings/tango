@@ -336,7 +336,8 @@ export default function SecurityPage() {
               <div className="mt-2 text-sm leading-relaxed text-[var(--mk-muted)]">
                 What you store (and for how long) should match your internal
                 policies. Our Privacy page covers personal data and retention at
-                a high level.
+                a high level, and our DPA covers processor terms for customer
+                data.
               </div>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -351,6 +352,18 @@ export default function SecurityPage() {
                 className="inline-flex items-center justify-center rounded-full marketing-cta-secondary px-6 py-3 text-sm font-semibold shadow-sm"
               >
                 Read terms
+              </a>
+              <a
+                href="/dpa"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-secondary px-6 py-3 text-sm font-semibold shadow-sm"
+              >
+                Read DPA
+              </a>
+              <a
+                href="/data-retention"
+                className="inline-flex items-center justify-center rounded-full marketing-cta-secondary px-6 py-3 text-sm font-semibold shadow-sm"
+              >
+                Data retention
               </a>
             </div>
           </div>
