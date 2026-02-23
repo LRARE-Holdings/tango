@@ -2,6 +2,8 @@ import { type PDFPageDrawTextOptions } from "pdf-lib";
 import { type ReportContext } from "@/lib/reports/engine/core";
 import { DEFAULT_REPORT_WORD_BREAKS } from "@/lib/reports/engine/theme";
 
+export type ReportFontFamily = "regular" | "bold" | "mono";
+
 export type TextBlockOptions = {
   text: string;
   x?: number;
@@ -9,6 +11,7 @@ export type TextBlockOptions = {
   maxWidth?: number;
   size?: number;
   bold?: boolean;
+  font?: ReportFontFamily;
   color?: PDFPageDrawTextOptions["color"];
   lineHeight?: number;
   wordBreaks?: string[];
@@ -26,6 +29,7 @@ function splitOversizedToken(
   size: number,
   measure: (text: string, size: number) => number
 ) {
+  if (maxWidth <= 1) return [token];
   const out: string[] = [];
   let chunk = "";
   for (const char of token) {
@@ -41,15 +45,28 @@ function splitOversizedToken(
   return out;
 }
 
+function getFont(ctx: ReportContext, font: ReportFontFamily) {
+  if (font === "bold") return ctx.fonts.bold;
+  if (font === "mono") return ctx.fonts.mono;
+  return ctx.fonts.regular;
+}
+
+function resolveFontFamily(font?: ReportFontFamily, bold?: boolean): ReportFontFamily {
+  if (font) return font;
+  return bold ? "bold" : "regular";
+}
+
 export function wrapTextToLines(
   ctx: ReportContext,
   text: string,
   maxWidth: number,
   size: number,
-  bold = false,
+  font: ReportFontFamily | boolean = false,
   wordBreaks: string[] = DEFAULT_REPORT_WORD_BREAKS
 ) {
-  const font = bold ? ctx.fonts.bold : ctx.fonts.regular;
+  if (maxWidth <= 1) return [String(text ?? "")];
+  const family = typeof font === "boolean" ? (font ? "bold" : "regular") : font;
+  const resolvedFont = getFont(ctx, family);
   const breakChars = wordBreaks
     .filter((token) => token.length === 1 && !/\s/.test(token))
     .map(escapeRegExp)
@@ -67,15 +84,15 @@ export function wrapTextToLines(
 
     for (const token of tokens) {
       const candidate = `${line}${token}`;
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth || line.length === 0) {
+      if (resolvedFont.widthOfTextAtSize(candidate, size) <= maxWidth || line.length === 0) {
         line = candidate;
         continue;
       }
 
       const cleanToken = token.trim();
-      if (cleanToken && font.widthOfTextAtSize(cleanToken, size) > maxWidth) {
+      if (cleanToken && resolvedFont.widthOfTextAtSize(cleanToken, size) > maxWidth) {
         const parts = splitOversizedToken(cleanToken, maxWidth, size, (value, fSize) =>
-          font.widthOfTextAtSize(value, fSize)
+          resolvedFont.widthOfTextAtSize(value, fSize)
         );
         if (line.trim().length > 0) lines.push(line.trimEnd());
         lines.push(...parts.slice(0, -1));
@@ -98,15 +115,15 @@ export function drawTextBlock(ctx: ReportContext, options: TextBlockOptions) {
   const maxWidth = options.maxWidth ?? ctx.cursor.maxX - x;
   const size = options.size ?? ctx.theme.bodySize;
   const lineHeight = options.lineHeight ?? Math.max(size + 2, ctx.theme.lineHeight);
-  const bold = options.bold === true;
-  const font = bold ? ctx.fonts.bold : ctx.fonts.regular;
+  const family = resolveFontFamily(options.font, options.bold);
+  const font = getFont(ctx, family);
   const wordBreaks = options.wordBreaks ?? ctx.theme.wordBreaks;
 
-  const wrapped = wrapTextToLines(ctx, options.text, maxWidth, size, bold, wordBreaks);
+  const wrapped = wrapTextToLines(ctx, options.text, maxWidth, size, family, wordBreaks);
   const maxLines = options.maxLines && options.maxLines > 0 ? options.maxLines : undefined;
   const lines = maxLines ? wrapped.slice(0, maxLines) : wrapped;
 
-  if (maxLines && wrapped.length > maxLines && options.truncateMode !== "clip") {
+  if (maxLines && wrapped.length > maxLines && (options.truncateMode ?? "ellipsis") !== "clip") {
     const ellipsis = "…";
     const lastIndex = lines.length - 1;
     let last = lines[lastIndex] ?? "";
@@ -141,12 +158,13 @@ export function measureTextBlockHeight(ctx: ReportContext, options: Omit<TextBlo
   const maxWidth = options.maxWidth ?? ctx.cursor.maxX - x;
   const size = options.size ?? ctx.theme.bodySize;
   const lineHeight = options.lineHeight ?? Math.max(size + 2, ctx.theme.lineHeight);
+  const family = resolveFontFamily(options.font, options.bold);
   const lines = wrapTextToLines(
     ctx,
     options.text,
     maxWidth,
     size,
-    options.bold === true,
+    family,
     options.wordBreaks ?? ctx.theme.wordBreaks
   );
   const maxLines = options.maxLines && options.maxLines > 0 ? options.maxLines : undefined;

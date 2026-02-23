@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import {
-  RECEIPT_LAUNCH_UNLOCK_COOKIE,
-  isReceiptLaunchLive,
-} from "@/lib/launch-access";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   getPrimaryWorkspaceMfaRequirementForUser,
@@ -23,19 +19,16 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/d/") ||
     pathname.startsWith("/api/app");
 
-  if (!isReceiptLaunchLive() && (pathname === "/auth" || pathname === "/get-started")) {
-    const hasLaunchAccess = req.cookies.get(RECEIPT_LAUNCH_UNLOCK_COOKIE)?.value === "1";
-    if (!hasLaunchAccess) {
-      const redirectUrl = req.nextUrl.clone();
-      redirectUrl.pathname = "/launch-access";
-      redirectUrl.searchParams.set("next", `${pathname}${req.nextUrl.search}`);
-      return NextResponse.redirect(redirectUrl);
-    }
-  }
-
   const res = NextResponse.next();
 
-  if (pathname.startsWith("/app") || pathname.startsWith("/checkout") || pathname.startsWith("/api/app")) {
+  if (
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/checkout") ||
+    pathname.startsWith("/api/app") ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/get-started") ||
+    pathname.startsWith("/onboarding")
+  ) {
     // Prevent browser/proxy caches from serving authenticated app shells after logout.
     res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.headers.set("Pragma", "no-cache");
@@ -187,7 +180,5 @@ export const config = {
     "/api/app/:path*",
     "/d",
     "/d/:path*",
-    "/launch-access",
-    "/launch-access/:path*",
   ],
 };

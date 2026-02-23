@@ -38,7 +38,6 @@ function isProduction() {
 
 const accessAttemptLimiter = createLimiter(8, "10 m", "rl:public-access-attempt");
 const submitLimiter = createLimiter(30, "10 m", "rl:public-submit");
-const launchAccessLimiter = createLimiter(10, "10 m", "rl:launch-access");
 const passwordResetLimiter = createLimiter(10, "10 m", "rl:password-reset");
 const stackSubmitLimiter = createLimiter(20, "10 m", "rl:public-stack-submit");
 const stackFinalizeLimiter = createLimiter(12, "10 m", "rl:public-stack-finalize");
@@ -76,10 +75,6 @@ export async function limitPublicStackSubmit(req: Request, stackPublicId: string
 
 export async function limitPublicStackFinalize(req: Request, stackPublicId: string) {
   return limitBy(stackFinalizeLimiter, `${stackPublicId}:${getClientIp(req)}`);
-}
-
-export async function limitLaunchAccessAttempt(req: Request) {
-  return limitBy(launchAccessLimiter, getClientIp(req));
 }
 
 export async function limitPasswordResetAttempt(req: Request, email: string) {

@@ -11,7 +11,6 @@ const marketingRoutes = [
   "/terms",
   "/get-started",
   "/auth",
-  "/launch-access",
   "/maintenance",
 ];
 
@@ -53,4 +52,11 @@ test.describe("marketing and public surfaces", () => {
       expect(location).toContain("/auth");
     });
   }
+
+  test("auth and get-started remain directly reachable", async ({ request }) => {
+    for (const route of ["/auth", "/get-started"]) {
+      const res = await request.get(route, { maxRedirects: 0 });
+      expect([200, 302, 307, 308]).toContain(res.status());
+    }
+  });
 });

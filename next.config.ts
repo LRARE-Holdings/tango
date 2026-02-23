@@ -11,13 +11,16 @@ const cspDirectives = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   [
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "script-src 'self' 'unsafe-inline'",
+    process.env.NODE_ENV === "production" ? "" : "'unsafe-eval'",
     "https://js.stripe.com",
     "https://www.googletagmanager.com",
     "https://www.google-analytics.com",
     "https://challenges.cloudflare.com",
     "https://cdn.snitcher.com",
-  ].join(" "),
+  ]
+    .filter(Boolean)
+    .join(" "),
   [
     "connect-src 'self'",
     "https://*.supabase.co",
@@ -62,6 +65,22 @@ const securityHeaders = [
     value: "strict-origin-when-cross-origin",
   },
   {
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin",
+  },
+  {
+    key: "Cross-Origin-Resource-Policy",
+    value: "same-origin",
+  },
+  {
+    key: "Origin-Agent-Cluster",
+    value: "?1",
+  },
+  {
+    key: "X-Permitted-Cross-Domain-Policies",
+    value: "none",
+  },
+  {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=()",
   },
@@ -74,6 +93,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   async redirects() {
     return [
+      {
+        source: "/launch-access/:path*",
+        destination: "/auth",
+        permanent: true,
+      },
       {
         source: "/((?!api/).*)",
         has: [

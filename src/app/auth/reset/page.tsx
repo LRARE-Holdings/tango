@@ -173,7 +173,11 @@ export default function PasswordResetPage() {
 
         {ready && !bootError && (
           <form onSubmit={onSubmit} className="space-y-3">
+            <label htmlFor="reset-password" className="sr-only">
+              New password
+            </label>
             <input
+              id="reset-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -184,7 +188,11 @@ export default function PasswordResetPage() {
               required
             />
 
+            <label htmlFor="reset-password-confirm" className="sr-only">
+              Confirm new password
+            </label>
             <input
+              id="reset-password-confirm"
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

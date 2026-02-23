@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-
-function isSafeNext(v: string | null) {
-  return !!v && v.startsWith("/");
-}
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 function getSiteUrl() {
   const raw = (process.env.NEXT_PUBLIC_APP_URL || "").trim();
@@ -42,7 +39,7 @@ export default function CheckEmailPage() {
 
         if (!cancelled) {
           setEmail(qpEmail || null);
-          setNextPath(isSafeNext(qpNext) ? (qpNext as string) : "/app");
+          setNextPath(safeInternalPath(qpNext, "/app"));
           setFirstName((qpFirstName || "").trim());
         }
 
@@ -123,7 +120,7 @@ export default function CheckEmailPage() {
           <div className="text-xs tracking-wide" style={{ color: "var(--muted2)" }}>
             EMAIL
           </div>
-          <div className="mt-1 text-sm font-semibold">{email ?? ","}</div>
+          <div className="mt-1 text-sm font-semibold">{email ?? "Not available"}</div>
 
           <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
             If you can’t see it, check spam, some corporate filters are aggressive.

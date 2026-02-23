@@ -46,14 +46,14 @@ test.describe("public flow abuse/security contract", () => {
     expect([400, 403]).toContain(res.status());
   });
 
-  test("optional rate-limit stress check for launch access", async ({ request }) => {
+  test("optional rate-limit stress check for password reset", async ({ request }) => {
     test.skip(!isTruthy(process.env.ENABLE_RATE_LIMIT_STRESS_TEST), "ENABLE_RATE_LIMIT_STRESS_TEST is not enabled.");
 
     let saw429 = false;
     for (let i = 0; i < 15; i += 1) {
-      const res = await request.post("/api/launch-access", {
+      const res = await request.post("/api/auth/password-reset", {
         data: {
-          password: "wrong-password",
+          email: "stress-test@example.com",
           captchaToken: "invalid-token",
         },
       });
@@ -66,4 +66,3 @@ test.describe("public flow abuse/security contract", () => {
     expect(saw429).toBeTruthy();
   });
 });
-

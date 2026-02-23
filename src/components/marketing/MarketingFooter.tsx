@@ -95,7 +95,7 @@ export function MarketingFooter() {
                 </li>
                 <li>
                   <Link href="/auth" className="marketing-link">
-                    Login
+                    Log in
                   </Link>
                 </li>
                 <li>

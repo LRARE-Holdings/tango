@@ -48,7 +48,7 @@ BASE_URL=https://your-preview-or-prod-url npm run test:security
 # consolidated release gate
 BASE_URL=https://your-preview-or-prod-url npm run qa:gate
 
-# verify required launch env vars are present
+# verify required production env vars are present
 npm run release:verify-env
 ```
 

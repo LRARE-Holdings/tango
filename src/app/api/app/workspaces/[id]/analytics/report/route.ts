@@ -165,9 +165,33 @@ export async function POST(
       : fromDate.toISOString();
     const toIso = Number.isNaN(toDate.getTime()) ? new Date().toISOString() : toDate.toISOString();
 
-    const workspaceRes = await supabase.from("workspaces").select("name").eq("id", workspaceId).maybeSingle();
+    const workspaceRes = await supabase
+      .from("workspaces")
+      .select("name,brand_logo_path,brand_logo_width_px")
+      .eq("id", workspaceId)
+      .maybeSingle();
     if (workspaceRes.error) return NextResponse.json({ error: workspaceRes.error.message }, { status: 500 });
-    const workspaceName = String((workspaceRes.data as { name?: string } | null)?.name ?? "Workspace");
+    const workspace = workspaceRes.data as {
+      name?: string | null;
+      brand_logo_path?: string | null;
+      brand_logo_width_px?: number | null;
+    } | null;
+    const workspaceName = String(workspace?.name ?? "Workspace");
+    let brandLogoImageBytes: Uint8Array | null = null;
+    let brandLogoWidthPx: number | null = null;
+    if (workspace?.brand_logo_path) {
+      const logoDownload = await admin.storage.from("workspace-branding").download(workspace.brand_logo_path);
+      if (!logoDownload.error && logoDownload.data) {
+        try {
+          brandLogoImageBytes = new Uint8Array(await logoDownload.data.arrayBuffer());
+        } catch {
+          brandLogoImageBytes = null;
+        }
+      }
+    }
+    if (typeof workspace?.brand_logo_width_px === "number" && Number.isFinite(workspace.brand_logo_width_px)) {
+      brandLogoWidthPx = Math.max(48, Math.min(320, Math.floor(workspace.brand_logo_width_px)));
+    }
 
     const snapshot = await getWorkspaceAnalyticsSnapshot(supabase, admin, workspaceId);
     const docsRes = await supabase
@@ -339,7 +363,11 @@ export async function POST(
     }
 
     const bytes = await buildAnalyticsReportPdf({
+      reportStyleVersion: "v2",
       workspaceName,
+      brandName: workspaceName,
+      brandLogoImageBytes,
+      brandLogoWidthPx,
       generatedAtIso,
       mode,
       rangeLabel: `${fromIso.slice(0, 10)} to ${toIso.slice(0, 10)}`,

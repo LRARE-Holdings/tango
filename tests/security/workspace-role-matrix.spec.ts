@@ -9,7 +9,9 @@ const featureGatedWorkspaceId = process.env.FEATURE_GATED_WORKSPACE_IDENTIFIER |
 const featureGatedCookie = process.env.FEATURE_GATED_MEMBER_COOKIE || memberCookie;
 
 function authHeaders(cookie: string) {
-  return cookie ? { cookie } : {};
+  const headers: Record<string, string> = {};
+  if (cookie) headers.cookie = cookie;
+  return headers;
 }
 
 test.describe("workspace role matrix (env-driven)", () => {

@@ -1,5 +1,5 @@
 import { PDFDocument } from "pdf-lib";
-import { createReportContext, saveReport } from "@/lib/reports/engine/core";
+import { createReportContext, embedImageIfPresent, saveReport } from "@/lib/reports/engine/core";
 import { drawTable } from "@/lib/reports/engine/table";
 import {
   drawKeyValueRow,
@@ -13,7 +13,11 @@ import {
 export type AnalyticsReportMode = "compliance" | "management";
 
 export type AnalyticsReportInput = {
+  reportStyleVersion: "v2";
   workspaceName: string;
+  brandName?: string;
+  brandLogoImageBytes?: Uint8Array | null;
+  brandLogoWidthPx?: number | null;
   generatedAtIso: string;
   mode: AnalyticsReportMode;
   rangeLabel: string;
@@ -79,18 +83,26 @@ export type AnalyticsReportInput = {
   }>;
 };
 
-function fmtDuration(seconds: number | null) {
-  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "—";
+function fmtDurationLong(seconds: number | null) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--";
   const s = Math.max(0, Math.floor(seconds));
   const days = Math.floor(s / 86400);
   const hours = Math.floor((s % 86400) / 3600);
   return `${days}d ${hours}h`;
 }
 
+function fmtDurationShort(seconds: number | null) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--";
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}m ${String(r).padStart(2, "0")}s`;
+}
+
 function fmtUtc(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "--";
   const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return "—";
+  if (!Number.isFinite(d.getTime())) return "--";
   return d.toUTCString();
 }
 
@@ -100,8 +112,14 @@ function normalizePriority(value: string) {
   return clean;
 }
 
+function fmtScroll(value: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
+}
+
 export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Promise<Uint8Array> {
   const ctx = await createReportContext();
+  const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
   const generatedLabel = Number.isFinite(generatedDate.getTime())
@@ -116,21 +134,20 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     subtitle: `${input.rangeLabel}`,
     eyebrow: input.mode === "compliance" ? "COMPLIANCE / REGULATORY" : "MANAGEMENT / OPERATIONS",
     rightMeta: `Generated ${generatedLabel}`,
-    brandName: input.workspaceName,
+    logo: workspaceLogo,
+    logoWidthPx: input.brandLogoWidthPx,
+    brandName: input.brandName ?? input.workspaceName,
+    reportStyleVersion: input.reportStyleVersion,
   });
 
   drawSectionHeading(ctx, "Summary");
   drawKeyValueRow(ctx, "Total documents sent", String(input.metrics.total_documents_sent));
   drawKeyValueRow(ctx, "Acknowledgement rate", `${input.metrics.acknowledgement_rate_percent}%`);
-  drawKeyValueRow(
-    ctx,
-    "Average time to acknowledgement",
-    fmtDuration(input.metrics.avg_time_to_ack_seconds)
-  );
+  drawKeyValueRow(ctx, "Average time to acknowledgement", fmtDurationLong(input.metrics.avg_time_to_ack_seconds));
   drawKeyValueRow(ctx, "Outstanding acknowledgements", String(input.metrics.outstanding_acknowledgements));
 
   if (input.mode === "compliance") {
-    drawParagraph(ctx, "Regulatory scope: Policy-tagged receipts only.", { muted: true, size: 9.2 });
+    drawParagraph(ctx, "Regulatory scope: policy-tagged receipts only.", { muted: true, size: 9.2 });
   }
 
   ctx.cursor.y -= 8;
@@ -139,7 +156,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     [
       { label: "TOTAL SENT", value: String(input.metrics.total_documents_sent) },
       { label: "ACK RATE", value: `${input.metrics.acknowledgement_rate_percent}%` },
-      { label: "AVG TIME TO ACK", value: fmtDuration(input.metrics.avg_time_to_ack_seconds) },
+      { label: "AVG TIME TO ACK", value: fmtDurationLong(input.metrics.avg_time_to_ack_seconds) },
       { label: "OUTSTANDING", value: String(input.metrics.outstanding_acknowledgements) },
     ],
     { columns: 4 }
@@ -164,10 +181,10 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     headerFontSize: 9.2,
   });
 
-  drawSectionHeading(ctx, "Top labels/tags");
+  drawSectionHeading(ctx, "Top labels and tags");
   drawTable(ctx, {
     columns: [
-      { key: "label", header: "Label / Tag", value: (row) => row.label, minWidth: 280 },
+      { key: "label", header: "Label / Tag", value: (row) => row.label, minWidth: 280, maxLines: 2 },
       { key: "total", header: "Documents", value: (row) => String(row.total), mode: "fixed", width: 90, align: "right" },
     ],
     rows: [...input.byLabel]
@@ -176,12 +193,13 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     repeatHeader: true,
     fontSize: 9,
     headerFontSize: 9.2,
+    maxCellLines: 2,
   });
 
   drawSectionHeading(ctx, "Daily trend");
   drawTable(ctx, {
     columns: [
-      { key: "date", header: "Date", value: (row) => row.date, minWidth: 120 },
+      { key: "date", header: "Date", value: (row) => row.date, minWidth: 130, font: "mono" },
       { key: "sent", header: "Sent", value: (row) => String(row.sent), mode: "fixed", width: 65, align: "right" },
       {
         key: "ack",
@@ -226,24 +244,25 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     }
 
     for (const doc of docs) {
-      ctx.ensureSpace(96);
+      ctx.ensureSpace(100);
       drawSectionHeading(ctx, `${doc.document_title} (${doc.document_public_id || "No public ID"})`);
       drawKeyValueRow(ctx, "Created", fmtUtc(doc.created_at));
       drawKeyValueRow(ctx, "Priority", normalizePriority(doc.priority).toUpperCase());
-      drawKeyValueRow(ctx, "Labels", doc.labels.join(", ") || "—");
+      drawKeyValueRow(ctx, "Public ID", doc.document_public_id || "--", { valueFont: "mono" });
+      drawKeyValueRow(ctx, "Labels", doc.labels.join(", ") || "--");
       drawKeyValueRow(
         ctx,
         "Tags",
         Object.entries(doc.tags)
           .map(([k, v]) => `${k}:${v}`)
-          .join(", ") || "—"
+          .join(", ") || "--"
       );
       drawKeyValueRow(ctx, "Acknowledged in range", String(doc.acknowledged_count));
       drawKeyValueRow(ctx, "Pending submissions", String(doc.pending_submission_count));
       drawKeyValueRow(
         ctx,
         "Outstanding acknowledgement",
-        doc.outstanding ? "YES (no acknowledged submissions recorded in range)" : "NO"
+        doc.outstanding ? "YES (no acknowledged submissions in range)" : "NO"
       );
 
       drawSectionHeading(ctx, "Acknowledgements");
@@ -259,37 +278,43 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             header: "Recipient",
             value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
             minWidth: 140,
+            maxLines: 2,
           },
           { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 120 },
-          { key: "method", header: "How", value: (row) => row.method, minWidth: 90 },
+          { key: "method", header: "How", value: (row) => row.method, minWidth: 90, maxLines: 2 },
           {
             key: "metrics",
             header: "Metrics",
             value: (row) =>
-              `Scroll ${row.max_scroll_percent ?? 0}% | Active ${fmtDuration(row.active_seconds)} | Page ${fmtDuration(
+              `Scroll ${fmtScroll(row.max_scroll_percent)} | Active ${fmtDurationShort(row.active_seconds)} | Page ${fmtDurationShort(
                 row.time_on_page_seconds
               )}`,
-            minWidth: 170,
+            minWidth: 190,
+            maxLines: 2,
           },
-          { key: "ip", header: "IP", value: (row) => row.ip ?? "—", minWidth: 70 },
+          { key: "ip", header: "IP", value: (row) => row.ip ?? "--", minWidth: 70, font: "mono" },
         ],
-        rows: acknowledgements.length > 0 ? acknowledgements : [
-          {
-            recipient_name: null,
-            recipient_email: null,
-            submitted_at: null,
-            method: "No acknowledgements in selected date range",
-            max_scroll_percent: null,
-            active_seconds: null,
-            time_on_page_seconds: null,
-            ip: null,
-            user_agent: null,
-          },
-        ],
+        rows:
+          acknowledgements.length > 0
+            ? acknowledgements
+            : [
+                {
+                  recipient_name: null,
+                  recipient_email: null,
+                  submitted_at: null,
+                  method: "No acknowledgements in selected range",
+                  max_scroll_percent: null,
+                  active_seconds: null,
+                  time_on_page_seconds: null,
+                  ip: null,
+                  user_agent: null,
+                },
+              ],
         repeatHeader: true,
         fontSize: 8.2,
         headerFontSize: 8.4,
         lineHeight: 9.8,
+        maxCellLines: 2,
       });
 
       drawSectionHeading(ctx, "Outstanding acknowledgements / pending submissions");
@@ -305,35 +330,39 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             header: "Recipient",
             value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
             minWidth: 150,
+            maxLines: 2,
           },
           { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 130 },
-          { key: "method", header: "Status", value: (row) => row.method, minWidth: 170 },
+          { key: "method", header: "Status", value: (row) => row.method, minWidth: 170, maxLines: 2 },
           {
             key: "metrics",
             header: "Metrics",
             value: (row) =>
-              `Scroll ${row.max_scroll_percent ?? 0}% | Active ${fmtDuration(row.active_seconds)} | Page ${fmtDuration(
+              `Scroll ${fmtScroll(row.max_scroll_percent)} | Active ${fmtDurationShort(row.active_seconds)} | Page ${fmtDurationShort(
                 row.time_on_page_seconds
               )}`,
-            minWidth: 170,
+            minWidth: 190,
+            maxLines: 2,
           },
         ],
-        rows: pending.length > 0
-          ? pending
-          : [
-              {
-                recipient_name: null,
-                recipient_email: null,
-                submitted_at: null,
-                method: "None recorded",
-                max_scroll_percent: null,
-                time_on_page_seconds: null,
-                active_seconds: null,
-              },
-            ],
+        rows:
+          pending.length > 0
+            ? pending
+            : [
+                {
+                  recipient_name: null,
+                  recipient_email: null,
+                  submitted_at: null,
+                  method: "None recorded",
+                  max_scroll_percent: null,
+                  time_on_page_seconds: null,
+                  active_seconds: null,
+                },
+              ],
         repeatHeader: true,
         fontSize: 8.2,
         headerFontSize: 8.4,
+        maxCellLines: 2,
       });
     }
   } else {
@@ -350,22 +379,25 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           header: "Document",
           value: (row) => `${row.document_title} (${row.document_public_id || "No public ID"})`,
           minWidth: 175,
+          maxLines: 2,
         },
         {
           key: "recipient",
           header: "Recipient",
           value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
           minWidth: 130,
+          maxLines: 2,
         },
-        { key: "how", header: "How", value: (row) => row.method, minWidth: 90 },
+        { key: "how", header: "How", value: (row) => row.method, minWidth: 88, maxLines: 2 },
         {
           key: "metrics",
           header: "Engagement",
           value: (row) =>
-            `Scroll ${row.max_scroll_percent ?? 0}% | Active ${fmtDuration(row.active_seconds)} | Page ${fmtDuration(
+            `Scroll ${fmtScroll(row.max_scroll_percent)} | Active ${fmtDurationShort(row.active_seconds)} | Page ${fmtDurationShort(
               row.time_on_page_seconds
             )}`,
-          minWidth: 170,
+          minWidth: 195,
+          maxLines: 2,
         },
         { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 130 },
       ],
@@ -380,7 +412,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
                 recipient_email: null,
                 acknowledged: false,
                 submitted_at: null,
-                method: "—",
+                method: "--",
                 max_scroll_percent: null,
                 time_on_page_seconds: null,
                 active_seconds: null,
@@ -391,6 +423,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
       fontSize: 8.3,
       headerFontSize: 8.5,
       lineHeight: 9.9,
+      maxCellLines: 2,
     });
   }
 
@@ -403,15 +436,15 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     drawSectionHeading(ctx, "Stack acknowledgement receipts");
     drawTable(ctx, {
       columns: [
-        { key: "stack", header: "Stack", value: (row) => row.stack_title, minWidth: 180 },
-        { key: "recipient", header: "Recipient", value: (row) => row.recipient_email, minWidth: 150 },
+        { key: "stack", header: "Stack", value: (row) => row.stack_title, minWidth: 180, maxLines: 2 },
+        { key: "recipient", header: "Recipient", value: (row) => row.recipient_email, minWidth: 160, maxLines: 2 },
         { key: "completed", header: "Completed", value: (row) => fmtUtc(row.completed_at), minWidth: 130 },
         {
           key: "status",
           header: "Acknowledged",
           value: (row) => `${row.acknowledged_documents}/${row.total_documents}`,
           mode: "fixed",
-          width: 80,
+          width: 82,
           align: "right",
         },
       ],
@@ -419,6 +452,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
       repeatHeader: true,
       fontSize: 8.5,
       headerFontSize: 8.7,
+      maxCellLines: 2,
     });
   }
 

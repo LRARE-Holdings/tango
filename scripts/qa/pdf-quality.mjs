@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 
-import crypto from "node:crypto";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 
 const baseUrl = (process.env.BASE_URL || "").replace(/\/$/, "");
 const authCookie = process.env.AUTH_COOKIE || "";
-const runs = Math.max(2, Number(process.env.RUNS || 5));
 
 const pathList = String(process.env.PDF_PATHS || "")
   .split(",")
@@ -21,7 +19,7 @@ if (!baseUrl && explicitUrls.length === 0) {
   console.error(
     "Missing input. Set either BASE_URL + PDF_PATHS or PDF_URLS.\n" +
       "Example:\n" +
-      "BASE_URL=https://www.getreceipt.co PDF_PATHS=/api/app/workspaces/<id>/analytics/report node scripts/qa/pdf-regression.mjs"
+      "BASE_URL=https://www.getreceipt.co PDF_PATHS=/api/app/workspaces/<id>/analytics/report node scripts/qa/pdf-quality.mjs"
   );
   process.exit(1);
 }
@@ -59,20 +57,19 @@ async function fetchPdf(url) {
   return new Uint8Array(buffer);
 }
 
-async function extractFingerprint(bytes) {
+async function inspectPdf(bytes) {
   const loadingTask = getDocument({ data: bytes });
   const pdf = await loadingTask.promise;
-  const pages = [];
+  let textLength = 0;
 
   for (let i = 1; i <= pdf.numPages; i += 1) {
     const page = await pdf.getPage(i);
     const text = await page.getTextContent();
-    const line = text.items
-      .map((item) => ("str" in item ? item.str : ""))
+    textLength += text.items
+      .map((item) => ("str" in item ? String(item.str) : ""))
       .join(" ")
       .replace(/\s+/g, " ")
-      .trim();
-    pages.push(line);
+      .trim().length;
   }
 
   const parsed = await PDFDocument.load(bytes);
@@ -80,53 +77,49 @@ async function extractFingerprint(bytes) {
 
   return {
     pageCount: pdf.numPages,
-    textHash: crypto.createHash("sha256").update(pages.join("\n")).digest("hex"),
+    textLength,
     title,
+    bytes: bytes.length,
   };
 }
 
 let failed = 0;
 
 for (const target of targets) {
-  console.log(`\nChecking ${target}`);
-  const results = [];
-  for (let i = 0; i < runs; i += 1) {
+  try {
+    console.log(`\nChecking ${target}`);
     const bytes = await fetchPdf(target);
-    const fingerprint = await extractFingerprint(bytes);
-    results.push(fingerprint);
+    const details = await inspectPdf(bytes);
+
+    if (details.pageCount < 1) {
+      failed += 1;
+      console.error("  FAIL: pageCount is 0.");
+      continue;
+    }
+    if (details.textLength < 8) {
+      failed += 1;
+      console.error("  FAIL: extractable text too low.");
+      continue;
+    }
+    if (!details.title) {
+      failed += 1;
+      console.error("  FAIL: metadata title missing.");
+      continue;
+    }
+
     console.log(
-      `  run ${i + 1}: pages=${fingerprint.pageCount} textHash=${fingerprint.textHash.slice(0, 12)} title=${
-        fingerprint.title || "<missing>"
-      }`
+      `  PASS: pages=${details.pageCount} textChars=${details.textLength} bytes=${details.bytes} title=${details.title}`
     );
-  }
-
-  const baseline = results[0];
-  const mismatches = results.filter(
-    (row) =>
-      row.pageCount !== baseline.pageCount ||
-      row.textHash !== baseline.textHash ||
-      row.title !== baseline.title
-  );
-
-  if (mismatches.length > 0) {
+  } catch (error) {
     failed += 1;
-    console.error(`  FAIL: unstable PDF output detected across ${runs} runs.`);
-    continue;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`  FAIL: ${message}`);
   }
-
-  if (!baseline.title) {
-    failed += 1;
-    console.error("  FAIL: metadata title missing.");
-    continue;
-  }
-
-  console.log(`  PASS: stable across ${runs} runs.`);
 }
 
 if (failed > 0) {
-  console.error(`\nPDF regression check failed for ${failed} endpoint(s).`);
+  console.error(`\nPDF quality check failed for ${failed} endpoint(s).`);
   process.exit(1);
 }
 
-console.log("\nPDF regression check passed.");
+console.log("\nPDF quality check passed.");

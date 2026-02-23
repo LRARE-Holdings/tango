@@ -77,9 +77,9 @@ export function MarketingHeader() {
           </Link>
           <Link
             href="/get-started"
-            className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--mk-border-strong)] bg-[var(--mk-surface)] text-[var(--mk-muted)] hover:border-[var(--mk-accent)] hover:text-[var(--mk-accent)]"
+            className="focus-ring inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-[var(--mk-border-strong)] bg-[var(--mk-surface)] px-3 text-[var(--mk-muted)] hover:border-[var(--mk-accent)] hover:text-[var(--mk-accent)]"
           >
-            <span className="sr-only">Get started</span>
+            <span className="text-xs font-semibold tracking-wide">Start</span>
             <svg
               viewBox="0 0 24 24"
               className="h-4 w-4"

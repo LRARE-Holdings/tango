@@ -9,6 +9,7 @@ import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/securi
 import { useRef } from "react";
 
 type Mode = "signin" | "signup";
+const MIN_PASSWORD_LENGTH = 8;
 
 function getSafeNextFromHref(href: string) {
   try {
@@ -111,6 +112,9 @@ export default function AuthPage() {
       if (!firstName) {
         throw new Error("Enter your first name to continue.");
       }
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new Error(`Use at least ${MIN_PASSWORD_LENGTH} characters for your password.`);
+      }
 
       const { error: signUpErr } = await supabase.auth.signUp({
         email,
@@ -177,20 +181,22 @@ export default function AuthPage() {
     setSentReset(false);
 
     try {
-      if (captchaEnabled && !captchaToken) {
-        throw new Error("Please complete the security check.");
-      }
-      const siteUrl = getSiteUrl();
-
-      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${siteUrl}/auth/reset`,
-        captchaToken: captchaToken ?? undefined,
+      const res = await fetch("/api/auth/password-reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email,
+          captchaToken,
+          turnstileToken: captchaToken,
+          cf_turnstile_response: captchaToken,
+        }),
       });
-      if (resetErr) throw resetErr;
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(json?.error || "Could not send reset email.");
 
       setSentReset(true);
     } catch (error: unknown) {
-      setError(errorMessage(error, "Could not send reset email"));
+      setError(errorMessage(error, "Could not send reset email."));
       if (captchaEnabled) turnstileRef.current?.reset();
     } finally {
       setLoading(false);
@@ -238,18 +244,28 @@ export default function AuthPage() {
 
         <form onSubmit={onSubmit} className="space-y-3">
           {mode === "signup" ? (
-            <input
-              type="text"
-              required
-              value={firstNameInput}
-              onChange={(e) => setFirstNameInput(e.target.value)}
-              placeholder="First name"
-              className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
-              style={{ borderColor: "var(--border)" }}
-            />
+            <>
+              <label htmlFor="auth-first-name" className="sr-only">
+                First name
+              </label>
+              <input
+                id="auth-first-name"
+                type="text"
+                required
+                value={firstNameInput}
+                onChange={(e) => setFirstNameInput(e.target.value)}
+                placeholder="First name"
+                className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </>
           ) : null}
 
+          <label htmlFor="auth-email" className="sr-only">
+            Email address
+          </label>
           <input
+            id="auth-email"
             type="email"
             required
             value={email}
@@ -259,14 +275,20 @@ export default function AuthPage() {
             style={{ borderColor: "var(--border)" }}
           />
 
+          <label htmlFor="auth-password" className="sr-only">
+            Password
+          </label>
           <input
+            id="auth-password"
             type="password"
             required
+            minLength={mode === "signup" ? MIN_PASSWORD_LENGTH : undefined}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder={mode === "signup" ? "Password (min 8 characters)" : "Password"}
             className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
             style={{ borderColor: "var(--border)" }}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
           />
 
           <TurnstileWidget

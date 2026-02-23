@@ -11,7 +11,6 @@ const required = [
   "SUPABASE_SERVICE_ROLE_KEY",
   "NEXT_PUBLIC_APP_URL",
   "RECEIPT_PUBLIC_ACCESS_SECRET",
-  "RECEIPT_LAUNCH_PASSWORD",
   "RESEND_API_KEY",
   "RECEIPT_FROM_EMAIL",
   "TURNSTILE_SECRET_KEY",
@@ -51,12 +50,6 @@ if (isProduction) {
 if (missing.length > 0) {
   console.error("Missing required environment variables:");
   for (const key of [...new Set(missing)]) console.error(`- ${key}`);
-  process.exit(1);
-}
-
-const launchPassword = String(process.env.RECEIPT_LAUNCH_PASSWORD || "").trim();
-if (launchPassword === "16807366") {
-  console.error("RECEIPT_LAUNCH_PASSWORD must not use the old source-controlled default value.");
   process.exit(1);
 }
 

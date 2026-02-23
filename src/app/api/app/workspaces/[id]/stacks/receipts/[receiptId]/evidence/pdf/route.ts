@@ -30,18 +30,47 @@ export async function GET(
         .eq("workspace_id", workspaceId)
         .eq("id", receiptId)
         .maybeSingle(),
-      supabase.from("workspaces").select("name").eq("id", workspaceId).maybeSingle(),
+      supabase
+        .from("workspaces")
+        .select("name,brand_logo_path,brand_logo_width_px")
+        .eq("id", workspaceId)
+        .maybeSingle(),
     ]);
     if (receiptRes.error) return NextResponse.json({ error: receiptRes.error.message }, { status: 500 });
     if (!receiptRes.data) return NextResponse.json({ error: "Not found." }, { status: 404 });
     if (workspaceRes.error) return NextResponse.json({ error: workspaceRes.error.message }, { status: 500 });
+
+    let brandLogoImageBytes: Uint8Array | null = null;
+    let brandLogoWidthPx: number | null = null;
+    const workspaceBranding = workspaceRes.data as {
+      name?: string | null;
+      brand_logo_path?: string | null;
+      brand_logo_width_px?: number | null;
+    } | null;
+    if (workspaceBranding?.brand_logo_path) {
+      const logoRes = await admin.storage.from("workspace-branding").download(workspaceBranding.brand_logo_path);
+      if (!logoRes.error && logoRes.data) {
+        try {
+          brandLogoImageBytes = new Uint8Array(await logoRes.data.arrayBuffer());
+        } catch {
+          brandLogoImageBytes = null;
+        }
+      }
+    }
+    if (typeof workspaceBranding?.brand_logo_width_px === "number" && Number.isFinite(workspaceBranding.brand_logo_width_px)) {
+      brandLogoWidthPx = Math.max(48, Math.min(320, Math.floor(workspaceBranding.brand_logo_width_px)));
+    }
 
     const summary = parseStackReceiptSummary((receiptRes.data as { summary?: unknown }).summary);
     const evidence = parseStackReceiptEvidence((receiptRes.data as { evidence?: unknown }).evidence);
     const completedAt = (receiptRes.data as { completed_at?: string | null }).completed_at ?? summary.completed_at;
 
     const bytes = await buildStackEvidencePdf({
+      reportStyleVersion: "v2",
       workspaceName: String((workspaceRes.data as { name?: string } | null)?.name ?? "Workspace"),
+      brandName: String((workspaceRes.data as { name?: string } | null)?.name ?? "Workspace"),
+      brandLogoImageBytes,
+      brandLogoWidthPx,
       generatedAtIso: new Date().toISOString(),
       receiptId,
       stackTitle: summary.stack_title,

@@ -1,11 +1,10 @@
 # Monday Go-Live Runbook (February 23, 2026)
 
-## 1) Pre-release gating (Preview/Staging)
+## 1) Production launch validation
 - Run: `npm run release:verify-env`
-- Run: `BASE_URL=<preview-url> npm run qa:full`
-- Run: `BASE_URL=<preview-url> npm run test:e2e`
-- Run: `BASE_URL=<preview-url> npm run test:security`
-- Confirm no Critical/High findings remain.
+- Run: `BASE_URL=https://www.getreceipt.co npm run test:e2e`
+- Run: `BASE_URL=https://www.getreceipt.co npm run test:security`
+- Confirm no P0/P1/P2 findings remain.
 
 ## 2) Dedicated QA billing validation (Live config)
 - Use a dedicated internal QA account/workspace only.

@@ -1,6 +1,6 @@
 import { type PDFImage } from "pdf-lib";
 import { type ReportContext } from "@/lib/reports/engine/core";
-import { drawTextBlock, measureTextBlockHeight } from "@/lib/reports/engine/text";
+import { drawTextBlock, measureTextBlockHeight, type ReportFontFamily } from "@/lib/reports/engine/text";
 
 type HeaderArgs = {
   title: string;
@@ -8,11 +8,13 @@ type HeaderArgs = {
   eyebrow?: string;
   rightMeta?: string;
   logo?: PDFImage | null;
+  logoWidthPx?: number | null;
   brandName?: string;
+  reportStyleVersion?: "v2";
 };
 
 export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
-  const bandHeight = 72;
+  const bandHeight = 84;
   const top = ctx.theme.pageHeight;
 
   ctx.page.drawRectangle({
@@ -22,26 +24,36 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
     height: bandHeight,
     color: ctx.theme.colors.panel,
   });
+  ctx.page.drawRectangle({
+    x: 0,
+    y: top - bandHeight,
+    width: 7,
+    height: bandHeight,
+    color: ctx.theme.colors.accent,
+  });
 
   const logoX = ctx.theme.marginLeft;
-  const logoTop = top - 18;
+  const logoTop = top - 21;
   if (args.logo) {
-    const targetH = 18;
-    const scale = targetH / args.logo.height;
-    const targetW = args.logo.width * scale;
+    const targetH = 19;
+    const byHeightScale = targetH / args.logo.height;
+    const widthByHeight = args.logo.width * byHeightScale;
+    const preferredWidth = Math.max(48, Math.min(200, Math.floor(Number(args.logoWidthPx ?? widthByHeight))));
+    const targetW = Math.min(widthByHeight, preferredWidth);
+    const targetRenderH = targetW * (args.logo.height / args.logo.width);
     ctx.page.drawImage(args.logo, {
       x: logoX,
-      y: logoTop - targetH,
+      y: logoTop - targetRenderH,
       width: targetW,
-      height: targetH,
+      height: targetRenderH,
     });
   } else if (args.brandName) {
     ctx.page.drawText(args.brandName, {
       x: logoX,
-      y: logoTop - 12,
+      y: logoTop - 12.5,
       font: ctx.fonts.bold,
-      size: 12,
-      color: ctx.theme.colors.text,
+      size: 12.2,
+      color: ctx.theme.colors.accent,
     });
   }
 
@@ -49,14 +61,14 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
     const width = ctx.fonts.regular.widthOfTextAtSize(args.rightMeta, ctx.theme.smallSize);
     ctx.page.drawText(args.rightMeta, {
       x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
-      y: top - 44,
+      y: top - 43,
       font: ctx.fonts.regular,
       size: ctx.theme.smallSize,
-      color: ctx.theme.colors.muted,
+      color: ctx.theme.colors.subtle,
     });
   }
 
-  const titleStartY = top - bandHeight - 24;
+  const titleStartY = top - bandHeight - 26;
   if (args.eyebrow) {
     ctx.page.drawText(args.eyebrow, {
       x: ctx.theme.marginLeft,
@@ -76,13 +88,13 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
     lineHeight: ctx.theme.titleSize + 4,
   });
 
-  let y = titleStartY - (ctx.theme.titleSize + 6);
+  let y = titleStartY - (ctx.theme.titleSize + 7);
   if (args.subtitle) {
     const h = measureTextBlockHeight(ctx, {
       text: args.subtitle,
       maxWidth: ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight,
       size: ctx.theme.bodySize,
-      lineHeight: ctx.theme.bodySize + 3,
+      lineHeight: ctx.theme.bodySize + 3.2,
     });
     drawTextBlock(ctx, {
       text: args.subtitle,
@@ -90,8 +102,8 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
       y,
       maxWidth: ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight,
       size: ctx.theme.bodySize,
-      lineHeight: ctx.theme.bodySize + 3,
-      color: ctx.theme.colors.muted,
+      lineHeight: ctx.theme.bodySize + 3.2,
+      color: ctx.theme.colors.subtle,
     });
     y -= h;
   }
@@ -100,9 +112,9 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
     start: { x: ctx.theme.marginLeft, y: y - 4 },
     end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: y - 4 },
     thickness: 1,
-    color: ctx.theme.colors.border,
+    color: ctx.theme.colors.strongBorder,
   });
-  ctx.cursor.y = y - 16;
+  ctx.cursor.y = y - 18;
 }
 
 export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?: string) {
@@ -111,32 +123,40 @@ export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?:
         text: subtitle,
         maxWidth: ctx.cursor.maxX - ctx.cursor.minX,
         size: ctx.theme.smallSize,
-        lineHeight: ctx.theme.smallSize + 3,
+        lineHeight: ctx.theme.smallSize + 3.2,
       })
     : 0;
-  const needed = 18 + subtitleHeight + 10;
+  const needed = 20 + subtitleHeight + 12;
   ctx.ensureSpace(needed);
+
+  ctx.page.drawRectangle({
+    x: ctx.cursor.minX,
+    y: ctx.cursor.y - 13.5,
+    width: 3.2,
+    height: 13.5,
+    color: ctx.theme.colors.accent,
+  });
 
   drawTextBlock(ctx, {
     text: label,
-    x: ctx.cursor.minX,
+    x: ctx.cursor.minX + 8,
     y: ctx.cursor.y,
     maxWidth: ctx.cursor.maxX - ctx.cursor.minX,
-    bold: true,
+    font: "bold",
     size: ctx.theme.headingSize,
-    lineHeight: ctx.theme.headingSize + 3,
+    lineHeight: ctx.theme.headingSize + 3.3,
   });
-  ctx.cursor.y -= ctx.theme.headingSize + 6;
+  ctx.cursor.y -= ctx.theme.headingSize + 6.4;
 
   if (subtitle) {
     const result = drawTextBlock(ctx, {
       text: subtitle,
-      x: ctx.cursor.minX,
+      x: ctx.cursor.minX + 8,
       y: ctx.cursor.y,
       maxWidth: ctx.cursor.maxX - ctx.cursor.minX,
       size: ctx.theme.smallSize,
-      lineHeight: ctx.theme.smallSize + 3,
-      color: ctx.theme.colors.muted,
+      lineHeight: ctx.theme.smallSize + 3.2,
+      color: ctx.theme.colors.subtle,
     });
     ctx.cursor.y = result.nextY - 2;
   }
@@ -147,12 +167,12 @@ export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?:
     thickness: 1,
     color: ctx.theme.colors.border,
   });
-  ctx.cursor.y -= 10;
+  ctx.cursor.y -= 11;
 }
 
 export function drawParagraph(ctx: ReportContext, text: string, options?: { muted?: boolean; size?: number; maxWidth?: number }) {
   const size = options?.size ?? ctx.theme.bodySize;
-  const lineHeight = Math.max(size + 2, ctx.theme.lineHeight);
+  const lineHeight = Math.max(size + 2.2, ctx.theme.lineHeight);
   const maxWidth = options?.maxWidth ?? ctx.cursor.maxX - ctx.cursor.minX;
   const needed = measureTextBlockHeight(ctx, {
     text,
@@ -168,13 +188,18 @@ export function drawParagraph(ctx: ReportContext, text: string, options?: { mute
     maxWidth,
     size,
     lineHeight,
-    color: options?.muted ? ctx.theme.colors.muted : ctx.theme.colors.text,
+    color: options?.muted ? ctx.theme.colors.subtle : ctx.theme.colors.text,
   });
   ctx.cursor.y = result.nextY - 2;
 }
 
-export function drawKeyValueRow(ctx: ReportContext, key: string, value: string) {
-  const labelWidth = 190;
+export function drawKeyValueRow(
+  ctx: ReportContext,
+  key: string,
+  value: string,
+  options?: { valueFont?: ReportFontFamily; labelWidth?: number }
+) {
+  const labelWidth = options?.labelWidth ?? 180;
   const valueWidth = Math.max(120, ctx.cursor.maxX - ctx.cursor.minX - labelWidth);
   const valueHeight = measureTextBlockHeight(ctx, {
     text: value,
@@ -191,7 +216,7 @@ export function drawKeyValueRow(ctx: ReportContext, key: string, value: string) 
     y: ctx.cursor.y,
     maxWidth: labelWidth - 8,
     size: ctx.theme.bodySize,
-    bold: true,
+    font: "bold",
     lineHeight: ctx.theme.lineHeight,
     color: ctx.theme.colors.muted,
   });
@@ -202,7 +227,7 @@ export function drawKeyValueRow(ctx: ReportContext, key: string, value: string) 
     y: ctx.cursor.y,
     maxWidth: valueWidth,
     size: ctx.theme.bodySize,
-    bold: false,
+    font: options?.valueFont ?? "regular",
     lineHeight: ctx.theme.lineHeight,
   });
 
@@ -217,7 +242,7 @@ export function drawMetricCards(
   const columns = Math.max(1, Math.min(options?.columns ?? metrics.length, metrics.length));
   const gap = ctx.theme.gutter;
   const width = (ctx.cursor.maxX - ctx.cursor.minX - gap * (columns - 1)) / columns;
-  const cardHeight = 52;
+  const cardHeight = 56;
   const rows = Math.ceil(metrics.length / columns);
   ctx.ensureSpace(rows * (cardHeight + gap));
 
@@ -234,24 +259,32 @@ export function drawMetricCards(
         width,
         height: cardHeight,
         color: ctx.theme.colors.white,
-        borderColor: ctx.theme.colors.border,
+        borderColor: ctx.theme.colors.strongBorder,
         borderWidth: 1,
+      });
+      ctx.page.drawRectangle({
+        x,
+        y: yTop - 2.4,
+        width,
+        height: 2.4,
+        color: ctx.theme.colors.accent,
       });
       ctx.page.drawText(item.label, {
         x: x + 10,
-        y: yTop - 15,
+        y: yTop - 18,
         font: ctx.fonts.bold,
         size: ctx.theme.smallSize,
-        color: ctx.theme.colors.muted,
+        color: ctx.theme.colors.subtle,
       });
       drawTextBlock(ctx, {
         text: item.value,
         x: x + 10,
-        y: yTop - 34,
+        y: yTop - 37,
         maxWidth: width - 20,
-        bold: true,
+        font: "bold",
         size: ctx.theme.bodySize + 1,
-        lineHeight: ctx.theme.bodySize + 2,
+        lineHeight: ctx.theme.bodySize + 2.2,
+        maxLines: 2,
       });
       index += 1;
     }
@@ -265,25 +298,32 @@ export function finalizeFooters(ctx: ReportContext, label: string) {
     const page = pages[i];
     const text = `Page ${i + 1} of ${pages.length}`;
     const width = ctx.fonts.regular.widthOfTextAtSize(text, ctx.theme.smallSize);
+    page.drawRectangle({
+      x: 0,
+      y: 12,
+      width: ctx.theme.pageWidth,
+      height: 24,
+      color: ctx.theme.colors.footerPanel,
+    });
     page.drawLine({
-      start: { x: ctx.theme.marginLeft, y: 34 },
-      end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: 34 },
+      start: { x: ctx.theme.marginLeft, y: 36 },
+      end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: 36 },
       thickness: 1,
       color: ctx.theme.colors.border,
     });
     page.drawText(label, {
       x: ctx.theme.marginLeft,
-      y: 21,
+      y: 22,
       size: ctx.theme.smallSize,
       font: ctx.fonts.regular,
-      color: ctx.theme.colors.muted,
+      color: ctx.theme.colors.subtle,
     });
     page.drawText(text, {
       x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
-      y: 21,
+      y: 22,
       size: ctx.theme.smallSize,
       font: ctx.fonts.regular,
-      color: ctx.theme.colors.muted,
+      color: ctx.theme.colors.subtle,
     });
   }
 }

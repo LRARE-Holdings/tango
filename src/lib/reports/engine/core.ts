@@ -7,6 +7,7 @@ import { DEFAULT_REPORT_THEME, type ReportDocTheme } from "@/lib/reports/engine/
 export type ReportFonts = {
   regular: PDFFont;
   bold: PDFFont;
+  mono: PDFFont;
 };
 
 export type LayoutCursor = {
@@ -40,18 +41,28 @@ type CreateReportContextOptions = {
   onPageAdded?: (ctx: ReportContext) => void;
 };
 
-const INTER_REGULAR_CANDIDATES = [
+const REPORT_REGULAR_CANDIDATES = [
+  "public/fonts/reports/NotoSans-Regular.ttf",
+  "public/fonts/reports/LiberationSans-Regular.ttf",
   "public/fonts/Inter-Regular.ttf",
   "public/fonts/Inter-Regular.otf",
   "public/fonts/InterVariable.ttf",
   "public/fonts/Inter-VariableFont_slnt,wght.ttf",
 ];
 
-const INTER_BOLD_CANDIDATES = [
+const REPORT_BOLD_CANDIDATES = [
+  "public/fonts/reports/NotoSans-SemiBold.ttf",
+  "public/fonts/reports/NotoSans-Bold.ttf",
+  "public/fonts/reports/LiberationSans-Bold.ttf",
   "public/fonts/Inter-SemiBold.ttf",
   "public/fonts/Inter-Bold.ttf",
   "public/fonts/Inter-SemiBold.otf",
   "public/fonts/Inter-Bold.otf",
+];
+
+const REPORT_MONO_CANDIDATES = [
+  "public/fonts/reports/NotoSansMono-Regular.ttf",
+  "public/fonts/reports/LiberationMono-Regular.ttf",
 ];
 
 async function readFirstExisting(paths: string[]): Promise<Uint8Array | null> {
@@ -66,26 +77,38 @@ async function readFirstExisting(paths: string[]): Promise<Uint8Array | null> {
   return null;
 }
 
+async function embedFontBytes(
+  pdf: PDFDocument,
+  bytes: Uint8Array | null,
+  fallback: PDFFont
+): Promise<PDFFont> {
+  if (!bytes || bytes.length === 0) return fallback;
+  try {
+    return await pdf.embedFont(bytes, { subset: true });
+  } catch {
+    return fallback;
+  }
+}
+
 async function loadReportFonts(pdf: PDFDocument): Promise<ReportFonts> {
   const regularFallback = await pdf.embedFont(StandardFonts.Helvetica);
   const boldFallback = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const monoFallback = await pdf.embedFont(StandardFonts.Courier);
 
   try {
     pdf.registerFontkit(fontkit);
-    const [regularBytes, boldBytes] = await Promise.all([
-      readFirstExisting(INTER_REGULAR_CANDIDATES),
-      readFirstExisting(INTER_BOLD_CANDIDATES),
+    const [regularBytes, boldBytes, monoBytes] = await Promise.all([
+      readFirstExisting(REPORT_REGULAR_CANDIDATES),
+      readFirstExisting(REPORT_BOLD_CANDIDATES),
+      readFirstExisting(REPORT_MONO_CANDIDATES),
     ]);
 
-    if (!regularBytes) {
-      return { regular: regularFallback, bold: boldFallback };
-    }
-
-    const regular = await pdf.embedFont(regularBytes, { subset: true });
-    const bold = boldBytes ? await pdf.embedFont(boldBytes, { subset: true }) : boldFallback;
-    return { regular, bold };
+    const regular = await embedFontBytes(pdf, regularBytes, regularFallback);
+    const bold = await embedFontBytes(pdf, boldBytes ?? regularBytes, boldFallback);
+    const mono = await embedFontBytes(pdf, monoBytes, monoFallback);
+    return { regular, bold, mono };
   } catch {
-    return { regular: regularFallback, bold: boldFallback };
+    return { regular: regularFallback, bold: boldFallback, mono: monoFallback };
   }
 }
 
@@ -149,9 +172,36 @@ export async function createReportContext(options?: CreateReportContextOptions):
 }
 
 export async function embedPngIfPresent(ctx: ReportContext, bytes: Uint8Array | null | undefined): Promise<PDFImage | null> {
+  return embedImageIfPresent(ctx, bytes);
+}
+
+function detectImageType(bytes: Uint8Array): "png" | "jpg" | null {
+  if (bytes.length >= 8) {
+    const isPng =
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47 &&
+      bytes[4] === 0x0d &&
+      bytes[5] === 0x0a &&
+      bytes[6] === 0x1a &&
+      bytes[7] === 0x0a;
+    if (isPng) return "png";
+  }
+  if (bytes.length >= 3) {
+    const isJpg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    if (isJpg) return "jpg";
+  }
+  return null;
+}
+
+export async function embedImageIfPresent(ctx: ReportContext, bytes: Uint8Array | null | undefined): Promise<PDFImage | null> {
   if (!bytes || bytes.length === 0) return null;
   try {
-    return await ctx.pdf.embedPng(bytes);
+    const type = detectImageType(bytes);
+    if (type === "png") return await ctx.pdf.embedPng(bytes);
+    if (type === "jpg") return await ctx.pdf.embedJpg(bytes);
+    return null;
   } catch {
     return null;
   }

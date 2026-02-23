@@ -4,10 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-
-function isSafeNext(next: string | null) {
-  return !!next && next.startsWith("/") && !next.startsWith("//");
-}
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 export default function InvitePasswordPage() {
   const router = useRouter();
@@ -33,8 +30,7 @@ export default function InvitePasswordPage() {
     async function boot() {
       try {
         const url = new URL(window.location.href);
-        const nextRaw = url.searchParams.get("next");
-        const safeNext = isSafeNext(nextRaw) ? nextRaw! : "/app";
+        const safeNext = safeInternalPath(url.searchParams.get("next"), "/app");
         setNextPath(safeNext);
 
         const { data, error } = await supabase.auth.getSession();
@@ -111,7 +107,11 @@ export default function InvitePasswordPage() {
 
         {ready && !bootError && (
           <form onSubmit={onSubmit} className="space-y-3">
+            <label htmlFor="invite-password" className="sr-only">
+              Create password
+            </label>
             <input
+              id="invite-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -122,7 +122,11 @@ export default function InvitePasswordPage() {
               required
             />
 
+            <label htmlFor="invite-password-confirm" className="sr-only">
+              Confirm password
+            </label>
             <input
+              id="invite-password-confirm"
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

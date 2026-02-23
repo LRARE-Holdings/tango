@@ -140,10 +140,11 @@ export async function GET(
   let workspaceName = "Receipt";
   let brandName = "Receipt";
   let brandLogoPngBytes: Uint8Array | null = null;
+  let brandLogoWidthPx: number | null = null;
   if (teamBrandingEnabled && doc.workspace_id) {
     const workspaceRes = await supabase
       .from("workspaces")
-      .select("name,brand_logo_path")
+      .select("name,brand_logo_path,brand_logo_width_px")
       .eq("id", doc.workspace_id)
       .maybeSingle();
 
@@ -151,10 +152,17 @@ export async function GET(
       return NextResponse.json({ error: workspaceRes.error.message }, { status: 500 });
     }
     if (workspaceRes.data) {
-      const workspace = workspaceRes.data as { name?: string | null; brand_logo_path?: string | null };
+      const workspace = workspaceRes.data as {
+        name?: string | null;
+        brand_logo_path?: string | null;
+        brand_logo_width_px?: number | null;
+      };
       if (typeof workspace.name === "string" && workspace.name.trim()) {
         workspaceName = workspace.name.trim();
         brandName = workspace.name.trim();
+      }
+      if (typeof workspace.brand_logo_width_px === "number" && Number.isFinite(workspace.brand_logo_width_px)) {
+        brandLogoWidthPx = Math.max(48, Math.min(320, Math.floor(workspace.brand_logo_width_px)));
       }
       if (typeof workspace.brand_logo_path === "string" && workspace.brand_logo_path.trim()) {
         const logoDownload = await admin.storage
@@ -180,11 +188,13 @@ export async function GET(
   try {
     const receiptLogoPngBytes = await readReceiptLogoPngBytes();
     const bytes = await buildDocumentEvidencePdf({
+      reportStyleVersion: "v2",
       generatedAtIso: new Date().toISOString(),
       watermarkEnabled,
       workspaceName,
       brandName,
       brandLogoPngBytes,
+      brandLogoWidthPx,
       receiptLogoPngBytes,
       document: {
         id: doc.id,

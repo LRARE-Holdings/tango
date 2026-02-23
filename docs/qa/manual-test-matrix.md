@@ -57,4 +57,4 @@
 ## Gate D: UAT signoff
 - [ ] Owner/admin signoff captured.
 - [ ] Member signoff captured.
-- [ ] No P0/P1 issues open.
+- [ ] No P0/P1/P2 issues open.

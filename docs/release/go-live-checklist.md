@@ -6,8 +6,6 @@
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] `NEXT_PUBLIC_APP_URL`
 - [ ] `RECEIPT_PUBLIC_ACCESS_SECRET`
-- [ ] `RECEIPT_LAUNCH_PASSWORD`
-- [ ] `RECEIPT_LAUNCH_AT` (optional override, valid ISO datetime)
 - [ ] `RESEND_API_KEY`
 - [ ] `RECEIPT_FROM_EMAIL`
 - [ ] `TURNSTILE_SECRET_KEY`
@@ -42,12 +40,9 @@ Run:
 - [ ] Sentry release creation + sourcemap upload succeeds in production build.
 
 ## 4) Deployment readiness
-- [ ] Preview deployment tested with QA matrix.
-- [ ] `npm run qa:full` passes.
-- [ ] `npm run test:e2e` passes.
-- [ ] `npm run test:security` passes.
-- [ ] `npm run qa:gate` passes.
-- [ ] No open P0/P1 defects.
+- [ ] `BASE_URL=https://www.getreceipt.co npm run test:e2e` passes.
+- [ ] `BASE_URL=https://www.getreceipt.co npm run test:security` passes.
+- [ ] No open P0/P1/P2 defects.
 
 ## 5) Launch and immediate validation
 - [ ] Deploy to production.

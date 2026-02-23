@@ -27,6 +27,7 @@ function normalizeFirstName(input: string) {
   if (!clean) return "";
   return (clean.split(" ")[0] ?? "").slice(0, 80);
 }
+const MIN_PASSWORD_LENGTH = 8;
 
 export default function GetStartedPage() {
   const router = useRouter();
@@ -57,6 +58,9 @@ export default function GetStartedPage() {
         throw new Error("Please complete the security check.");
       }
       if (!firstName) throw new Error("Enter your first name to continue.");
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new Error(`Use at least ${MIN_PASSWORD_LENGTH} characters for your password.`);
+      }
 
       const siteUrl = getSiteUrl();
       const confirmUrl = `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}&first_name=${encodeURIComponent(firstName)}`;
@@ -122,7 +126,11 @@ export default function GetStartedPage() {
         </div>
 
         <form onSubmit={signUpWithEmail} className="space-y-3">
+          <label htmlFor="get-started-first-name" className="sr-only">
+            First name
+          </label>
           <input
+            id="get-started-first-name"
             type="text"
             required
             value={firstNameInput}
@@ -131,7 +139,11 @@ export default function GetStartedPage() {
             className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
             style={{ borderColor: "var(--border)" }}
           />
+          <label htmlFor="get-started-email" className="sr-only">
+            Email address
+          </label>
           <input
+            id="get-started-email"
             type="email"
             required
             value={email}
@@ -140,15 +152,20 @@ export default function GetStartedPage() {
             className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
             style={{ borderColor: "var(--border)" }}
           />
+          <label htmlFor="get-started-password" className="sr-only">
+            Password
+          </label>
           <input
+            id="get-started-password"
             type="password"
             required
-            minLength={8}
+            minLength={MIN_PASSWORD_LENGTH}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password (min 8 characters)"
+            placeholder={`Password (min ${MIN_PASSWORD_LENGTH} characters)`}
             className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
             style={{ borderColor: "var(--border)" }}
+            autoComplete="new-password"
           />
 
           <TurnstileWidget
