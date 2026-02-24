@@ -526,9 +526,7 @@ export default function PublicDocPage({
               <Link href="/dpa" target="_blank" className="underline underline-offset-4 hover:opacity-80">
                 DPA
               </Link>
-              . We use Supabase (AWS) hosted in London for all data.
-              Cloudflare is there for CAPTCHA purposes only and only tracks
-              relevant activity.
+              .
             </p>
 
             <div className="mt-5 flex flex-col sm:flex-row gap-3">

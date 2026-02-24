@@ -269,9 +269,7 @@ export default function PublicStackPage({
                 <Link href="/dpa" target="_blank" className="underline underline-offset-4 hover:opacity-80">
                   DPA
                 </Link>
-                . We use Supabase (AWS) hosted in London for all data.
-                Cloudflare is there for CAPTCHA purposes only and only tracks
-                relevant activity.
+                .
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
