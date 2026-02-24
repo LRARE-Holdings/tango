@@ -1,10 +1,9 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { buildDocumentEvidencePdf } from "@/lib/reports/document-evidence-report";
+import { readReceiptLogoPngBytes } from "@/lib/reports/receipt-branding";
 
 export const runtime = "nodejs";
 
@@ -51,16 +50,6 @@ function pickOrigin(req: Request) {
     return new URL(req.url).origin;
   } catch {
     return "";
-  }
-}
-
-async function readReceiptLogoPngBytes() {
-  try {
-    const receiptLogoPath = path.join(process.cwd(), "public", "receipt-logo.png");
-    const file = await fs.readFile(receiptLogoPath);
-    return new Uint8Array(file);
-  } catch {
-    return null;
   }
 }
 

@@ -212,7 +212,10 @@ export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInpu
     ctx.cursor.y -= 7;
   }
 
-  finalizeFooters(ctx, "Receipt Evidence Document");
+  finalizeFooters(ctx, "Receipt Evidence Document", {
+    poweredByBrand: "Receipt",
+    poweredByLogo: receiptLogo,
+  });
   ctx.pdf.setTitle("Receipt Evidence Record");
   ctx.pdf.setProducer("Receipt");
   ctx.pdf.setCreator("Receipt");

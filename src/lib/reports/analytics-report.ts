@@ -17,6 +17,7 @@ export type AnalyticsReportInput = {
   workspaceName: string;
   brandName?: string;
   brandLogoImageBytes?: Uint8Array | null;
+  receiptLogoPngBytes?: Uint8Array | null;
   brandLogoWidthPx?: number | null;
   generatedAtIso: string;
   mode: AnalyticsReportMode;
@@ -119,6 +120,7 @@ function fmtScroll(value: number | null) {
 
 export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Promise<Uint8Array> {
   const ctx = await createReportContext();
+  const receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
@@ -458,7 +460,11 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
 
   finalizeFooters(
     ctx,
-    input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report"
+    input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report",
+    {
+      poweredByBrand: "Receipt",
+      poweredByLogo: receiptLogo,
+    }
   );
   ctx.pdf.setTitle(
     input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report"

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { PoweredByReceipt } from "@/components/public/powered-by-receipt";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/security/turnstile-widget";
 
 type StackDocument = {
@@ -170,17 +172,26 @@ export default function PublicStackPage({
   }, [data]);
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--bg)", color: "var(--fg)" }}>
-      <div className="mx-auto max-w-4xl px-4 py-8 md:py-10">
-        <div className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-          {loading ? <div className="text-sm">Loading stack…</div> : null}
+    <main className="min-h-screen px-4 py-8 sm:px-6 md:py-10">
+      <div className="mx-auto max-w-5xl space-y-5">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href="/"
+            className="focus-ring inline-flex items-center gap-2 rounded-full border px-3 py-1.5 app-chip text-xs font-semibold"
+          >
+            <Image src="/receipt-logo.svg" alt="Receipt" width={90} height={35} className="h-3.5 w-auto" />
+            <span>Stack acknowledgement</span>
+          </Link>
+          <div className="app-chip px-3 py-1 text-xs font-semibold">{data?.stack.workspace_name ?? "Receipt"}</div>
+        </header>
+
+        <section className="app-content-card rounded-[24px] p-6 md:p-8">
+          {loading ? <div className="text-sm app-subtle">Loading stack…</div> : null}
           {!loading && data ? (
             <>
-              <div className="text-xs font-semibold tracking-[0.18em]" style={{ color: "var(--muted2)" }}>
-                STACK DELIVERY
-              </div>
-              <h1 className="mt-2 text-3xl md:text-4xl app-hero-title">{data.stack.title}</h1>
-              <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+              <div className="app-section-kicker">STACK DELIVERY</div>
+              <h1 className="mt-2 text-3xl app-hero-title md:text-4xl">{data.stack.title}</h1>
+              <p className="mt-2 text-sm app-subtle">
                 {data.stack.workspace_name} sent this document stack. Acknowledge each required document to complete.
               </p>
 
@@ -189,63 +200,49 @@ export default function PublicStackPage({
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="Your name"
-                  className="focus-ring w-full rounded-xl border bg-transparent px-4 py-3 text-sm"
-                  style={{ borderColor: "var(--border)" }}
+                  className="app-input focus-ring rounded-xl px-4 py-3"
                 />
                 <input
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="name@company.com"
-                  className="focus-ring w-full rounded-xl border bg-transparent px-4 py-3 text-sm"
-                  style={{ borderColor: "var(--border)" }}
+                  className="app-input focus-ring rounded-xl px-4 py-3"
                 />
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--muted2)" }}>
-                <span>Required: {data.stack.required_acknowledged}/{data.stack.required_total}</span>
-                <button
-                  type="button"
-                  onClick={() => void load()}
-                  className="focus-ring rounded-full border px-3 py-1 font-semibold"
-                  style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                >
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs app-subtle-2">
+                <span>
+                  Required: {data.stack.required_acknowledged}/{data.stack.required_total}
+                </span>
+                <button type="button" onClick={() => void load()} className="focus-ring app-btn-secondary px-3 py-1 text-xs font-semibold">
                   Refresh
                 </button>
               </div>
 
               <div className="mt-6 space-y-3">
                 {data.documents.map((doc) => (
-                  <section
-                    key={doc.id}
-                    className="rounded-2xl border p-4"
-                    style={{ borderColor: "var(--border)", background: "var(--card2)" }}
-                  >
+                  <section key={doc.id} className="app-card-soft rounded-2xl p-4">
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div>
                         <div className="text-sm font-semibold">{doc.title}</div>
-                        <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                        <div className="mt-1 text-xs app-subtle-2">
                           {doc.required ? "Required" : "Optional"} • Priority {doc.priority}
                           {doc.acknowledged_at ? ` • Acknowledged ${formatDate(doc.acknowledged_at)}` : ""}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          href={`/d/${doc.public_id}`}
-                          target="_blank"
-                          className="focus-ring rounded-full border px-3 py-1.5 text-xs font-semibold"
-                          style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                        >
+                        <Link href={`/d/${doc.public_id}`} target="_blank" className="focus-ring app-btn-secondary px-3 py-1.5 text-xs font-semibold">
                           Open document
                         </Link>
                         <button
                           type="button"
                           disabled={saving || doc.acknowledged}
                           onClick={() => void acknowledgeDocument(doc.public_id)}
-                          className="focus-ring rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                          className="focus-ring rounded-full border px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
                           style={{
-                            background: doc.acknowledged ? "var(--card)" : "var(--fg)",
+                            background: doc.acknowledged ? "color-mix(in srgb, var(--card) 92%, transparent)" : "var(--fg)",
                             color: doc.acknowledged ? "var(--muted2)" : "var(--bg)",
-                            border: "1px solid var(--border)",
+                            borderColor: "var(--border)",
                           }}
                         >
                           {doc.acknowledged ? "Acknowledged" : "Acknowledge"}
@@ -256,7 +253,7 @@ export default function PublicStackPage({
                 ))}
               </div>
 
-              <p className="mt-4 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+              <p className="mt-4 text-xs leading-relaxed app-subtle">
                 By clicking acknowledge you agree to our{" "}
                 <Link href="/terms" target="_blank" className="underline underline-offset-4 hover:opacity-80">
                   terms of service
@@ -272,28 +269,36 @@ export default function PublicStackPage({
                 .
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <TurnstileWidget ref={turnstileRef} onTokenChange={setCaptchaToken} action="public_stack" />
                 <button
                   type="button"
                   onClick={() => void finalizeStack()}
                   disabled={finalizing || requiredOutstanding > 0 || (captchaEnabled && !captchaToken)}
-                  className="focus-ring rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                  style={{ background: "var(--fg)", color: "var(--bg)" }}
+                  className="focus-ring app-btn-primary disabled:opacity-50"
                 >
                   {finalizing ? "Finalizing…" : "Finalize stack acknowledgement"}
                 </button>
                 {requiredOutstanding > 0 ? (
-                  <div className="self-center text-xs" style={{ color: "var(--muted2)" }}>
+                  <div className="self-center text-xs app-subtle-2">
                     {requiredOutstanding} required document{requiredOutstanding === 1 ? "" : "s"} remaining.
                   </div>
                 ) : null}
+                <PoweredByReceipt className="ml-auto" />
               </div>
             </>
           ) : null}
-          {error ? <p className="mt-4 text-sm" style={{ color: "#ef4444" }}>{error}</p> : null}
-          {success ? <p className="mt-4 text-sm" style={{ color: "#16a34a" }}>{success}</p> : null}
-        </div>
+          {error ? <p className="app-error mt-4">{error}</p> : null}
+          {success ? (
+            <div
+              className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: "color-mix(in srgb, #15803d 38%, var(--border))", background: "color-mix(in srgb, #16a34a 10%, var(--card))" }}
+            >
+              <span style={{ color: "color-mix(in srgb, #166534 84%, var(--fg))" }}>{success}</span>
+              <PoweredByReceipt />
+            </div>
+          ) : null}
+        </section>
       </div>
     </main>
   );

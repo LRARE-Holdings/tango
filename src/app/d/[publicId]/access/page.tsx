@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { use, useEffect, useRef, useState } from "react";
+import { PoweredByReceipt } from "@/components/public/powered-by-receipt";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/security/turnstile-widget";
 
 export default function PublicDocAccessPage({
@@ -84,10 +86,10 @@ export default function PublicDocAccessPage({
 
   if (loading) {
     return (
-      <main className="min-h-screen px-6 py-10">
-        <div className="mx-auto max-w-3xl">
-          <div className="text-sm" style={{ color: "var(--muted)" }}>
-            Loading…
+      <main className="min-h-screen px-4 py-8 sm:px-6">
+        <div className="mx-auto max-w-4xl">
+          <div className="app-content-card rounded-[22px] p-6 text-sm md:p-8" style={{ color: "var(--muted)" }}>
+            Loading protected delivery…
           </div>
         </div>
       </main>
@@ -95,17 +97,20 @@ export default function PublicDocAccessPage({
   }
 
   return (
-    <main className="min-h-screen px-6 py-10">
-      <div className="mx-auto max-w-xl">
-        <div
-          className="rounded-3xl border p-6 md:p-8"
-          style={{ borderColor: "var(--border)", background: "var(--card)" }}
-        >
-          <div className="text-xs font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>
-            PROTECTED LINK
-          </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+    <main className="min-h-screen px-4 py-8 sm:px-6 md:py-10">
+      <div className="mx-auto max-w-4xl">
+        <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <Link href="/" className="focus-ring inline-flex items-center gap-2 rounded-full border px-3 py-1.5 app-chip text-xs font-semibold">
+            <Image src="/receipt-logo.svg" alt="Receipt" width={90} height={35} className="h-3.5 w-auto" />
+            <span>Secure access</span>
+          </Link>
+          <div className="app-chip px-3 py-1 text-xs font-semibold">/d/ protected link</div>
+        </header>
+
+        <div className="app-content-card rounded-[24px] p-6 md:p-8">
+          <div className="app-section-kicker">PROTECTED LINK</div>
+          <h1 className="app-hero-title mt-2 text-3xl sm:text-4xl">{title}</h1>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed app-subtle">
             {requiresPassword
               ? "Enter the password provided by the sender to view this document."
               : "This link does not require a password."}
@@ -118,8 +123,7 @@ export default function PublicDocAccessPage({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
-                className="focus-ring w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)" }}
+                className="app-input focus-ring rounded-xl px-4 py-3"
                 autoComplete="current-password"
               />
               <TurnstileWidget
@@ -131,8 +135,7 @@ export default function PublicDocAccessPage({
                 type="button"
                 onClick={unlock}
                 disabled={checking || !password.trim() || (captchaEnabled && !captchaToken)}
-                className="focus-ring rounded-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
-                style={{ background: "var(--fg)", color: "var(--bg)" }}
+                className="focus-ring app-btn-primary disabled:opacity-50"
               >
                 {checking ? "Checking…" : "Continue to document"}
               </button>
@@ -140,19 +143,17 @@ export default function PublicDocAccessPage({
           ) : null}
 
           {error ? (
-            <div className="mt-4 text-sm" style={{ color: "#ff3b30" }}>
-              {error}
-            </div>
+            <div className="app-error mt-4">{error}</div>
           ) : null}
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <Link
               href="/"
-              className="focus-ring inline-flex rounded-full border px-4 py-2 text-sm hover:opacity-80"
-              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+              className="focus-ring app-btn-secondary"
             >
               Back to home
             </Link>
+            <PoweredByReceipt />
           </div>
         </div>
       </div>

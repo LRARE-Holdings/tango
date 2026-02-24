@@ -30,6 +30,7 @@ export type StackEvidenceReportInput = {
   acknowledgedDocuments: number;
   brandName?: string;
   brandLogoImageBytes?: Uint8Array | null;
+  receiptLogoPngBytes?: Uint8Array | null;
   brandLogoWidthPx?: number | null;
   documents: StackEvidenceDocument[];
 };
@@ -52,6 +53,7 @@ function fmtUtc(iso: string | null) {
 
 export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Promise<Uint8Array> {
   const ctx = await createReportContext();
+  const receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
@@ -141,7 +143,10 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
     stripedRows: true,
   });
 
-  finalizeFooters(ctx, "Stack Evidence Document");
+  finalizeFooters(ctx, "Stack Evidence Document", {
+    poweredByBrand: "Receipt",
+    poweredByLogo: receiptLogo,
+  });
   ctx.pdf.setTitle("Stack Evidence Record");
   ctx.pdf.setProducer("Receipt");
   ctx.pdf.setCreator("Receipt");

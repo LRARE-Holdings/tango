@@ -1,16 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { PoweredByReceipt } from "@/components/public/powered-by-receipt";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/security/turnstile-widget";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className="rounded-2xl border p-4"
-      style={{ borderColor: "var(--border)", background: "var(--card2)" }}
-    >
-      <div className="text-xs" style={{ color: "var(--muted2)" }}>
+    <div className="app-card-soft rounded-2xl p-4">
+      <div className="text-xs app-subtle-2">
         {label}
       </div>
       <div className="text-sm font-medium">{value}</div>
@@ -359,70 +358,65 @@ export default function PublicDocPage({
 
   if (loading) {
     return (
-      <main className="min-h-screen px-6 py-10">
-        <div className="mx-auto max-w-3xl">
-          <div className="text-sm" style={{ color: "var(--muted)" }}>
-            Loading…
+      <main className="min-h-screen px-4 py-8 sm:px-6 md:py-10">
+        <div className="mx-auto max-w-5xl">
+          <div className="app-content-card rounded-[22px] p-6 text-sm app-subtle md:p-8">
+            Loading document…
           </div>
         </div>
       </main>
     );
   }
 
-  if (error) {
+  if (error && !signedUrl) {
     return (
-      <main className="min-h-screen px-6 py-10">
-        <div className="mx-auto max-w-3xl space-y-4">
-          <div className="text-xl font-semibold">Receipt</div>
-          <div className="text-sm" style={{ color: "var(--muted)" }}>
-            {error}
+      <main className="min-h-screen px-4 py-8 sm:px-6 md:py-10">
+        <div className="mx-auto max-w-5xl space-y-4">
+          <div className="app-content-card rounded-[22px] p-6 md:p-8">
+            <div className="app-section-kicker">DOCUMENT ACCESS</div>
+            <h1 className="mt-2 text-2xl app-hero-title">Receipt</h1>
+            <div className="mt-3 text-sm app-subtle">{error}</div>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link href="/" className="focus-ring app-btn-secondary">
+                Back to home
+              </Link>
+              <PoweredByReceipt />
+            </div>
           </div>
-          <Link
-            href="/"
-            className="focus-ring inline-flex rounded-full border px-4 py-2 text-sm hover:opacity-80"
-            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-          >
-            Back to home
-          </Link>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen px-6 py-8">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <main className="min-h-screen px-4 py-8 sm:px-6 md:py-10">
+      <div className="mx-auto max-w-6xl space-y-6">
         {/* Header */}
-        <header className="flex items-start justify-between gap-4 flex-col sm:flex-row">
-          <div>
-            <div className="text-xs" style={{ color: "var(--muted2)" }}>
-              RECEIPT
+        <header className="app-content-card flex flex-col items-start justify-between gap-4 rounded-[24px] p-5 sm:flex-row sm:items-center sm:p-6">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 app-chip text-xs font-semibold">
+              <Image src="/receipt-logo.svg" alt="Receipt" width={90} height={35} className="h-3.5 w-auto" />
+              <span>Secure document review</span>
             </div>
-            <h1 className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight">{title}</h1>
-
-
+            <h1 className="text-2xl app-hero-title sm:text-3xl">{title}</h1>
+            <p className="max-w-2xl text-sm app-subtle">
+              Review this document and submit acknowledgement when complete.
+            </p>
           </div>
 
-          <Link
-            href="/"
-            className="focus-ring inline-flex rounded-full border px-4 py-2 text-sm hover:opacity-80"
-            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-          >
+          <Link href="/" className="focus-ring app-btn-secondary">
             What is Receipt?
           </Link>
         </header>
 
         {/* Document */}
-        <div
-          className="rounded-3xl border overflow-hidden"
-          style={{ borderColor: "var(--border)", background: "var(--card)" }}
-        >
+        <div className="app-content-card overflow-hidden rounded-[24px]">
           <div
-            className="px-5 py-4 border-b flex items-center justify-between gap-4"
-            style={{ borderColor: "var(--border)" }}
+            className="flex items-center justify-between gap-4 border-b px-5 py-4"
+            style={{ borderColor: "var(--border2)" }}
           >
             <div className="text-sm font-semibold">Document</div>
-            <div className="text-xs" style={{ color: "var(--muted)" }}>
+            <div className="text-xs app-subtle">
               Max scroll: {maxScroll}%{reachedBottom ? " • Reached end" : ""}
             </div>
           </div>
@@ -431,10 +425,10 @@ export default function PublicDocPage({
           <div
             ref={viewerRef}
             className="relative h-[70vh] overflow-y-auto"
-            style={{ background: "var(--card)" }}
+            style={{ background: "color-mix(in srgb, var(--card) 94%, transparent)" }}
           >
             {rendering ? (
-              <div className="px-6 py-6 text-sm" style={{ color: "var(--muted)" }}>
+              <div className="px-6 py-6 text-sm app-subtle">
                 Rendering…
               </div>
             ) : null}
@@ -448,14 +442,11 @@ export default function PublicDocPage({
 
         {/* Acknowledge */}
         {!submitted ? (
-          <div
-            className="rounded-3xl border p-6 md:p-8"
-            style={{ borderColor: "var(--border)", background: "var(--card)" }}
-          >
+          <div className="app-content-card rounded-[24px] p-6 md:p-8">
             <div className="flex items-start justify-between gap-6 flex-col md:flex-row">
               <div className="max-w-2xl">
                 <div className="text-sm font-semibold">Acknowledge review</div>
-                <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+                <p className="mt-2 text-sm leading-relaxed app-subtle">
                   By submitting, you confirm you have reviewed this document. Receipt records
                   timestamps and review activity (time and scroll depth), and the network address
                   (IP) used to access this page. It does not assess understanding and is not an
@@ -463,7 +454,7 @@ export default function PublicDocPage({
                 </p>
               </div>
 
-              <div className="text-xs space-y-1" style={{ color: "var(--muted)" }}>
+              <div className="space-y-1 text-xs app-subtle">
                 <div>
                   Scroll depth: <span style={{ color: "var(--fg)" }}>{maxScroll}%</span>
                 </div>
@@ -483,19 +474,17 @@ export default function PublicDocPage({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={requireRecipientIdentity ? "Your name (required)" : "Your name (optional)"}
-                className="focus-ring rounded-2xl border px-4 py-3 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)" }}
+                className="app-input focus-ring rounded-xl px-4 py-3"
               />
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={requireRecipientIdentity ? "Your email (required)" : "Your email (optional)"}
-                className="focus-ring rounded-2xl border px-4 py-3 text-sm bg-transparent"
-                style={{ borderColor: "var(--border)" }}
+                className="app-input focus-ring rounded-xl px-4 py-3"
               />
             </div>
             {requireRecipientIdentity && !identityValid ? (
-              <div className="mt-3 text-xs" style={{ color: "#ff3b30" }}>
+              <div className="mt-3 text-xs" style={{ color: "#b91c1c" }}>
                 Name and a valid email are required for this acknowledgement.
               </div>
             ) : null}
@@ -513,7 +502,7 @@ export default function PublicDocPage({
               </label>
             </div>
 
-            <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+            <p className="mt-3 text-xs leading-relaxed app-subtle">
               By clicking acknowledge you agree to our{" "}
               <Link href="/terms" target="_blank" className="underline underline-offset-4 hover:opacity-80">
                 terms of service
@@ -540,36 +529,29 @@ export default function PublicDocPage({
 
             <div className="mt-4 flex flex-col sm:flex-row gap-3">
               <button
-                className="focus-ring rounded-full px-6 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
-                style={{ background: "var(--fg)", color: "var(--bg)" }}
+                className="focus-ring app-btn-primary px-6 py-2.5 text-sm font-medium disabled:opacity-50"
                 disabled={!ack || submitting || rendering || !identityValid || (captchaEnabled && !captchaToken)}
                 onClick={submit}
               >
                 {submitting ? "Submitting…" : "Submit acknowledgement"}
               </button>
 
-              <Link
-                href="/"
-                className="focus-ring inline-flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-medium border transition hover:opacity-80"
-                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-              >
+              <Link href="/" className="focus-ring app-btn-secondary px-6 py-2.5 text-sm font-medium">
                 Back
               </Link>
+              <PoweredByReceipt className="sm:ml-auto" />
             </div>
 
             {error && (
-              <div className="mt-4 text-sm" style={{ color: "#ff3b30" }}>
+              <div className="app-error mt-4 text-sm">
                 {error}
               </div>
             )}
           </div>
         ) : (
-          <div
-            className="rounded-3xl border p-6 md:p-8"
-            style={{ borderColor: "var(--border)", background: "var(--card)" }}
-          >
+          <div className="app-content-card rounded-[24px] p-6 md:p-8">
             <div className="text-sm font-semibold">Submitted</div>
-            <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+            <p className="mt-2 text-sm leading-relaxed app-subtle">
               Thank you. Your acknowledgement has been recorded.
             </p>
 
@@ -579,14 +561,14 @@ export default function PublicDocPage({
               <Stat label="Active time" value={`${activeSeconds}s`} />
               <Stat label="Acknowledged" value="Yes" />
             </div>
+            <PoweredByReceipt className="mt-5" />
           </div>
         )}
 
         {/* Footer note */}
-        <div className="text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-          Receipt records access, review activity, acknowledgement, and the network address (IP)
-          used to access this page. It does not assess understanding and is not an e-signature
-          product.
+        <div className="app-card-soft rounded-xl px-4 py-3 text-xs leading-relaxed app-subtle-2">
+          Receipt records access, review activity, acknowledgement, and the network address (IP) used to access this
+          page. It does not assess understanding and is not an e-signature product.
         </div>
       </div>
     </main>

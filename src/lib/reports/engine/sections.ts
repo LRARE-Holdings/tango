@@ -13,6 +13,11 @@ type HeaderArgs = {
   reportStyleVersion?: "v2";
 };
 
+type FooterBrandingArgs = {
+  poweredByBrand?: string;
+  poweredByLogo?: PDFImage | null;
+};
+
 export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
   const bandHeight = 84;
   const top = ctx.theme.pageHeight;
@@ -292,7 +297,8 @@ export function drawMetricCards(
   ctx.cursor.y -= rows * (cardHeight + gap);
 }
 
-export function finalizeFooters(ctx: ReportContext, label: string) {
+export function finalizeFooters(ctx: ReportContext, label: string, branding?: FooterBrandingArgs) {
+  const poweredByBrand = (branding?.poweredByBrand ?? "Receipt").trim() || "Receipt";
   const pages = ctx.pdf.getPages();
   for (let i = 0; i < pages.length; i += 1) {
     const page = pages[i];
@@ -318,6 +324,44 @@ export function finalizeFooters(ctx: ReportContext, label: string) {
       font: ctx.fonts.regular,
       color: ctx.theme.colors.subtle,
     });
+
+    const poweredByPrefix = "Powered by";
+    const poweredByGap = 4;
+    const poweredByPrefixWidth = ctx.fonts.regular.widthOfTextAtSize(poweredByPrefix, ctx.theme.smallSize);
+    const poweredByBrandWidth = ctx.fonts.bold.widthOfTextAtSize(poweredByBrand, ctx.theme.smallSize);
+    const logoHeight = 8;
+    const logoScale = branding?.poweredByLogo ? logoHeight / branding.poweredByLogo.height : 0;
+    const logoWidth = branding?.poweredByLogo ? branding.poweredByLogo.width * logoScale : 0;
+    const groupWidth = poweredByPrefixWidth + poweredByGap + poweredByBrandWidth + (branding?.poweredByLogo ? poweredByGap + logoWidth : 0);
+    const groupX = (ctx.theme.pageWidth - groupWidth) / 2;
+
+    page.drawText(poweredByPrefix, {
+      x: groupX,
+      y: 22,
+      size: ctx.theme.smallSize,
+      font: ctx.fonts.regular,
+      color: ctx.theme.colors.subtle,
+    });
+
+    const brandX = groupX + poweredByPrefixWidth + poweredByGap;
+    page.drawText(poweredByBrand, {
+      x: brandX,
+      y: 22,
+      size: ctx.theme.smallSize,
+      font: ctx.fonts.bold,
+      color: ctx.theme.colors.subtle,
+    });
+
+    if (branding?.poweredByLogo) {
+      page.drawImage(branding.poweredByLogo, {
+        x: brandX + poweredByBrandWidth + poweredByGap,
+        y: 21,
+        width: logoWidth,
+        height: logoHeight,
+        opacity: 0.75,
+      });
+    }
+
     page.drawText(text, {
       x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
       y: 22,

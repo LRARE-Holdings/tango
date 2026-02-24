@@ -4,6 +4,7 @@ import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { canViewAnalytics } from "@/lib/workspace-permissions";
 import { getWorkspaceAnalyticsSnapshot } from "@/lib/workspace-analytics";
 import { buildAnalyticsReportPdf } from "@/lib/reports/analytics-report";
+import { readReceiptLogoPngBytes } from "@/lib/reports/receipt-branding";
 
 type Body = { mode?: "compliance" | "management" };
 
@@ -329,6 +330,7 @@ export async function POST(
       .sort((a, b) => a.document_title.localeCompare(b.document_title));
 
     const generatedAtIso = new Date().toISOString();
+    const receiptLogoPngBytes = await readReceiptLogoPngBytes();
     let stackReceipts: Array<{
       stack_title: string;
       recipient_email: string;
@@ -367,6 +369,7 @@ export async function POST(
       workspaceName,
       brandName: workspaceName,
       brandLogoImageBytes,
+      receiptLogoPngBytes,
       brandLogoWidthPx,
       generatedAtIso,
       mode,

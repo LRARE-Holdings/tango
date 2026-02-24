@@ -4,6 +4,7 @@ import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { canUseStackDelivery } from "@/lib/workspace-permissions";
 import { parseStackReceiptEvidence, parseStackReceiptSummary, safeFilename } from "@/lib/stack-receipts";
 import { buildStackEvidencePdf } from "@/lib/reports/stack-evidence-report";
+import { readReceiptLogoPngBytes } from "@/lib/reports/receipt-branding";
 
 export const runtime = "nodejs";
 
@@ -64,12 +65,14 @@ export async function GET(
     const summary = parseStackReceiptSummary((receiptRes.data as { summary?: unknown }).summary);
     const evidence = parseStackReceiptEvidence((receiptRes.data as { evidence?: unknown }).evidence);
     const completedAt = (receiptRes.data as { completed_at?: string | null }).completed_at ?? summary.completed_at;
+    const receiptLogoPngBytes = await readReceiptLogoPngBytes();
 
     const bytes = await buildStackEvidencePdf({
       reportStyleVersion: "v2",
       workspaceName: String((workspaceRes.data as { name?: string } | null)?.name ?? "Workspace"),
       brandName: String((workspaceRes.data as { name?: string } | null)?.name ?? "Workspace"),
       brandLogoImageBytes,
+      receiptLogoPngBytes,
       brandLogoWidthPx,
       generatedAtIso: new Date().toISOString(),
       receiptId,
