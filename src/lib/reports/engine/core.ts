@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, PDFPage, StandardFonts, type PDFFont, type PDFImage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { DEFAULT_REPORT_THEME, type ReportDocTheme } from "@/lib/reports/engine/theme";
+import { type ReportStyleVersion } from "@/lib/reports/engine/report-format";
+import { getDefaultReportTheme, type ReportDocTheme } from "@/lib/reports/engine/theme";
 
 export type ReportFonts = {
   regular: PDFFont;
@@ -37,6 +38,7 @@ export type ReportContext = {
 };
 
 type CreateReportContextOptions = {
+  styleVersion?: ReportStyleVersion;
   theme?: Partial<ReportDocTheme>;
   onPageAdded?: (ctx: ReportContext) => void;
 };
@@ -112,20 +114,31 @@ async function loadReportFonts(pdf: PDFDocument): Promise<ReportFonts> {
   }
 }
 
-function mergeTheme(input?: Partial<ReportDocTheme>): ReportDocTheme {
-  if (!input) return DEFAULT_REPORT_THEME;
+function mergeTheme(styleVersion: ReportStyleVersion, input?: Partial<ReportDocTheme>): ReportDocTheme {
+  const base = getDefaultReportTheme(styleVersion);
+  if (!input) return base;
   return {
-    ...DEFAULT_REPORT_THEME,
+    ...base,
     ...input,
+    wordBreaks: input.wordBreaks ? [...input.wordBreaks] : base.wordBreaks,
+    tableDefaults: {
+      ...base.tableDefaults,
+      ...(input.tableDefaults ?? {}),
+    },
+    watermark: {
+      ...base.watermark,
+      ...(input.watermark ?? {}),
+    },
     colors: {
-      ...DEFAULT_REPORT_THEME.colors,
+      ...base.colors,
       ...(input.colors ?? {}),
     },
   };
 }
 
 export async function createReportContext(options?: CreateReportContextOptions): Promise<ReportContext> {
-  const theme = mergeTheme(options?.theme);
+  const styleVersion = options?.styleVersion ?? "v2";
+  const theme = mergeTheme(styleVersion, options?.theme);
   const pdf = await PDFDocument.create();
   pdf.defaultWordBreaks = theme.wordBreaks;
   const fonts = await loadReportFonts(pdf);

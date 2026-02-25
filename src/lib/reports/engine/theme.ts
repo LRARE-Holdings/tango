@@ -1,6 +1,9 @@
-import { rgb } from "pdf-lib";
+import { type ReportFormat, type ReportStyleVersion } from "@/lib/reports/engine/report-format";
+import { getReportFormat } from "@/lib/reports/engine/report-presets";
 
 export type ReportDocTheme = {
+  styleVersion: ReportStyleVersion;
+  formatId: string;
   pageWidth: number;
   pageHeight: number;
   marginTop: number;
@@ -9,53 +12,57 @@ export type ReportDocTheme = {
   marginLeft: number;
   baseline: number;
   gutter: number;
+  sectionGap: number;
+  keyValueLabelWidth: number;
+  headerBandHeight: number;
+  footerBandHeight: number;
+  metricCardMinHeight: number;
+  widowOrphanMinLines: number;
   titleSize: number;
   headingSize: number;
   bodySize: number;
   smallSize: number;
   lineHeight: number;
   wordBreaks: string[];
-  colors: {
-    text: ReturnType<typeof rgb>;
-    muted: ReturnType<typeof rgb>;
-    subtle: ReturnType<typeof rgb>;
-    border: ReturnType<typeof rgb>;
-    strongBorder: ReturnType<typeof rgb>;
-    panel: ReturnType<typeof rgb>;
-    panelAlt: ReturnType<typeof rgb>;
-    footerPanel: ReturnType<typeof rgb>;
-    accent: ReturnType<typeof rgb>;
-    white: ReturnType<typeof rgb>;
+  tableDefaults: ReportFormat["tableDefaults"];
+  watermark: ReportFormat["watermark"];
+  colors: ReportFormat["colors"];
+};
+
+export function themeFromFormat(format: ReportFormat): ReportDocTheme {
+  return {
+    styleVersion: format.id,
+    formatId: format.id,
+    pageWidth: format.page.width,
+    pageHeight: format.page.height,
+    marginTop: format.page.marginTop,
+    marginRight: format.page.marginRight,
+    marginBottom: format.page.marginBottom,
+    marginLeft: format.page.marginLeft,
+    baseline: format.layout.baseline,
+    gutter: format.layout.gutter,
+    sectionGap: format.layout.sectionGap,
+    keyValueLabelWidth: format.layout.keyValueLabelWidth,
+    headerBandHeight: format.layout.headerBandHeight,
+    footerBandHeight: format.layout.footerBandHeight,
+    metricCardMinHeight: format.layout.metricCardMinHeight,
+    widowOrphanMinLines: format.layout.widowOrphanMinLines,
+    titleSize: format.typography.titleSize,
+    headingSize: format.typography.headingSize,
+    bodySize: format.typography.bodySize,
+    smallSize: format.typography.smallSize,
+    lineHeight: format.typography.lineHeight,
+    wordBreaks: [...format.wordBreaks],
+    tableDefaults: { ...format.tableDefaults },
+    watermark: { ...format.watermark },
+    colors: { ...format.colors },
   };
-};
+}
 
-export const DEFAULT_REPORT_WORD_BREAKS = [" ", "/", "-", "_", "|", ":"];
+export function getDefaultReportTheme(styleVersion: ReportStyleVersion = "v2"): ReportDocTheme {
+  return themeFromFormat(getReportFormat(styleVersion));
+}
 
-export const DEFAULT_REPORT_THEME: ReportDocTheme = {
-  pageWidth: 595.28,
-  pageHeight: 841.89,
-  marginTop: 54,
-  marginRight: 42,
-  marginBottom: 42,
-  marginLeft: 42,
-  baseline: 4,
-  gutter: 10,
-  titleSize: 21,
-  headingSize: 12.6,
-  bodySize: 10.35,
-  smallSize: 8.7,
-  lineHeight: 14.6,
-  wordBreaks: DEFAULT_REPORT_WORD_BREAKS,
-  colors: {
-    text: rgb(0.105, 0.12, 0.15),
-    muted: rgb(0.275, 0.31, 0.36),
-    subtle: rgb(0.45, 0.49, 0.56),
-    border: rgb(0.84, 0.86, 0.9),
-    strongBorder: rgb(0.73, 0.77, 0.82),
-    panel: rgb(0.962, 0.971, 0.987),
-    panelAlt: rgb(0.981, 0.986, 0.997),
-    footerPanel: rgb(0.952, 0.964, 0.981),
-    accent: rgb(0.082, 0.255, 0.525),
-    white: rgb(1, 1, 1),
-  },
-};
+export const DEFAULT_REPORT_THEME = getDefaultReportTheme("v2");
+export const DEFAULT_REPORT_WORD_BREAKS = [...DEFAULT_REPORT_THEME.wordBreaks];
+

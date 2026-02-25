@@ -1,19 +1,19 @@
 import { PDFDocument } from "pdf-lib";
 import { createReportContext, embedImageIfPresent, saveReport } from "@/lib/reports/engine/core";
-import { drawTable } from "@/lib/reports/engine/table";
 import {
-  drawKeyValueRow,
-  drawMetricCards,
-  drawParagraph,
-  drawReportHeader,
-  drawSectionHeading,
-  finalizeFooters,
-} from "@/lib/reports/engine/sections";
+  dataTable,
+  footer,
+  header,
+  keyValueList,
+  kpiRow,
+  note,
+  section,
+} from "@/lib/reports/engine/composer";
 
 export type AnalyticsReportMode = "compliance" | "management";
 
 export type AnalyticsReportInput = {
-  reportStyleVersion: "v2";
+  reportStyleVersion: "v2" | "v3";
   workspaceName: string;
   brandName?: string;
   brandLogoImageBytes?: Uint8Array | null;
@@ -130,15 +130,19 @@ function fmtScroll(value: number | null) {
 
 export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Promise<Uint8Array> {
   const ctx = await createReportContext({
-    theme: {
-      pageWidth: 841.89,
-      pageHeight: 595.28,
-      marginTop: 46,
-      marginRight: 38,
-      marginBottom: 36,
-      marginLeft: 38,
-      titleSize: 19.5,
-    },
+    styleVersion: input.reportStyleVersion,
+    theme:
+      input.reportStyleVersion === "v2"
+        ? {
+            pageWidth: 841.89,
+            pageHeight: 595.28,
+            marginTop: 46,
+            marginRight: 38,
+            marginBottom: 36,
+            marginLeft: 38,
+            titleSize: 19.5,
+          }
+        : undefined,
   });
   const receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
@@ -146,7 +150,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
   const generatedLabel = fmtUtc(Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString());
 
-  drawReportHeader(ctx, {
+  header(ctx, {
     title:
       input.mode === "compliance"
         ? `${input.workspaceName} Compliance Report`
@@ -160,18 +164,20 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     reportStyleVersion: input.reportStyleVersion,
   });
 
-  drawSectionHeading(ctx, "Summary");
-  drawKeyValueRow(ctx, "Total documents sent", String(input.metrics.total_documents_sent));
-  drawKeyValueRow(ctx, "Acknowledgement rate", `${input.metrics.acknowledgement_rate_percent}%`);
-  drawKeyValueRow(ctx, "Average time to acknowledgement", fmtDurationLong(input.metrics.avg_time_to_ack_seconds));
-  drawKeyValueRow(ctx, "Outstanding acknowledgements", String(input.metrics.outstanding_acknowledgements));
+  section(ctx, "Summary");
+  keyValueList(ctx, [
+    { key: "Total documents sent", value: String(input.metrics.total_documents_sent) },
+    { key: "Acknowledgement rate", value: `${input.metrics.acknowledgement_rate_percent}%` },
+    { key: "Average time to acknowledgement", value: fmtDurationLong(input.metrics.avg_time_to_ack_seconds) },
+    { key: "Outstanding acknowledgements", value: String(input.metrics.outstanding_acknowledgements) },
+  ]);
 
   if (input.mode === "compliance") {
-    drawParagraph(ctx, "Regulatory scope: policy-tagged receipts only.", { muted: true, size: 9.2 });
+    note(ctx, "Regulatory scope: policy-tagged receipts only.", { muted: true, size: 9.2 });
   }
 
   ctx.cursor.y -= 8;
-  drawMetricCards(
+  kpiRow(
     ctx,
     [
       { label: "TOTAL SENT", value: String(input.metrics.total_documents_sent) },
@@ -182,12 +188,12 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     { columns: 4 }
   );
 
-  drawSectionHeading(ctx, "Breakdown by priority");
-  drawTable(ctx, {
+  section(ctx, "Breakdown by priority");
+  dataTable(ctx, "analytics", {
     columns: [
-      { key: "priority", header: "Priority", value: (row) => row.priority, minWidth: 120 },
-      { key: "ack", header: "Acknowledged", value: (row) => row.ack, minWidth: 150 },
-      { key: "rate", header: "Rate", value: (row) => row.rate, minWidth: 80, align: "right", mode: "fixed", width: 80 },
+      { key: "priority", header: "Priority", value: (row) => row.priority, minWidth: 120, semantic: "text" },
+      { key: "ack", header: "Acknowledged", value: (row) => row.ack, minWidth: 150, semantic: "metric" },
+      { key: "rate", header: "Rate", value: (row) => row.rate, minWidth: 80, align: "right", mode: "fixed", width: 80, semantic: "metric" },
     ],
     rows: [...input.byPriority]
       .sort((a, b) => normalizePriority(a.priority).localeCompare(normalizePriority(b.priority)))
@@ -201,11 +207,19 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     headerFontSize: 9.2,
   });
 
-  drawSectionHeading(ctx, "Top labels and tags");
-  drawTable(ctx, {
+  section(ctx, "Top labels and tags");
+  dataTable(ctx, "analytics", {
     columns: [
-      { key: "label", header: "Label / Tag", value: (row) => row.label, minWidth: 280, maxLines: 2 },
-      { key: "total", header: "Documents", value: (row) => String(row.total), mode: "fixed", width: 90, align: "right" },
+      { key: "label", header: "Label / Tag", value: (row) => row.label, minWidth: 280, maxLines: 2, semantic: "text" },
+      {
+        key: "total",
+        header: "Documents",
+        value: (row) => String(row.total),
+        mode: "fixed",
+        width: 90,
+        align: "right",
+        semantic: "metric",
+      },
     ],
     rows: [...input.byLabel]
       .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
@@ -216,11 +230,11 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     maxCellLines: 2,
   });
 
-  drawSectionHeading(ctx, "Daily trend");
-  drawTable(ctx, {
+  section(ctx, "Daily trend");
+  dataTable(ctx, "analytics", {
     columns: [
-      { key: "date", header: "Date", value: (row) => row.date, minWidth: 130, font: "mono" },
-      { key: "sent", header: "Sent", value: (row) => String(row.sent), mode: "fixed", width: 65, align: "right" },
+      { key: "date", header: "Date", value: (row) => row.date, minWidth: 130, semantic: "identifier" },
+      { key: "sent", header: "Sent", value: (row) => String(row.sent), mode: "fixed", width: 65, align: "right", semantic: "metric" },
       {
         key: "ack",
         header: "Acknowledged",
@@ -228,6 +242,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
         mode: "fixed",
         width: 110,
         align: "right",
+        semantic: "metric",
       },
       {
         key: "rate",
@@ -236,6 +251,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
         mode: "fixed",
         width: 80,
         align: "right",
+        semantic: "metric",
       },
     ],
     rows: [...input.series]
@@ -247,7 +263,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
   });
 
   if (input.mode === "compliance") {
-    drawSectionHeading(
+    section(
       ctx,
       "Policy document evidence",
       "Each policy document includes acknowledgement evidence and outstanding submissions."
@@ -260,38 +276,39 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     );
 
     if (docs.length === 0) {
-      drawParagraph(ctx, "No policy-tagged documents matched this date range.", { muted: true });
+      note(ctx, "No policy-tagged documents matched this date range.", { muted: true });
     }
 
     for (const doc of docs) {
       ctx.ensureSpace(100);
-      drawSectionHeading(ctx, `${doc.document_title} (${doc.document_public_id || "No public ID"})`);
-      drawKeyValueRow(ctx, "Created", fmtUtc(doc.created_at));
-      drawKeyValueRow(ctx, "Priority", normalizePriority(doc.priority).toUpperCase());
-      drawKeyValueRow(ctx, "Public ID", doc.document_public_id || "--", { valueFont: "mono" });
-      drawKeyValueRow(ctx, "Labels", doc.labels.join(", ") || "--");
-      drawKeyValueRow(
-        ctx,
-        "Tags",
-        Object.entries(doc.tags)
-          .map(([k, v]) => `${k}:${v}`)
-          .join(", ") || "--"
-      );
-      drawKeyValueRow(ctx, "Acknowledged in range", String(doc.acknowledged_count));
-      drawKeyValueRow(ctx, "Pending submissions", String(doc.pending_submission_count));
-      drawKeyValueRow(
-        ctx,
-        "Outstanding acknowledgement",
-        doc.outstanding ? "YES (no acknowledged submissions in range)" : "NO"
-      );
+      section(ctx, `${doc.document_title} (${doc.document_public_id || "No public ID"})`);
+      keyValueList(ctx, [
+        { key: "Created", value: fmtUtc(doc.created_at) },
+        { key: "Priority", value: normalizePriority(doc.priority).toUpperCase() },
+        { key: "Public ID", value: doc.document_public_id || "--", valueFont: "mono" },
+        { key: "Labels", value: doc.labels.join(", ") || "--" },
+        {
+          key: "Tags",
+          value:
+            Object.entries(doc.tags)
+              .map(([k, v]) => `${k}:${v}`)
+              .join(", ") || "--",
+        },
+        { key: "Acknowledged in range", value: String(doc.acknowledged_count) },
+        { key: "Pending submissions", value: String(doc.pending_submission_count) },
+        {
+          key: "Outstanding acknowledgement",
+          value: doc.outstanding ? "YES (no acknowledged submissions in range)" : "NO",
+        },
+      ]);
 
-      drawSectionHeading(ctx, "Acknowledgements");
+      section(ctx, "Acknowledgements");
       const acknowledgements = [...doc.acknowledgements].sort(
         (a, b) =>
           (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "") ||
           (a.recipient_email ?? "").localeCompare(b.recipient_email ?? "")
       );
-      drawTable(ctx, {
+      dataTable(ctx, "evidence", {
         columns: [
           {
             key: "recipient",
@@ -299,9 +316,10 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
             minWidth: 170,
             maxLines: 2,
+            semantic: "text",
           },
-          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 132 },
-          { key: "method", header: "How", value: (row) => row.method, minWidth: 90, maxLines: 2 },
+          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 132, semantic: "datetime" },
+          { key: "method", header: "How", value: (row) => row.method, minWidth: 90, maxLines: 2, semantic: "text" },
           {
             key: "scroll",
             header: "Scroll",
@@ -309,6 +327,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             mode: "fixed",
             width: 58,
             align: "right",
+            semantic: "metric",
           },
           {
             key: "active",
@@ -317,6 +336,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             mode: "fixed",
             width: 62,
             align: "right",
+            semantic: "metric",
           },
           {
             key: "page",
@@ -325,8 +345,9 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             mode: "fixed",
             width: 62,
             align: "right",
+            semantic: "metric",
           },
-          { key: "ip", header: "IP", value: (row) => row.ip ?? "--", minWidth: 76, font: "mono" },
+          { key: "ip", header: "IP", value: (row) => row.ip ?? "--", minWidth: 76, semantic: "identifier" },
         ],
         rows:
           acknowledgements.length > 0
@@ -351,13 +372,13 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
         maxCellLines: 2,
       });
 
-      drawSectionHeading(ctx, "Outstanding acknowledgements / pending submissions");
+      section(ctx, "Outstanding acknowledgements / pending submissions");
       const pending = [...doc.pending_submissions].sort(
         (a, b) =>
           (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "") ||
           (a.recipient_email ?? "").localeCompare(b.recipient_email ?? "")
       );
-      drawTable(ctx, {
+      dataTable(ctx, "evidence", {
         columns: [
           {
             key: "recipient",
@@ -365,9 +386,10 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
             minWidth: 180,
             maxLines: 2,
+            semantic: "text",
           },
-          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 136 },
-          { key: "method", header: "Status", value: (row) => row.method, minWidth: 190, maxLines: 2 },
+          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 136, semantic: "datetime" },
+          { key: "method", header: "Status", value: (row) => row.method, minWidth: 190, maxLines: 2, semantic: "text" },
           {
             key: "scroll",
             header: "Scroll",
@@ -375,6 +397,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             mode: "fixed",
             width: 58,
             align: "right",
+            semantic: "metric",
           },
           {
             key: "active",
@@ -383,6 +406,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             mode: "fixed",
             width: 62,
             align: "right",
+            semantic: "metric",
           },
           {
             key: "page",
@@ -391,6 +415,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             mode: "fixed",
             width: 62,
             align: "right",
+            semantic: "metric",
           },
         ],
         rows:
@@ -415,13 +440,13 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
       });
     }
   } else {
-    drawSectionHeading(ctx, "Acknowledgement evidence");
+    section(ctx, "Acknowledgement evidence");
     const rows = [...input.evidenceRows].sort(
       (a, b) =>
         (a.document_title || "").localeCompare(b.document_title || "") ||
         (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "")
     );
-    drawTable(ctx, {
+    dataTable(ctx, "evidence", {
       columns: [
         {
           key: "document",
@@ -429,6 +454,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           value: (row) => `${row.document_title} (${row.document_public_id || "No public ID"})`,
           minWidth: 190,
           maxLines: 2,
+          semantic: "text",
         },
         {
           key: "recipient",
@@ -436,8 +462,9 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
           minWidth: 140,
           maxLines: 2,
+          semantic: "text",
         },
-        { key: "how", header: "How", value: (row) => row.method, minWidth: 86, maxLines: 2 },
+        { key: "how", header: "How", value: (row) => row.method, minWidth: 86, maxLines: 2, semantic: "text" },
         {
           key: "scroll",
           header: "Scroll",
@@ -445,6 +472,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           mode: "fixed",
           width: 52,
           align: "right",
+          semantic: "metric",
         },
         {
           key: "active",
@@ -453,6 +481,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           mode: "fixed",
           width: 56,
           align: "right",
+          semantic: "metric",
         },
         {
           key: "page",
@@ -461,8 +490,9 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           mode: "fixed",
           width: 56,
           align: "right",
+          semantic: "metric",
         },
-        { key: "when", header: "Ack at", value: (row) => fmtUtc(row.submitted_at), minWidth: 122 },
+        { key: "when", header: "Ack at", value: (row) => fmtUtc(row.submitted_at), minWidth: 122, semantic: "datetime" },
       ],
       rows:
         rows.length > 0
@@ -496,12 +526,12 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
       a.stack_title.localeCompare(b.stack_title)
   );
   if (stackReceipts.length > 0) {
-    drawSectionHeading(ctx, "Stack acknowledgement receipts");
-    drawTable(ctx, {
+    section(ctx, "Stack acknowledgement receipts");
+    dataTable(ctx, "receipts", {
       columns: [
-        { key: "stack", header: "Stack", value: (row) => row.stack_title, minWidth: 180, maxLines: 2 },
-        { key: "recipient", header: "Recipient", value: (row) => row.recipient_email, minWidth: 160, maxLines: 2 },
-        { key: "completed", header: "Completed", value: (row) => fmtUtc(row.completed_at), minWidth: 130 },
+        { key: "stack", header: "Stack", value: (row) => row.stack_title, minWidth: 180, maxLines: 2, semantic: "text" },
+        { key: "recipient", header: "Recipient", value: (row) => row.recipient_email, minWidth: 160, maxLines: 2, semantic: "text" },
+        { key: "completed", header: "Completed", value: (row) => fmtUtc(row.completed_at), minWidth: 130, semantic: "datetime" },
         {
           key: "status",
           header: "Acknowledged",
@@ -509,6 +539,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           mode: "fixed",
           width: 82,
           align: "right",
+          semantic: "metric",
         },
       ],
       rows: stackReceipts,
@@ -519,7 +550,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     });
   }
 
-  finalizeFooters(
+  footer(
     ctx,
     input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report",
     {

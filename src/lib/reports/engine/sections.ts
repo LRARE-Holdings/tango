@@ -10,7 +10,7 @@ type HeaderArgs = {
   logo?: PDFImage | null;
   logoWidthPx?: number | null;
   brandName?: string;
-  reportStyleVersion?: "v2";
+  reportStyleVersion?: "v2" | "v3";
 };
 
 type FooterBrandingArgs = {
@@ -19,7 +19,7 @@ type FooterBrandingArgs = {
 };
 
 export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
-  const bandHeight = 78;
+  const bandHeight = ctx.theme.headerBandHeight;
   const top = ctx.theme.pageHeight;
   const contentWidth = ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight;
   const titleLineHeight = ctx.theme.titleSize + 4;
@@ -116,7 +116,14 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
     thickness: 1,
     color: ctx.theme.colors.strongBorder,
   });
-  ctx.cursor.y = y - 18;
+  ctx.cursor.y = y - (ctx.theme.sectionGap + 9);
+}
+
+function ensureWidowOrphanHeadroom(ctx: ReportContext, lineHeight: number) {
+  const minimum = Math.max(1, ctx.theme.widowOrphanMinLines) * lineHeight;
+  if (ctx.remainingHeight() < minimum) {
+    ctx.addPage();
+  }
 }
 
 export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?: string) {
@@ -140,6 +147,7 @@ export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?:
       })
     : 0;
   const needed = Math.max(13.5, labelHeight) + subtitleHeight + 16;
+  ensureWidowOrphanHeadroom(ctx, Math.max(headingLineHeight, subtitleLineHeight));
   ctx.ensureSpace(needed);
 
   const accentHeight = Math.max(13.5, labelHeight);
@@ -181,7 +189,7 @@ export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?:
     thickness: 1,
     color: ctx.theme.colors.border,
   });
-  ctx.cursor.y -= 11;
+  ctx.cursor.y -= ctx.theme.sectionGap + 2;
 }
 
 export function drawParagraph(ctx: ReportContext, text: string, options?: { muted?: boolean; size?: number; maxWidth?: number }) {
@@ -194,6 +202,7 @@ export function drawParagraph(ctx: ReportContext, text: string, options?: { mute
     size,
     lineHeight,
   });
+  ensureWidowOrphanHeadroom(ctx, lineHeight);
   ctx.ensureSpace(needed + 2);
   const result = drawTextBlock(ctx, {
     text,
@@ -213,7 +222,7 @@ export function drawKeyValueRow(
   value: string,
   options?: { valueFont?: ReportFontFamily; labelWidth?: number }
 ) {
-  const labelWidth = options?.labelWidth ?? 180;
+  const labelWidth = options?.labelWidth ?? ctx.theme.keyValueLabelWidth;
   const valueWidth = Math.max(120, ctx.cursor.maxX - ctx.cursor.minX - labelWidth);
   const lineHeight = Math.max(ctx.theme.lineHeight, ctx.theme.bodySize + 3.4);
   const labelHeight = measureTextBlockHeight(ctx, {
@@ -230,6 +239,7 @@ export function drawKeyValueRow(
     lineHeight,
   });
   const needed = Math.max(labelHeight, valueHeight) + 4;
+  ensureWidowOrphanHeadroom(ctx, lineHeight);
   ctx.ensureSpace(needed + 2);
 
   const labelResult = drawTextBlock(ctx, {
@@ -296,7 +306,7 @@ export function drawMetricCards(
     const start = row * columns;
     const end = Math.min(start + columns, metrics.length);
     const rowHeight = Math.max(
-      62,
+      ctx.theme.metricCardMinHeight,
       ...measured
         .slice(start, end)
         .map((item) => Math.ceil(item.labelHeight + item.valueHeight + cardPadY * 2 + 7))
@@ -360,6 +370,10 @@ export function drawMetricCards(
 
 export function finalizeFooters(ctx: ReportContext, label: string, branding?: FooterBrandingArgs) {
   const poweredByBrand = (branding?.poweredByBrand ?? "Receipt").trim() || "Receipt";
+  const bandY = 12;
+  const bandHeight = ctx.theme.footerBandHeight;
+  const textY = bandY + Math.max(3.5, bandHeight - (ctx.theme.smallSize + 4.2));
+  const topY = bandY + bandHeight;
   const pages = ctx.pdf.getPages();
   for (let i = 0; i < pages.length; i += 1) {
     const page = pages[i];
@@ -367,20 +381,20 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
     const width = ctx.fonts.regular.widthOfTextAtSize(text, ctx.theme.smallSize);
     page.drawRectangle({
       x: 0,
-      y: 12,
+      y: bandY,
       width: ctx.theme.pageWidth,
-      height: 24,
+      height: bandHeight,
       color: ctx.theme.colors.footerPanel,
     });
     page.drawLine({
-      start: { x: ctx.theme.marginLeft, y: 36 },
-      end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: 36 },
+      start: { x: ctx.theme.marginLeft, y: topY },
+      end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: topY },
       thickness: 1,
       color: ctx.theme.colors.border,
     });
     page.drawText(label, {
       x: ctx.theme.marginLeft,
-      y: 22,
+      y: textY,
       size: ctx.theme.smallSize,
       font: ctx.fonts.regular,
       color: ctx.theme.colors.subtle,
@@ -398,7 +412,7 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
 
     page.drawText(poweredByPrefix, {
       x: groupX,
-      y: 22,
+      y: textY,
       size: ctx.theme.smallSize,
       font: ctx.fonts.regular,
       color: ctx.theme.colors.subtle,
@@ -407,7 +421,7 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
     const brandX = groupX + poweredByPrefixWidth + poweredByGap;
     page.drawText(poweredByBrand, {
       x: brandX,
-      y: 22,
+      y: textY,
       size: ctx.theme.smallSize,
       font: ctx.fonts.bold,
       color: ctx.theme.colors.subtle,
@@ -416,7 +430,7 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
     if (branding?.poweredByLogo) {
       page.drawImage(branding.poweredByLogo, {
         x: brandX + poweredByBrandWidth + poweredByGap,
-        y: 21,
+        y: textY - 1.1,
         width: logoWidth,
         height: logoHeight,
         opacity: 0.75,
@@ -425,7 +439,7 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
 
     page.drawText(text, {
       x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
-      y: 22,
+      y: textY,
       size: ctx.theme.smallSize,
       font: ctx.fonts.regular,
       color: ctx.theme.colors.subtle,

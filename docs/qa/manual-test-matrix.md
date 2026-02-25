@@ -54,6 +54,11 @@
 ## Evidence and exports
 - [ ] JSON evidence export works.
 - [ ] PDF evidence export works.
+- [ ] PDF layout uses portrait A4 consistently for v3 exports.
+- [ ] Header logo alignment is stable (workspace logo and Receipt fallback).
+- [ ] Table wrapping does not overlap or clip on long values.
+- [ ] Footer is consistent across pages (label, powered-by mark, page counts).
+- [ ] No orphan/widow text artifacts at page boundaries for long sections.
 
 ## Billing
 - [ ] Custom checkout loads in-app for valid plan/billing query.

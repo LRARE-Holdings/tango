@@ -1,12 +1,12 @@
 import { createReportContext, embedImageIfPresent, saveReport } from "@/lib/reports/engine/core";
-import { drawTable } from "@/lib/reports/engine/table";
 import {
-  drawKeyValueRow,
-  drawMetricCards,
-  drawReportHeader,
-  drawSectionHeading,
-  finalizeFooters,
-} from "@/lib/reports/engine/sections";
+  dataTable,
+  footer,
+  header,
+  keyValueList,
+  kpiRow,
+  section,
+} from "@/lib/reports/engine/composer";
 
 export type StackEvidenceDocument = {
   document_title: string;
@@ -18,7 +18,7 @@ export type StackEvidenceDocument = {
 };
 
 export type StackEvidenceReportInput = {
-  reportStyleVersion: "v2";
+  reportStyleVersion: "v2" | "v3";
   workspaceName: string;
   generatedAtIso: string;
   receiptId: string;
@@ -63,23 +63,29 @@ function fmtUtc(iso: string | null) {
 
 export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Promise<Uint8Array> {
   const ctx = await createReportContext({
-    theme: {
-      pageWidth: 841.89,
-      pageHeight: 595.28,
-      marginTop: 46,
-      marginRight: 38,
-      marginBottom: 36,
-      marginLeft: 38,
-      titleSize: 19.5,
-    },
+    styleVersion: input.reportStyleVersion,
+    theme:
+      input.reportStyleVersion === "v2"
+        ? {
+            pageWidth: 841.89,
+            pageHeight: 595.28,
+            marginTop: 46,
+            marginRight: 38,
+            marginBottom: 36,
+            marginLeft: 38,
+            titleSize: 19.5,
+          }
+        : undefined,
   });
   const receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
-  const generatedLabel = fmtUtc(Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString());
+  const generatedLabel = fmtUtc(
+    Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString()
+  );
 
-  drawReportHeader(ctx, {
+  header(ctx, {
     title: `${input.stackTitle} Evidence Record`,
     subtitle: `${input.workspaceName} stack acknowledgement audit export.`,
     eyebrow: "STACK ACKNOWLEDGEMENT EVIDENCE",
@@ -90,7 +96,7 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
     reportStyleVersion: input.reportStyleVersion,
   });
 
-  drawMetricCards(
+  kpiRow(
     ctx,
     [
       { label: "STACK STATUS", value: input.acknowledgedDocuments >= input.totalDocuments ? "Complete" : "Partial" },
@@ -100,17 +106,21 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
     { columns: 3 }
   );
 
-  drawSectionHeading(ctx, "Receipt summary");
-  drawKeyValueRow(ctx, "Receipt reference", input.receiptId, { valueFont: "mono" });
-  drawKeyValueRow(
+  section(ctx, "Receipt summary");
+  keyValueList(
     ctx,
-    "Recipient",
-    input.recipientName ? `${input.recipientName} <${input.recipientEmail}>` : input.recipientEmail
+    [
+      { key: "Receipt reference", value: input.receiptId, valueFont: "mono" },
+      {
+        key: "Recipient",
+        value: input.recipientName ? `${input.recipientName} <${input.recipientEmail}>` : input.recipientEmail,
+      },
+      { key: "Completed at", value: fmtUtc(input.completedAt) },
+    ],
+    { gapAfter: Math.max(6, ctx.theme.sectionGap - 1) }
   );
-  drawKeyValueRow(ctx, "Completed at", fmtUtc(input.completedAt));
-  ctx.cursor.y -= 8;
 
-  drawSectionHeading(
+  section(
     ctx,
     "Document-level evidence",
     "Each document remains independently acknowledged and auditable."
@@ -125,41 +135,60 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
     .map((doc) => {
       const ackData = doc.acknowledgement_data ?? {};
       const scroll = Number(ackData.max_scroll_percent ?? 0);
+      const engagement = `Scroll ${
+        Number.isFinite(scroll) ? `${Math.max(0, Math.min(100, Math.floor(scroll)))}%` : "--"
+      } | Active ${fmtDuration(ackData.active_seconds)} | Page ${fmtDuration(ackData.time_on_page_seconds)}`;
+      const method = doc.method ?? "--";
+      const ip = String(ackData.ip ?? "--");
       return {
         title: doc.document_title,
         id: doc.document_public_id || "No public ID",
         status: doc.acknowledged ? "Acknowledged" : "Pending",
-        method: doc.method ?? "--",
+        method,
         at: fmtUtc(doc.acknowledged_at),
-        engagement: `Scroll ${
-          Number.isFinite(scroll) ? `${Math.max(0, Math.min(100, Math.floor(scroll)))}%` : "--"
-        } | Active ${fmtDuration(ackData.active_seconds)} | Page ${fmtDuration(ackData.time_on_page_seconds)}`,
-        ip: String(ackData.ip ?? "--"),
+        engagement,
+        ip,
+        details: `${method} | ${engagement} | IP ${ip}`,
       };
     });
 
-  drawTable(ctx, {
-    columns: [
-      { key: "title", header: "Document", value: (row) => row.title, minWidth: 180, maxLines: 2 },
-      { key: "id", header: "Public ID", value: (row) => row.id, minWidth: 86, font: "mono" },
-      { key: "status", header: "Status", value: (row) => row.status, mode: "fixed", width: 74 },
-      { key: "method", header: "Method", value: (row) => row.method, minWidth: 88, maxLines: 2 },
-      { key: "at", header: "Acknowledged at", value: (row) => row.at, minWidth: 118 },
-      { key: "engagement", header: "Engagement", value: (row) => row.engagement, minWidth: 125, maxLines: 2 },
-      { key: "ip", header: "IP", value: (row) => row.ip, minWidth: 66, font: "mono" },
-    ],
-    rows,
-    repeatHeader: true,
-    fontSize: 8.6,
-    headerFontSize: 8.85,
-    lineHeight: 10.2,
-    cellPaddingY: 4,
-    cellPaddingX: 5,
-    maxCellLines: 2,
-    stripedRows: true,
-  });
+  if (input.reportStyleVersion === "v3") {
+    dataTable(ctx, "evidence", {
+      columns: [
+        { key: "title", header: "Document", value: (row) => row.title, minWidth: 195, maxLines: 2, semantic: "text" },
+        { key: "id", header: "Public ID", value: (row) => row.id, minWidth: 84, semantic: "identifier" },
+        { key: "status", header: "Status", value: (row) => row.status, mode: "fixed", width: 76, semantic: "status" },
+        { key: "at", header: "Acknowledged at", value: (row) => row.at, minWidth: 112, semantic: "datetime" },
+        { key: "details", header: "Evidence details", value: (row) => row.details, minWidth: 175, maxLines: 3, semantic: "text" },
+      ],
+      rows,
+      repeatHeader: true,
+      maxCellLines: 3,
+    });
+  } else {
+    dataTable(ctx, "evidence", {
+      columns: [
+        { key: "title", header: "Document", value: (row) => row.title, minWidth: 180, maxLines: 2, semantic: "text" },
+        { key: "id", header: "Public ID", value: (row) => row.id, minWidth: 86, semantic: "identifier" },
+        { key: "status", header: "Status", value: (row) => row.status, mode: "fixed", width: 74, semantic: "status" },
+        { key: "method", header: "Method", value: (row) => row.method, minWidth: 88, maxLines: 2, semantic: "text" },
+        { key: "at", header: "Acknowledged at", value: (row) => row.at, minWidth: 118, semantic: "datetime" },
+        { key: "engagement", header: "Engagement", value: (row) => row.engagement, minWidth: 125, maxLines: 2, semantic: "text" },
+        { key: "ip", header: "IP", value: (row) => row.ip, minWidth: 66, semantic: "identifier" },
+      ],
+      rows,
+      repeatHeader: true,
+      fontSize: 8.6,
+      headerFontSize: 8.85,
+      lineHeight: 10.2,
+      cellPaddingY: 4,
+      cellPaddingX: 5,
+      maxCellLines: 2,
+      stripedRows: true,
+    });
+  }
 
-  finalizeFooters(ctx, "Stack Evidence Document", {
+  footer(ctx, "Stack Evidence Document", {
     poweredByBrand: "Receipt",
     poweredByLogo: receiptLogo,
   });
@@ -170,3 +199,4 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
   ctx.pdf.setModificationDate(metadataDate);
   return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }
+

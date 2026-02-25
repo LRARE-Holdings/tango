@@ -5,6 +5,7 @@ import { canViewAnalytics } from "@/lib/workspace-permissions";
 import { getWorkspaceAnalyticsSnapshot } from "@/lib/workspace-analytics";
 import { buildAnalyticsReportPdf } from "@/lib/reports/analytics-report";
 import { readReceiptLogoPngBytes } from "@/lib/reports/receipt-branding";
+import { resolveReportStyleFromRequest } from "@/lib/reports/report-style";
 
 type Body = { mode?: "compliance" | "management" };
 
@@ -331,6 +332,7 @@ export async function POST(
 
     const generatedAtIso = new Date().toISOString();
     const receiptLogoPngBytes = await readReceiptLogoPngBytes();
+    const reportStyleVersion = resolveReportStyleFromRequest(req);
     let stackReceipts: Array<{
       stack_title: string;
       recipient_email: string;
@@ -365,7 +367,7 @@ export async function POST(
     }
 
     const bytes = await buildAnalyticsReportPdf({
-      reportStyleVersion: "v2",
+      reportStyleVersion,
       workspaceName,
       brandName: workspaceName,
       brandLogoImageBytes,

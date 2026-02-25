@@ -2,6 +2,8 @@ import { type ReportContext } from "@/lib/reports/engine/core";
 import { drawTextBlock, wrapTextToLines, type ReportFontFamily } from "@/lib/reports/engine/text";
 
 type WidthMode = "fixed" | "flex";
+export type TableColumnSemantic = "text" | "identifier" | "metric" | "status" | "datetime";
+export type ReportTablePreset = "default" | "evidence" | "analytics" | "receipts";
 
 export type TableColumn<T> = {
   key: string;
@@ -12,6 +14,7 @@ export type TableColumn<T> = {
   align?: "left" | "right";
   maxLines?: number;
   font?: ReportFontFamily;
+  semantic?: TableColumnSemantic;
   value: (row: T) => string;
 };
 
@@ -29,6 +32,99 @@ export type TableSpec<T> = {
   maxCellLines?: number;
   stripedRows?: boolean;
 };
+
+function tablePresetDefaults(ctx: ReportContext, preset: ReportTablePreset): Pick<
+  TableSpec<unknown>,
+  "fontSize" | "headerFontSize" | "lineHeight" | "cellPaddingX" | "cellPaddingY" | "maxCellLines" | "stripedRows"
+> {
+  const base = ctx.theme.tableDefaults;
+  if (preset === "evidence") {
+    return {
+      fontSize: base.fontSize,
+      headerFontSize: base.headerFontSize,
+      lineHeight: base.lineHeight,
+      cellPaddingX: base.cellPaddingX,
+      cellPaddingY: base.cellPaddingY,
+      maxCellLines: Math.max(2, base.maxCellLines),
+      stripedRows: base.stripedRows,
+    };
+  }
+  if (preset === "analytics") {
+    return {
+      fontSize: base.fontSize + 0.1,
+      headerFontSize: base.headerFontSize + 0.1,
+      lineHeight: base.lineHeight,
+      cellPaddingX: base.cellPaddingX,
+      cellPaddingY: base.cellPaddingY,
+      maxCellLines: Math.max(2, base.maxCellLines),
+      stripedRows: base.stripedRows,
+    };
+  }
+  if (preset === "receipts") {
+    return {
+      fontSize: base.fontSize,
+      headerFontSize: base.headerFontSize,
+      lineHeight: base.lineHeight,
+      cellPaddingX: base.cellPaddingX,
+      cellPaddingY: base.cellPaddingY,
+      maxCellLines: Math.max(2, base.maxCellLines),
+      stripedRows: base.stripedRows,
+    };
+  }
+  return {
+    fontSize: base.fontSize,
+    headerFontSize: base.headerFontSize,
+    lineHeight: base.lineHeight,
+    cellPaddingX: base.cellPaddingX,
+    cellPaddingY: base.cellPaddingY,
+    maxCellLines: base.maxCellLines,
+    stripedRows: base.stripedRows,
+  };
+}
+
+function applySemanticDefaults<T>(columns: TableColumn<T>[]): TableColumn<T>[] {
+  return columns.map((column) => {
+    if (!column.semantic) return column;
+    if (column.semantic === "identifier") {
+      return {
+        ...column,
+        font: column.font ?? "mono",
+      };
+    }
+    if (column.semantic === "metric") {
+      return {
+        ...column,
+        align: column.align ?? "right",
+      };
+    }
+    if (column.semantic === "status") {
+      return {
+        ...column,
+        maxLines: column.maxLines ?? 1,
+      };
+    }
+    if (column.semantic === "datetime") {
+      return {
+        ...column,
+        maxLines: column.maxLines ?? 1,
+      };
+    }
+    return column;
+  });
+}
+
+export function buildPresetTableSpec<T>(
+  ctx: ReportContext,
+  preset: ReportTablePreset,
+  spec: TableSpec<T>
+): TableSpec<T> {
+  const defaults = tablePresetDefaults(ctx, preset);
+  return {
+    ...defaults,
+    ...spec,
+    columns: applySemanticDefaults(spec.columns),
+  };
+}
 
 function resolveColumnWidths<T>(spec: TableSpec<T>, maxWidth: number) {
   const columns = spec.columns;
@@ -94,12 +190,12 @@ export function drawTable<T>(ctx: ReportContext, spec: TableSpec<T>) {
   if (spec.columns.length === 0) return;
   const x = spec.x ?? ctx.cursor.minX;
   const maxWidth = spec.maxWidth ?? ctx.cursor.maxX - x;
-  const fontSize = spec.fontSize ?? ctx.theme.smallSize;
-  const headerFontSize = spec.headerFontSize ?? fontSize;
-  const lineHeight = spec.lineHeight ?? Math.max(fontSize + 2, ctx.theme.lineHeight - 2.2);
-  const cellPaddingX = spec.cellPaddingX ?? 6;
-  const cellPaddingY = spec.cellPaddingY ?? 4;
-  const stripedRows = spec.stripedRows !== false;
+  const fontSize = spec.fontSize ?? ctx.theme.tableDefaults.fontSize;
+  const headerFontSize = spec.headerFontSize ?? ctx.theme.tableDefaults.headerFontSize ?? fontSize;
+  const lineHeight = spec.lineHeight ?? ctx.theme.tableDefaults.lineHeight;
+  const cellPaddingX = spec.cellPaddingX ?? ctx.theme.tableDefaults.cellPaddingX;
+  const cellPaddingY = spec.cellPaddingY ?? ctx.theme.tableDefaults.cellPaddingY;
+  const stripedRows = spec.stripedRows ?? ctx.theme.tableDefaults.stripedRows;
   const widths = resolveColumnWidths(spec, maxWidth);
 
   const drawHeader = () => {
@@ -219,4 +315,8 @@ export function drawTable<T>(ctx: ReportContext, spec: TableSpec<T>) {
   }
 
   ctx.cursor.y -= 6;
+}
+
+export function drawPresetTable<T>(ctx: ReportContext, preset: ReportTablePreset, spec: TableSpec<T>) {
+  drawTable(ctx, buildPresetTableSpec(ctx, preset, spec));
 }

@@ -5,11 +5,12 @@ import { canUseStackDelivery } from "@/lib/workspace-permissions";
 import { parseStackReceiptEvidence, parseStackReceiptSummary, safeFilename } from "@/lib/stack-receipts";
 import { buildStackEvidencePdf } from "@/lib/reports/stack-evidence-report";
 import { readReceiptLogoPngBytes } from "@/lib/reports/receipt-branding";
+import { resolveReportStyleFromRequest } from "@/lib/reports/report-style";
 
 export const runtime = "nodejs";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string; receiptId: string }> | { id: string; receiptId: string } }
 ) {
   try {
@@ -66,9 +67,10 @@ export async function GET(
     const evidence = parseStackReceiptEvidence((receiptRes.data as { evidence?: unknown }).evidence);
     const completedAt = (receiptRes.data as { completed_at?: string | null }).completed_at ?? summary.completed_at;
     const receiptLogoPngBytes = await readReceiptLogoPngBytes();
+    const reportStyleVersion = resolveReportStyleFromRequest(req);
 
     const bytes = await buildStackEvidencePdf({
-      reportStyleVersion: "v2",
+      reportStyleVersion,
       workspaceName: String((workspaceRes.data as { name?: string } | null)?.name ?? "Workspace"),
       brandName: String((workspaceRes.data as { name?: string } | null)?.name ?? "Workspace"),
       brandLogoImageBytes,

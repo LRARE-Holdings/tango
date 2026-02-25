@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { buildDocumentEvidencePdf } from "@/lib/reports/document-evidence-report";
 import { readReceiptLogoPngBytes } from "@/lib/reports/receipt-branding";
+import { resolveReportStyleFromRequest } from "@/lib/reports/report-style";
 
 export const runtime = "nodejs";
 
@@ -175,9 +176,10 @@ export async function GET(
   }
 
   try {
+    const reportStyleVersion = resolveReportStyleFromRequest(req);
     const receiptLogoPngBytes = await readReceiptLogoPngBytes();
     const bytes = await buildDocumentEvidencePdf({
-      reportStyleVersion: "v2",
+      reportStyleVersion,
       generatedAtIso: new Date().toISOString(),
       watermarkEnabled,
       workspaceName,

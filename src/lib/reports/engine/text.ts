@@ -17,6 +17,7 @@ export type TextBlockOptions = {
   wordBreaks?: string[];
   maxLines?: number;
   truncateMode?: "ellipsis" | "clip";
+  minLastLineChars?: number;
 };
 
 function escapeRegExp(input: string) {
@@ -54,6 +55,43 @@ function getFont(ctx: ReportContext, font: ReportFontFamily) {
 function resolveFontFamily(font?: ReportFontFamily, bold?: boolean): ReportFontFamily {
   if (font) return font;
   return bold ? "bold" : "regular";
+}
+
+function applyDeterministicEllipsis(
+  lines: string[],
+  maxWidth: number,
+  size: number,
+  minLastLineChars: number,
+  measure: (text: string, atSize: number) => number
+) {
+  const out = [...lines];
+  if (out.length === 0) return out;
+
+  const ellipsis = "…";
+  const lastIndex = out.length - 1;
+  let last = (out[lastIndex] ?? "").trimEnd();
+
+  while (last.length > 1 && measure(`${last}${ellipsis}`, size) > maxWidth) {
+    last = last.slice(0, -1);
+  }
+
+  // Avoid a visually awkward 1-3 character final line after truncation.
+  if (last.length < minLastLineChars && lastIndex > 0) {
+    const prev = (out[lastIndex - 1] ?? "").trimEnd();
+    const tokens = prev.split(/\s+/).filter(Boolean);
+    while (last.length < minLastLineChars && tokens.length > 1) {
+      const moved = tokens.pop();
+      if (!moved) break;
+      last = `${moved} ${last}`.trim();
+      while (last.length > 1 && measure(`${last}${ellipsis}`, size) > maxWidth) {
+        last = last.slice(0, -1);
+      }
+    }
+    out[lastIndex - 1] = tokens.join(" ").trimEnd() || " ";
+  }
+
+  out[lastIndex] = last ? `${last}${ellipsis}` : ellipsis;
+  return out;
 }
 
 export function wrapTextToLines(
@@ -124,13 +162,15 @@ export function drawTextBlock(ctx: ReportContext, options: TextBlockOptions) {
   const lines = maxLines ? wrapped.slice(0, maxLines) : wrapped;
 
   if (maxLines && wrapped.length > maxLines && (options.truncateMode ?? "ellipsis") !== "clip") {
-    const ellipsis = "…";
-    const lastIndex = lines.length - 1;
-    let last = lines[lastIndex] ?? "";
-    while (last.length > 1 && font.widthOfTextAtSize(`${last}${ellipsis}`, size) > maxWidth) {
-      last = last.slice(0, -1);
-    }
-    lines[lastIndex] = `${last}${ellipsis}`;
+    const minLastLineChars = Math.max(1, options.minLastLineChars ?? 4);
+    const adjusted = applyDeterministicEllipsis(
+      lines,
+      maxWidth,
+      size,
+      minLastLineChars,
+      (value, atSize) => font.widthOfTextAtSize(value, atSize)
+    );
+    lines.splice(0, lines.length, ...adjusted);
   }
 
   const text = lines.join("\n");
