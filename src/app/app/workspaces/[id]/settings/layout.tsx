@@ -43,39 +43,4 @@ export default async function WorkspaceSettingsLayout({
     { href: `/app/workspaces/${id}/settings/policy`, label: "Policy & MFA" },
     { href: `/app/workspaces/${id}/settings/usage`, label: "Usage" },
   ];
-
-  return (
-    <AppPage>
-      <AppHero
-        kicker="WORKSPACE ADMIN"
-        title="Workspace settings"
-        description="Owner/admin controls for team configuration, governance, branding, and workspace-level defaults."
-        actions={
-          <>
-            <Link href="/app/account" className="focus-ring app-btn-secondary">
-              Account settings
-            </Link>
-            <Link href={`/app/workspaces/${id}/dashboard`} className="focus-ring app-btn-secondary">
-              Back to dashboard
-            </Link>
-          </>
-        }
-      />
-
-      <section className="app-card-soft p-4">
-        <div className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted2)" }}>
-          SECTIONS
-        </div>
-        <div className="mt-3 flex items-center gap-2 flex-wrap">
-          {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className="focus-ring app-btn-chip">
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {children}
-    </AppPage>
-  );
 }
