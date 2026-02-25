@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { PlanMenu } from "@/components/app/plan-menu";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import {
   canAccessAdminSettings,
   canAccessKeySettings,
@@ -223,13 +222,13 @@ export function AppSidebar({
   );
 
   const navItems = [
-    { href: homeHref, label: "Home" },
-    { href: sendHref, label: "Send" },
-    { href: filesHref, label: "Files" },
-    ...(showTemplates ? [{ href: "/app/templates", label: "Templates" }] : []),
-    ...(showContacts ? [{ href: "/app/contacts", label: "Contacts" }] : []),
-    ...(showStacks && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/stacks`, label: "Stacks" }] : []),
-    ...(showAnalytics && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/analytics`, label: "Analytics" }] : []),
+    { href: homeHref, label: "Home", icon: "home" as const },
+    { href: sendHref, label: "Send", icon: "send" as const },
+    { href: filesHref, label: "Files", icon: "files" as const },
+    ...(showTemplates ? [{ href: "/app/templates", label: "Templates", icon: "templates" as const }] : []),
+    ...(showContacts ? [{ href: "/app/contacts", label: "Contacts", icon: "contacts" as const }] : []),
+    ...(showStacks && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/stacks`, label: "Stacks", icon: "stacks" as const }] : []),
+    ...(showAnalytics && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/analytics`, label: "Analytics", icon: "analytics" as const }] : []),
   ];
 
   const settingsHref = (() => {
@@ -292,22 +291,6 @@ export function AppSidebar({
               <Image src="/receipt-logo.svg" alt="Receipt" width={80} height={20} priority />
             </Link>
           ) : null}
-        </div>
-
-        <div className="app-sidebar-switcher">
-          {collapsed ? (
-            <Link
-              href="/app/workspaces"
-              onClick={onNavigate}
-              className="focus-ring app-sidebar-icon-btn"
-              aria-label="Switch workspace"
-              title="Switch workspace"
-            >
-              W
-            </Link>
-          ) : (
-            <WorkspaceSwitcher />
-          )}
         </div>
 
         <Link
