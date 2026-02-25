@@ -395,6 +395,45 @@ html.dark .marketing-glow {
   bottom: 0;
 }
 
+.app-shell .app-sidebar.is-collapsed .app-sidebar-nav {
+  align-items: center;
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-link {
+  width: 2.4rem;
+  height: 2.4rem;
+  min-height: 2.4rem;
+  padding: 0;
+  justify-content: center;
+  border-color: var(--border2);
+  background: color-mix(in srgb, var(--card2) 58%, transparent);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-link:hover {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--card2) 74%, transparent);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-link[data-active="true"] {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--card2) 86%, #fff);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-account-trigger {
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  justify-content: center;
+  margin-inline: auto;
+  border-color: var(--border2);
+  background: color-mix(in srgb, var(--card2) 58%, transparent);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-account-avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
 .app-shell .app-account-menu-item {
   width: 100%;
   display: block;
