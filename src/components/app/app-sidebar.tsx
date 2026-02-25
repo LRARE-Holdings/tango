@@ -362,7 +362,14 @@ export function AppSidebar({
 
           {!collapsed ? (
             <Link href={homeHref} className="focus-ring app-sidebar-brand-link" onClick={onNavigate}>
-              <Image src="/receipt-logo.svg" alt="Receipt" width={70} height={18} priority />
+              <Image
+                src="/receipt-logo.svg"
+                alt="Receipt"
+                width={62}
+                height={16}
+                className="app-sidebar-brand-logo"
+                priority
+              />
             </Link>
           ) : null}
         </div>

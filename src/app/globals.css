@@ -236,6 +236,9 @@ html.dark .marketing-glow {
   --app-sidebar-collapsed-width: 80px;
   --app-sidebar-control-size: 2.4rem;
   --app-sidebar-control-radius: 0.78rem;
+  --app-sidebar-motion-duration: 300ms;
+  --app-sidebar-fade-duration: 170ms;
+  --app-sidebar-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
   background: linear-gradient(180deg, #ffffff 0%, var(--bg) 34%, var(--bg) 100%);
   color: var(--fg);
 }
@@ -256,13 +259,14 @@ html.dark .marketing-glow {
     color-mix(in srgb, var(--card2) 40%, transparent)
   );
   transition:
-    width 240ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    transform 240ms var(--app-sidebar-motion-ease),
     border-color 180ms ease;
   position: sticky;
   top: 0;
   height: 100vh;
   z-index: 30;
+  will-change: width, transform;
 }
 
 .app-shell .app-sidebar.is-collapsed {
@@ -277,14 +281,14 @@ html.dark .marketing-glow {
   gap: 0.95rem;
   height: 100%;
   padding: 0.9rem 0.7rem;
-  transition: padding 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: padding var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-sidebar-top {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  transition: gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: gap var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-sidebar-bottom {
@@ -294,8 +298,8 @@ html.dark .marketing-glow {
 .app-shell .app-sidebar-brand-row {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  min-height: 2.3rem;
+  gap: 0.58rem;
+  min-height: var(--app-sidebar-control-size);
 }
 
 .app-shell .app-sidebar-icon-btn {
@@ -314,8 +318,8 @@ html.dark .marketing-glow {
     border-color 160ms ease,
     background-color 160ms ease,
     color 160ms ease,
-    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    height var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-sidebar-icon-btn:hover {
@@ -345,10 +349,10 @@ html.dark .marketing-glow {
     border-color 160ms ease,
     background-color 160ms ease,
     color 160ms ease,
-    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    height var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    padding var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    gap var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-sidebar-link:hover {
@@ -372,7 +376,7 @@ html.dark .marketing-glow {
   height: 1.04rem;
   flex: 0 0 auto;
   transition:
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
     opacity 160ms ease;
 }
 
@@ -383,9 +387,9 @@ html.dark .marketing-glow {
   max-width: 9rem;
   transform: translateX(0);
   transition:
-    opacity 140ms ease,
-    max-width 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity var(--app-sidebar-fade-duration) ease,
+    max-width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    transform var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-account-trigger {
@@ -401,10 +405,10 @@ html.dark .marketing-glow {
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
-    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    height var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    padding var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    gap var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-account-avatar {
@@ -419,15 +423,23 @@ html.dark .marketing-glow {
   font-size: 0.67rem;
   font-weight: 700;
   background: color-mix(in srgb, var(--card2) 72%, transparent);
-  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1), height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    height var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-sidebar-brand-link {
   opacity: 1;
   transform: translateX(0);
   transition:
-    opacity 140ms ease,
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity var(--app-sidebar-fade-duration) ease,
+    transform var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
+}
+
+.app-shell .app-sidebar-brand-logo {
+  width: 62px;
+  height: auto;
+  display: block;
 }
 
 .app-shell .app-account-meta {
@@ -435,9 +447,9 @@ html.dark .marketing-glow {
   max-width: 10rem;
   transform: translateX(0);
   transition:
-    opacity 140ms ease,
-    max-width 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity var(--app-sidebar-fade-duration) ease,
+    max-width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
+    transform var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-account-menu {
@@ -542,6 +554,18 @@ html.dark .marketing-glow {
   pointer-events: none;
 }
 
+.app-shell .app-sidebar.is-collapsed .app-sidebar-link-label,
+.app-shell .app-sidebar.is-collapsed .app-account-meta,
+.app-shell .app-sidebar.is-collapsed .app-sidebar-brand-link {
+  transition-delay: 0ms;
+}
+
+.app-shell .app-sidebar:not(.is-collapsed) .app-sidebar-link-label,
+.app-shell .app-sidebar:not(.is-collapsed) .app-account-meta,
+.app-shell .app-sidebar:not(.is-collapsed) .app-sidebar-brand-link {
+  transition-delay: 70ms;
+}
+
 .app-shell .app-sidebar-tooltip {
   position: relative;
 }
@@ -555,7 +579,7 @@ html.dark .marketing-glow {
   z-index: 80;
   transition:
     opacity 120ms ease,
-    transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform 190ms var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-tooltip[data-tooltip]::before {
@@ -582,6 +606,7 @@ html.dark .marketing-glow {
   padding: 0.36rem 0.52rem;
   transform: translate(-6px, -50%);
   box-shadow: 0 8px 24px rgba(7, 11, 17, 0.24);
+  backdrop-filter: blur(2px);
 }
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-tooltip[data-tooltip]:is(:hover, :focus-visible, :focus-within)::before {
