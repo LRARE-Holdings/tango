@@ -280,7 +280,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             onClick={() => setMobileOpen(true)}
             aria-label="Open navigation menu"
           >
-            ☰
+            <svg
+              aria-hidden
+              viewBox="0 0 24 24"
+              className="app-sidebar-link-icon"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 7.5h16" />
+              <path d="M4 12h16" />
+              <path d="M4 16.5h16" />
+            </svg>
           </button>
 
           <aside className={`app-sidebar ${sidebarCollapsed ? "is-collapsed" : ""} ${mobileOpen ? "is-mobile-open" : ""}`.trim()}>

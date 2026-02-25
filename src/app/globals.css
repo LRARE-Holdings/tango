@@ -318,6 +318,7 @@ html.dark .marketing-glow {
     border-color 160ms ease,
     background-color 160ms ease,
     color 160ms ease,
+    transform 180ms var(--app-sidebar-motion-ease),
     width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
     height var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
@@ -329,6 +330,7 @@ html.dark .marketing-glow {
 .app-shell .app-sidebar-nav {
   display: flex;
   flex-direction: column;
+  width: 100%;
   gap: 0.3rem;
 }
 
@@ -349,6 +351,7 @@ html.dark .marketing-glow {
     border-color 160ms ease,
     background-color 160ms ease,
     color 160ms ease,
+    transform 180ms var(--app-sidebar-motion-ease),
     width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
     height var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
     padding var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
@@ -405,10 +408,29 @@ html.dark .marketing-glow {
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
+    transform 180ms var(--app-sidebar-motion-ease),
     width var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
     height var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
     padding var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease),
     gap var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
+}
+
+.app-shell .app-sidebar-icon-btn,
+.app-shell .app-sidebar-link,
+.app-shell .app-account-trigger {
+  transform: translateY(0);
+}
+
+.app-shell .app-sidebar-icon-btn:is(:hover, :focus-visible),
+.app-shell .app-sidebar-link:is(:hover, :focus-visible),
+.app-shell .app-account-trigger:is(:hover, :focus-visible) {
+  transform: translateY(-1px);
+}
+
+.app-shell .app-sidebar-icon-btn:active,
+.app-shell .app-sidebar-link:active,
+.app-shell .app-account-trigger:active {
+  transform: translateY(0);
 }
 
 .app-shell .app-account-avatar {
@@ -463,11 +485,14 @@ html.dark .marketing-glow {
   background: color-mix(in srgb, var(--card) 96%, transparent);
   padding: 0.35rem;
   box-shadow: var(--app-shadow-sm);
+  transform-origin: left bottom;
+  animation: app-account-menu-in 170ms var(--app-sidebar-motion-ease);
 }
 
 .app-shell .app-sidebar.is-collapsed .app-account-menu {
   left: calc(100% + 0.45rem);
   bottom: 0;
+  transform-origin: left center;
 }
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-nav {
@@ -684,6 +709,11 @@ html.dark .marketing-glow {
     background: color-mix(in srgb, var(--card) 96%, transparent);
   }
 
+  .app-shell .app-mobile-menu-btn .app-sidebar-link-icon {
+    width: 1.02rem;
+    height: 1.02rem;
+  }
+
   .app-shell .app-sidebar {
     position: fixed;
     inset: 0 auto 0 0;
@@ -709,6 +739,17 @@ html.dark .marketing-glow {
 
   .app-shell .app-main-content {
     padding-top: 4.25rem;
+  }
+}
+
+@keyframes app-account-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -968,8 +1009,10 @@ html.dark .app-shell .app-account-menu-item:hover {
   .app-shell .app-account-trigger,
   .app-shell .app-account-avatar,
   .app-shell .app-sidebar-brand-link,
-  .app-shell .app-account-meta {
+  .app-shell .app-account-meta,
+  .app-shell .app-account-menu {
     transition: none !important;
+    animation: none !important;
   }
 }
 
