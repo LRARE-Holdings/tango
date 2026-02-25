@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "@/lib/document-limits";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -7,13 +8,6 @@ import { getVerifiedMfaStatus, type MfaRequirementReason } from "@/lib/security/
 import { isWorkspaceUuid } from "@/lib/workspace-identifier";
 
 export const dynamic = "force-dynamic";
-
-function isUnauthorizedAuthError(error: { message?: string; code?: string } | null | undefined) {
-  if (!error) return false;
-  if (error.code === "PGRST301") return true;
-  const msg = String(error.message ?? "").toLowerCase();
-  return msg.includes("auth session missing") || msg.includes("invalid jwt") || msg.includes("jwt");
-}
 
 type EntitlementsRow = {
   plan: string | null;
@@ -224,12 +218,7 @@ export async function GET(req: Request) {
   };
 
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
-  if (userErr) {
-    return timedJson(
-      { error: isUnauthorizedAuthError(userErr) ? "Unauthorized" : userErr.message },
-      { status: isUnauthorizedAuthError(userErr) ? 401 : 500 }
-    );
-  }
+  if (userErr) return authErrorResponse(userErr);
   if (!userRes.user) return timedJson({ error: "Unauthorized" }, { status: 401 });
 
   const userId = userRes.user.id;

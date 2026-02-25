@@ -32,8 +32,22 @@ function createLimiter(tokens: number, window: `${number} s` | `${number} m` | `
   });
 }
 
-function isProduction() {
-  return process.env.NODE_ENV === "production";
+function parseBoolean(value: string | undefined | null) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+function shouldFailClosedOnMisconfiguration() {
+  const vercelEnv = String(process.env.VERCEL_ENV ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (vercelEnv === "production") return true;
+  if (process.env.NODE_ENV !== "production") return false;
+
+  return parseBoolean(process.env.ENFORCE_RATE_LIMITS_OUTSIDE_VERCEL);
 }
 
 const accessAttemptLimiter = createLimiter(8, "10 m", "rl:public-access-attempt");
@@ -49,7 +63,7 @@ async function limitBy(
   key: string
 ): Promise<RateLimitResult> {
   if (!limiter) {
-    if (isProduction()) {
+    if (shouldFailClosedOnMisconfiguration()) {
       return { success: false, misconfigured: true };
     }
     return { success: true };

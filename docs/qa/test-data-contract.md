@@ -7,6 +7,11 @@
 - `BASE_URL`
 - `ENABLE_DEBUG_ENDPOINTS`
 
+## Local deterministic execution
+- Playwright now auto-starts a local production server when `BASE_URL` is unset or local (`127.0.0.1`/`localhost`).
+- To target preview/production surfaces, set `BASE_URL` to the target URL and Playwright will not launch a local server.
+- `npm run qa:smoke` now also auto-starts local `next start` when `BASE_URL` is unset, so smoke checks run from a clean shell without manual boot.
+
 ## Public flow contract env
 - `PUBLIC_DOC_ID`
 - `PUBLIC_DOC_WRONG_PASSWORD`

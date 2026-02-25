@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { nanoid } from "nanoid";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -268,7 +269,7 @@ export async function POST(req: Request) {
 
     const supabase = await supabaseServer();
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+    if (userErr) return authErrorResponse(userErr);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const admin = supabaseAdmin();

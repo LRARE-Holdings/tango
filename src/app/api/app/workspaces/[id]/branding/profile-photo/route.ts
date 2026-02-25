@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AVATAR_MAX_BYTES, isAcceptedAvatarMimeType, normalizeAvatarImage } from "@/lib/avatar-image";
+import { isUnauthorizedAuthError } from "@/lib/api/auth";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -24,7 +25,13 @@ async function requireWorkspaceAdmin(workspaceIdentifier: string) {
   const admin = supabaseAdmin();
 
   const { data: userData, error: userErr } = await supabase.auth.getUser();
-  if (userErr) return { ok: false as const, status: 500, error: userErr.message };
+  if (userErr) {
+    return {
+      ok: false as const,
+      status: isUnauthorizedAuthError(userErr) ? 401 : 500,
+      error: isUnauthorizedAuthError(userErr) ? "Unauthorized" : "Authentication failed.",
+    };
+  }
   if (!userData.user) return { ok: false as const, status: 401, error: "Unauthorized" };
 
   const memberRes = await supabase

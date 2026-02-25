@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { supabaseServer } from "@/lib/supabase/server";
 import { sendWithResend } from "@/lib/email/resend";
 
@@ -149,7 +150,7 @@ export async function POST(
     const { id } = (await ctx.params) as { id: string };
     const supabase = await supabaseServer();
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+    if (userErr) return authErrorResponse(userErr);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const access = await resolveDocumentForUser(id, userData.user.id);

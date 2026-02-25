@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -15,23 +16,11 @@ type CompletionRow = {
   submitted_at: string | null;
 };
 
-function isUnauthorizedAuthError(error: { message?: string; code?: string } | null | undefined) {
-  if (!error) return false;
-  if (error.code === "PGRST301") return true;
-  const msg = String(error.message ?? "").toLowerCase();
-  return msg.includes("auth session missing") || msg.includes("invalid jwt") || msg.includes("jwt");
-}
-
 export async function GET() {
   const supabase = await supabaseServer();
   const { data: userData, error: userErr } = await supabase.auth.getUser();
 
-  if (userErr) {
-    return NextResponse.json(
-      { error: isUnauthorizedAuthError(userErr) ? "Unauthorized" : userErr.message },
-      { status: isUnauthorizedAuthError(userErr) ? 401 : 500 }
-    );
-  }
+  if (userErr) return authErrorResponse(userErr);
 
   if (!userData.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

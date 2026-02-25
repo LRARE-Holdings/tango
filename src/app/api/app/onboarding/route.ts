@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   const supabase = await supabaseServer();
   const { data: userData, error: userErr } = await supabase.auth.getUser();
 
-  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+  if (userErr) return authErrorResponse(userErr);
   if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => null);

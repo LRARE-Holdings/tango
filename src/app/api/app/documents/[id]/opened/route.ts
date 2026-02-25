@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 function isMissingTableError(error: { code?: string; message?: string } | null | undefined, table: string) {
@@ -16,7 +17,7 @@ export async function POST(
     const supabase = await supabaseServer();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+    if (userErr) return authErrorResponse(userErr);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { data: doc, error: docErr } = await supabase

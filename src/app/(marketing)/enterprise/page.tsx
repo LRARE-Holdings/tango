@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildMarketingMetadata } from "@/lib/seo";
-import { redirect } from "next/navigation";
-import { sendWithResend } from "@/lib/email/resend";
+import { EnterpriseEnquiryCaptcha } from "@/components/marketing/enterprise-enquiry-captcha";
 
 export const metadata: Metadata = buildMarketingMetadata({
   title: "Enterprise",
@@ -15,86 +14,6 @@ export const metadata: Metadata = buildMarketingMetadata({
   ],
 });
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-async function submitEnterpriseEnquiry(formData: FormData) {
-  "use server";
-  const payload = {
-    name: String(formData.get("name") ?? "").trim(),
-    email: String(formData.get("email") ?? "")
-      .trim()
-      .toLowerCase(),
-    company: String(formData.get("company") ?? "").trim(),
-    seats: String(formData.get("seats") ?? "").trim(),
-    message: String(formData.get("message") ?? "").trim(),
-    source: String(formData.get("source") ?? "enterprise").trim(),
-    createdAt: new Date().toISOString(),
-  };
-
-  if (!payload.name || !payload.email || !payload.company || !payload.message) {
-    redirect("/enterprise?enquiry=invalid");
-  }
-
-  const inquiryDestination = String(
-    process.env.RECEIPT_ENTERPRISE_INBOX || process.env.RECEIPT_FROM_EMAIL || ""
-  ).trim();
-  if (!inquiryDestination) {
-    redirect("/enterprise?enquiry=error");
-  }
-
-  const subject = `Enterprise enquiry: ${payload.company}`;
-  const text = `New enterprise enquiry
-
-Name: ${payload.name}
-Email: ${payload.email}
-Company: ${payload.company}
-Seats: ${payload.seats || "Not specified"}
-Source: ${payload.source}
-Created at: ${payload.createdAt}
-
-Message:
-${payload.message}
-`;
-
-  const safe = {
-    name: escapeHtml(payload.name),
-    email: escapeHtml(payload.email),
-    company: escapeHtml(payload.company),
-    seats: escapeHtml(payload.seats || "Not specified"),
-    source: escapeHtml(payload.source),
-    createdAt: escapeHtml(payload.createdAt),
-    message: escapeHtml(payload.message),
-  };
-
-  const html = `
-  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;line-height:1.5;color:#111;">
-    <h2 style="margin:0 0 12px;">New enterprise enquiry</h2>
-    <p><strong>Name:</strong> ${safe.name}</p>
-    <p><strong>Email:</strong> ${safe.email}</p>
-    <p><strong>Company:</strong> ${safe.company}</p>
-    <p><strong>Seats:</strong> ${safe.seats}</p>
-    <p><strong>Source:</strong> ${safe.source}</p>
-    <p><strong>Created at:</strong> ${safe.createdAt}</p>
-    <p><strong>Message:</strong></p>
-    <pre style="white-space:pre-wrap;background:#f7f7f8;padding:12px;border-radius:8px;">${safe.message}</pre>
-  </div>`;
-
-  const sent = await sendWithResend({
-    to: inquiryDestination,
-    subject,
-    html,
-    text,
-  });
-
-  redirect(sent.ok ? "/enterprise?enquiry=sent" : "/enterprise?enquiry=error");
-}
 export default async function EnterprisePage({
   searchParams,
 }: {
@@ -227,7 +146,7 @@ export default async function EnterprisePage({
               </p>
             </div>
             <div className="w-full md:max-w-md">
-              <form className="space-y-3" action={submitEnterpriseEnquiry}>
+              <form className="space-y-3" action="/api/public/enterprise-enquiry" method="post">
                 <input type="hidden" name="source" value="enterprise" />
                 {enquiryState === "sent" ? (
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -274,6 +193,7 @@ export default async function EnterprisePage({
                   name="message"
                   required
                 />
+                <EnterpriseEnquiryCaptcha />
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-full marketing-cta-primary px-5 py-3 text-sm font-semibold shadow-sm "

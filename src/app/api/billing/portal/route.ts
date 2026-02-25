@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
+import { authErrorResponse } from "@/lib/api/auth";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { stripe } from "@/lib/stripe/server";
@@ -10,13 +11,6 @@ function getSiteUrl(req: Request) {
   if (env) return env.replace(/\/$/, "");
   const url = new URL(req.url);
   return `${url.protocol}//${url.host}`;
-}
-
-function isUnauthorizedAuthError(error: { message?: string; code?: string } | null | undefined) {
-  if (!error) return false;
-  if (error.code === "PGRST301") return true;
-  const msg = String(error.message ?? "").toLowerCase();
-  return msg.includes("auth session missing") || msg.includes("invalid jwt") || msg.includes("jwt");
 }
 
 export async function POST(req: Request) {
@@ -41,12 +35,7 @@ export async function POST(req: Request) {
 
     const supabase = await supabaseServer();
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) {
-      return NextResponse.json(
-        { error: isUnauthorizedAuthError(userErr) ? "Unauthorized" : userErr.message },
-        { status: isUnauthorizedAuthError(userErr) ? 401 : 500 }
-      );
-    }
+    if (userErr) return authErrorResponse(userErr);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const user = userData.user;

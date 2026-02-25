@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -25,7 +26,7 @@ export async function PATCH(req: Request) {
   const supabase = await supabaseServer();
 
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
-  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+  if (userErr) return authErrorResponse(userErr);
   if (!userRes.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   let body: Body;

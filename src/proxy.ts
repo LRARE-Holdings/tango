@@ -9,6 +9,13 @@ import {
   workspaceIdentifierFromPath,
 } from "@/lib/security/mfa-enforcement";
 
+function applyNoStoreHeaders(response: NextResponse) {
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Expires", "0");
+  response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+}
+
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const isPrivatePath =
@@ -89,10 +96,14 @@ export async function proxy(req: NextRequest) {
     const admin = supabaseAdmin();
     const workspaceIdentifier = workspaceIdentifierFromPath(pathname);
 
+    let mfaStatusLookupFailed = false;
+    let primaryRequirementLookupFailed = false;
+    let workspaceRequirementLookupFailed = false;
+
     const mfaStatus = await getVerifiedMfaStatus(supabase).catch((error: unknown) => {
+      mfaStatusLookupFailed = true;
       console.error("MFA status lookup failed:", error);
-      // Fail open if the auth provider MFA status check fails.
-      return { enabled: true, verifiedFactorCount: 0 };
+      return { enabled: false, verifiedFactorCount: 0 };
     });
 
     const primaryWorkspaceRequirement = await getPrimaryWorkspaceMfaRequirementForUser({
@@ -100,6 +111,7 @@ export async function proxy(req: NextRequest) {
       admin,
       userId: user.id,
     }).catch((error: unknown) => {
+      primaryRequirementLookupFailed = true;
       console.error("Primary workspace MFA requirement lookup failed:", error);
       return { required: false, workspaceId: null };
     });
@@ -107,6 +119,7 @@ export async function proxy(req: NextRequest) {
     const workspaceRequirement = workspaceIdentifier
       ? await getWorkspaceMfaRequirementForUser({ admin, userId: user.id, workspaceIdentifier }).catch(
           (error: unknown) => {
+            workspaceRequirementLookupFailed = true;
             console.error("Workspace MFA requirement lookup failed:", error);
             return { required: false, workspaceId: null };
           }
@@ -115,27 +128,31 @@ export async function proxy(req: NextRequest) {
 
     const requiredByWorkspacePath = workspaceRequirement.required;
     const requiredByPrimaryWorkspace = primaryWorkspaceRequirement.required;
-    const mfaRequired = requiredByWorkspacePath || requiredByPrimaryWorkspace;
-    if (mfaRequired && !mfaStatus.enabled) {
+    const requirementLookupFailed = primaryRequirementLookupFailed || workspaceRequirementLookupFailed;
+    const missingVerifiedMfa = mfaStatusLookupFailed || !mfaStatus.enabled;
+    const mfaRequired = requirementLookupFailed || requiredByWorkspacePath || requiredByPrimaryWorkspace;
+    if (mfaRequired && missingVerifiedMfa) {
+      const unavailable = requirementLookupFailed || mfaStatusLookupFailed;
       if (isApiPath) {
         const denied = NextResponse.json(
           {
-            error: "Multi-factor authentication is required by workspace policy. Complete MFA setup to continue.",
-            code: "MFA_REQUIRED",
+            error: unavailable
+              ? "Multi-factor authentication policy could not be verified. Access is temporarily blocked."
+              : "Multi-factor authentication is required by workspace policy. Complete MFA setup to continue.",
+            code: unavailable ? "MFA_ENFORCEMENT_UNAVAILABLE" : "MFA_REQUIRED",
           },
           { status: 403 }
         );
-        denied.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-        denied.headers.set("Pragma", "no-cache");
-        denied.headers.set("Expires", "0");
-        denied.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+        applyNoStoreHeaders(denied);
         return denied;
       }
 
       const redirectUrl = req.nextUrl.clone();
       redirectUrl.pathname = "/app/setup/mfa";
       redirectUrl.searchParams.set("mfa", "required");
-      if (requiredByWorkspacePath && requiredByPrimaryWorkspace) {
+      if (unavailable) {
+        redirectUrl.searchParams.set("mfa_scope", "policy_check_unavailable");
+      } else if (requiredByWorkspacePath && requiredByPrimaryWorkspace) {
         if (
           workspaceRequirement.workspaceId &&
           primaryWorkspaceRequirement.workspaceId &&
@@ -153,10 +170,7 @@ export async function proxy(req: NextRequest) {
       redirectUrl.searchParams.set("next", `${pathname}${req.nextUrl.search}`);
 
       const redirect = NextResponse.redirect(redirectUrl);
-      redirect.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-      redirect.headers.set("Pragma", "no-cache");
-      redirect.headers.set("Expires", "0");
-      redirect.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+      applyNoStoreHeaders(redirect);
       return redirect;
     }
   }

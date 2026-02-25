@@ -31,6 +31,7 @@ const required = [
 const requiredInProduction = [
   "UPSTASH_REDIS_REST_URL",
   "UPSTASH_REDIS_REST_TOKEN",
+  "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
 ];
 
 const missing = required.filter((key) => !process.env[key] || String(process.env[key]).trim().length === 0);

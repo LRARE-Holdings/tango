@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-
-function safeNext(next: string | null, fallback = "/app") {
-  if (next && next.startsWith("/")) return next;
-  return fallback.startsWith("/") ? fallback : "/app";
-}
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 export function OnboardingGate() {
   const router = useRouter();
@@ -57,7 +53,7 @@ export function OnboardingGate() {
             | null;
           const profilePromptCompleted = me?.profile_photo_prompt_completed === true;
           if (!profilePromptCompleted) {
-            const next = safeNext(sp.get("next"), pathname || "/app");
+            const next = safeInternalPath(sp.get("next"), pathname || "/app");
             router.replace(`/onboarding/profile-photo?next=${encodeURIComponent(next)}`);
             return;
           }
@@ -80,7 +76,7 @@ export function OnboardingGate() {
         }
 
         if (!data.onboarding_completed) {
-          const next = safeNext(sp.get("next"), pathname || "/app");
+          const next = safeInternalPath(sp.get("next"), pathname || "/app");
           router.replace(`/onboarding?next=${encodeURIComponent(next)}`);
           return;
         }

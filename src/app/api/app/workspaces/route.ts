@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isUnauthorizedAuthError } from "@/lib/api/auth";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -9,6 +10,10 @@ type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 
 function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Failed";
+}
+
+function statusFromErrorMessage(message: string) {
+  return message === "Unauthorized" ? 401 : 500;
 }
 
 function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, column: string) {
@@ -49,7 +54,10 @@ async function findAvailableSlug(admin: ReturnType<typeof supabaseAdmin>, baseNa
 async function requireUser() {
   const supabase = await supabaseServer();
   const { data, error } = await supabase.auth.getUser();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isUnauthorizedAuthError(error)) throw new Error("Unauthorized");
+    throw new Error("Authentication failed.");
+  }
   if (!data.user) throw new Error("Unauthorized");
   return { supabase, user: data.user };
 }
@@ -135,7 +143,8 @@ export async function GET() {
 
     return NextResponse.json({ workspaces: all });
   } catch (e: unknown) {
-    return NextResponse.json({ error: errMessage(e) }, { status: 401 });
+    const message = errMessage(e);
+    return NextResponse.json({ error: message }, { status: statusFromErrorMessage(message) });
   }
 }
 
@@ -221,6 +230,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ workspace: ws });
   } catch (e: unknown) {
-    return NextResponse.json({ error: errMessage(e) }, { status: 500 });
+    const message = errMessage(e);
+    return NextResponse.json({ error: message }, { status: statusFromErrorMessage(message) });
   }
 }

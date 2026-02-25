@@ -65,4 +65,17 @@ test.describe("public flow abuse/security contract", () => {
 
     expect(saw429).toBeTruthy();
   });
+
+  test("enterprise enquiry endpoint requires captcha", async ({ request }) => {
+    const res = await request.post("/api/public/enterprise-enquiry", {
+      data: {
+        name: "Security Test",
+        email: "security-test@example.com",
+        company: "Receipt QA",
+        message: "Verify captcha requirement for enterprise enquiries.",
+      },
+    });
+
+    expect([400, 403]).toContain(res.status());
+  });
 });

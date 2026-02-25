@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isUnauthorizedAuthError } from "@/lib/api/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { isWorkspaceUuid, resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
@@ -25,7 +26,10 @@ export async function DELETE(
     const admin = supabaseAdmin();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) throw new Error(userErr.message);
+    if (userErr) {
+      if (isUnauthorizedAuthError(userErr)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Authentication failed." }, { status: 500 });
+    }
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { data: member, error: memberErr } = await supabase

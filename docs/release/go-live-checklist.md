@@ -9,6 +9,7 @@
 - [ ] `RESEND_API_KEY`
 - [ ] `RECEIPT_FROM_EMAIL`
 - [ ] `TURNSTILE_SECRET_KEY`
+- [ ] `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
 - [ ] `ENABLE_DEBUG_ENDPOINTS=false`
 - [ ] `NEXT_PUBLIC_SENTRY_DSN`
 - [ ] `SENTRY_DSN`
@@ -40,20 +41,33 @@ Run:
 - [ ] Sentry release creation + sourcemap upload succeeds in production build.
 
 ## 4) Deployment readiness
+- [ ] CI Quality Gate workflow is green (`lint`, `build`, `test:e2e`, `test:security`, `qa:smoke`).
+- [ ] `npm run release:verify-env` passes in production-scoped CI (`NODE_ENV=production`, `VERCEL_ENV=production`).
 - [ ] `BASE_URL=https://www.getreceipt.co npm run test:e2e` passes.
 - [ ] `BASE_URL=https://www.getreceipt.co npm run test:security` passes.
 - [ ] No open P0/P1/P2 defects.
 
-## 5) Launch and immediate validation
+## 5) Stop-ship criteria
+- [ ] No unresolved P0/P1 findings in auth/session handling.
+- [ ] No unresolved billing regressions (checkout/session sync/portal/webhook signature validation).
+- [ ] No unresolved acknowledgement-path regressions (public access, submit, stack finalize).
+- [ ] No unexpected route-level 5xx spikes in smoke/security gate output.
+
+## 6) Launch and immediate validation
 - [ ] Deploy to production.
 - [ ] Validate: auth, create PDF/DOCX, share email, recipient sign, version upload, export JSON/PDF, checkout.
+- [ ] Monitor first hour (required before full go-live sign-off):
+  - [ ] Sentry issue rate
+  - [ ] Route-level 5xx rates
+  - [ ] Billing webhook failures
+  - [ ] Auth 401/403 spikes
 - [ ] Monitor first 24h for:
   - [ ] Sentry errors
   - [ ] API 5xx rates
   - [ ] Email failure rates
   - [ ] Billing webhook failures
 
-## 6) Ownership
+## 7) Ownership
 - [ ] Launch owner on-call assigned.
 - [ ] Incident escalation channel confirmed.
 - [ ] Roll-forward hotfix owner assigned.

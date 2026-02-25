@@ -163,7 +163,7 @@ export default function AuthPage() {
           redirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}${
             firstName ? `&first_name=${encodeURIComponent(firstName)}` : ""
           }`,
-          captchaToken: captchaToken ?? undefined,
+          queryParams: captchaToken ? { captcha_token: captchaToken } : undefined,
         },
       });
       if (oauthErr) throw oauthErr;

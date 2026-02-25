@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
@@ -95,7 +96,7 @@ export async function GET(
     const admin = supabaseAdmin();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) throw new Error(userErr.message);
+    if (userErr) return authErrorResponse(userErr);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const resolved = await resolveWorkspaceIdentifier(workspaceIdentifier);
@@ -218,7 +219,7 @@ export async function PATCH(
     const admin = supabaseAdmin();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) throw new Error(userErr.message);
+    if (userErr) return authErrorResponse(userErr);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const resolved = await resolveWorkspaceIdentifier(workspaceIdentifier);

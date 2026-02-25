@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "@/lib/document-limits";
@@ -80,7 +81,7 @@ export async function GET(
     const admin = supabaseAdmin();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
+    if (userErr) return authErrorResponse(userErr);
     if (!userData.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const userId = userData.user.id;

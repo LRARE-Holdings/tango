@@ -102,7 +102,10 @@ export default function GetStartedPage() {
       const redirectTo = `${siteUrl}/auth/confirm?next=${encodeURIComponent(nextPath)}&first_name=${encodeURIComponent(firstName)}`;
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo, captchaToken: captchaToken ?? undefined },
+        options: {
+          redirectTo,
+          queryParams: captchaToken ? { captcha_token: captchaToken } : undefined,
+        },
       });
       if (oauthErr) throw oauthErr;
     } catch (e: unknown) {

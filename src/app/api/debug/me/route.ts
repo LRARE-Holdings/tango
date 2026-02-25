@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/api/auth";
 import { areDebugEndpointsEnabled } from "@/lib/security/debug-flags";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -9,6 +10,6 @@ export async function GET() {
 
   const supabase = await supabaseServer();
   const { data, error } = await supabase.auth.getUser();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return authErrorResponse(error);
   return NextResponse.json({ user: data.user });
 }

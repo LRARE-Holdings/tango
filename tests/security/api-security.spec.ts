@@ -54,7 +54,7 @@ test.describe("api security controls", () => {
     const sentryExample = await request.get("/api/sentry-example-api");
 
     if (enabled) {
-      expect([200, 401, 500]).toContain(debugMe.status());
+      expect([200, 401]).toContain(debugMe.status());
       expect([500]).toContain(sentryExample.status());
       return;
     }

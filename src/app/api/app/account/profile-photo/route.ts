@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AVATAR_MAX_BYTES, isAcceptedAvatarMimeType, normalizeAvatarImage } from "@/lib/avatar-image";
+import { isUnauthorizedAuthError } from "@/lib/api/auth";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -82,7 +83,13 @@ async function requireUser() {
   const supabase = await supabaseServer();
   const { data: userData, error: userErr } = await supabase.auth.getUser();
 
-  if (userErr) return { ok: false as const, status: 500, error: userErr.message };
+  if (userErr) {
+    return {
+      ok: false as const,
+      status: isUnauthorizedAuthError(userErr) ? 401 : 500,
+      error: isUnauthorizedAuthError(userErr) ? "Unauthorized" : "Authentication failed.",
+    };
+  }
   if (!userData.user) return { ok: false as const, status: 401, error: "Unauthorized" };
 
   return { ok: true as const, supabase, userId: userData.user.id };

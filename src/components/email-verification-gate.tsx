@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 function isEmailConfirmed(user: { email_confirmed_at?: string | null; confirmed_at?: string | null } | null | undefined) {
   // Supabase/GoTrue commonly exposes one or both of these
@@ -44,8 +45,7 @@ export function EmailVerificationGate() {
 
         // Signed in but not confirmed: send to verify page
         if (!isEmailConfirmed(user)) {
-          const next = sp.get("next");
-          const redirectTo = next && next.startsWith("/") ? next : pathname || "/app";
+          const redirectTo = safeInternalPath(sp.get("next"), pathname || "/app");
           router.replace(`/auth/check-email?next=${encodeURIComponent(redirectTo)}`);
           return;
         }

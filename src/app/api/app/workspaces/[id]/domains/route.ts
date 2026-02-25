@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
+import { isUnauthorizedAuthError } from "@/lib/api/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
@@ -26,7 +27,10 @@ async function requireWorkspaceMember(workspaceId: string) {
   const supabase = await supabaseServer();
   const admin = supabaseAdmin();
   const { data: userData, error: userErr } = await supabase.auth.getUser();
-  if (userErr) throw new Error(userErr.message);
+  if (userErr) {
+    if (isUnauthorizedAuthError(userErr)) return { supabase, admin, userId: null, role: null as string | null };
+    throw new Error("Authentication failed.");
+  }
   if (!userData.user) return { supabase, admin, userId: null, role: null as string | null };
 
   const { data: member, error: memberErr } = await supabase

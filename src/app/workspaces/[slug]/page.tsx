@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseServer } from "@/lib/supabase/server";
 
 type WorkspaceRow = {
   id: string;
@@ -16,6 +17,12 @@ export default async function WorkspaceSlugPage({
   const { slug } = (await params) as { slug: string };
   const normalized = String(slug ?? "").trim().toLowerCase();
   if (!normalized) notFound();
+
+  const supabase = await supabaseServer();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) {
+    redirect(`/auth?next=${encodeURIComponent(`/workspaces/${normalized}`)}`);
+  }
 
   const admin = supabaseAdmin();
   const withSlug = await admin
@@ -43,6 +50,17 @@ export default async function WorkspaceSlugPage({
   const workspace = withSlug.data as WorkspaceRow | null;
   if (!workspace) notFound();
 
+  const memberRes = await supabase
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", workspace.id)
+    .eq("user_id", authData.user.id)
+    .maybeSingle();
+  if (memberRes.error) throw new Error(memberRes.error.message);
+  if (!memberRes.data?.role) notFound();
+
+  const workspaceIdentifier = workspace.slug ?? workspace.id;
+
   return (
     <main className="min-h-screen px-6 py-12">
       <div className="mx-auto max-w-2xl space-y-4">
@@ -51,17 +69,16 @@ export default async function WorkspaceSlugPage({
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{workspace.name}</h1>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Public workspace URL is active. Custom domain support is available via workspace settings and DNS verification.
+          You are signed in and have workspace access.
         </p>
         <Link
-          href="/auth"
+          href={`/app/workspaces/${encodeURIComponent(workspaceIdentifier)}`}
           className="focus-ring inline-flex rounded-full border px-4 py-2 text-sm hover:opacity-80"
           style={{ borderColor: "var(--border)", color: "var(--muted)" }}
         >
-          Sign in
+          Open workspace
         </Link>
       </div>
     </main>
   );
 }
-

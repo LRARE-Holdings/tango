@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
+import { isUnauthorizedAuthError } from "@/lib/api/auth";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 
 export type WorkspaceMembership = {
@@ -40,7 +41,13 @@ export async function requireWorkspaceMember(
   const supabase = await supabaseServer();
   const admin = supabaseAdmin();
   const { data: userData, error: userErr } = await supabase.auth.getUser();
-  if (userErr) return { ok: false, status: 500, error: userErr.message };
+  if (userErr) {
+    return {
+      ok: false,
+      status: isUnauthorizedAuthError(userErr) ? 401 : 500,
+      error: isUnauthorizedAuthError(userErr) ? "Unauthorized" : "Authentication failed.",
+    };
+  }
   if (!userData.user) return { ok: false, status: 401, error: "Unauthorized" };
 
   const memberRes = await supabase
