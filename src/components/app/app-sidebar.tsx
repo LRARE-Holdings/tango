@@ -77,6 +77,8 @@ export function AppSidebar({
   onNavigate,
   onSignOut,
   signingOut,
+  isMobile = false,
+  onRequestCloseMobile,
 }: {
   me: SidebarMe | null;
   meLoading: boolean;
@@ -85,6 +87,8 @@ export function AppSidebar({
   onNavigate?: () => void;
   onSignOut: () => void;
   signingOut: boolean;
+  isMobile?: boolean;
+  onRequestCloseMobile?: () => void;
 }) {
   const pathname = usePathname();
   const workspaceIdentifier = useMemo(() => extractWorkspaceIdentifier(pathname), [pathname]);
@@ -270,16 +274,22 @@ export function AppSidebar({
         <div className="app-sidebar-brand-row">
           <button
             type="button"
-            onClick={onToggleCollapse}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={() => {
+              if (isMobile) {
+                onRequestCloseMobile?.();
+                return;
+              }
+              onToggleCollapse();
+            }}
+            aria-label={isMobile ? "Close sidebar" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="focus-ring app-sidebar-icon-btn"
           >
-            {collapsed ? "»" : "≡"}
+            {isMobile ? "×" : collapsed ? "»" : "≡"}
           </button>
 
           {!collapsed ? (
             <Link href={homeHref} className="focus-ring" onClick={onNavigate}>
-              <Image src="/receipt-logo.svg" alt="Receipt" width={96} height={24} priority />
+              <Image src="/receipt-logo.svg" alt="Receipt" width={80} height={20} priority />
             </Link>
           ) : null}
         </div>

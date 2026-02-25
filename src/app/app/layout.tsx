@@ -70,6 +70,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [signingOut, setSigningOut] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   useEffect(() => {
     const rafId = window.requestAnimationFrame(() => {
@@ -200,6 +201,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setMobileOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobileViewport(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
   function toggleSidebarCollapsed() {
     setSidebarCollapsed((previous) => {
       const next = !previous;
@@ -251,11 +260,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <AppSidebar
               me={me}
               meLoading={meLoading}
-              collapsed={sidebarCollapsed}
+              collapsed={isMobileViewport ? false : sidebarCollapsed}
               onToggleCollapse={toggleSidebarCollapsed}
               onNavigate={() => setMobileOpen(false)}
               onSignOut={signOut}
               signingOut={signingOut}
+              isMobile={isMobileViewport}
+              onRequestCloseMobile={() => setMobileOpen(false)}
             />
           </aside>
 
