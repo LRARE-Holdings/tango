@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { PlanMenu } from "@/components/app/plan-menu";
 import {
   canAccessAdminSettings,
@@ -167,6 +167,8 @@ export function AppSidebar({
   const [persistedWorkspaceId, setPersistedWorkspaceId] = useState<string | null>(null);
   const [workspaceCtx, setWorkspaceCtx] = useState<WorkspaceContext | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const accountMenuId = useId();
+  const accountMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const primaryWorkspaceIdentifier =
     typeof me?.primary_workspace_id === "string" && me.primary_workspace_id.trim()
@@ -226,16 +228,37 @@ export function AppSidebar({
   }, [contextWorkspaceIdentifier]);
 
   useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
       const target = event.target as HTMLElement | null;
       if (!target) return;
       if (target.closest("[data-account-menu-root='true']")) return;
       setMenuOpen(false);
     };
 
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenuOpen((open) => {
+        if (!open) return open;
+        window.requestAnimationFrame(() => accountMenuButtonRef.current?.focus());
+        return false;
+      });
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, []);
+
+  useEffect(() => {
+    const rafId = window.requestAnimationFrame(() => {
+      setMenuOpen(false);
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [pathname, collapsed]);
 
   const activeWorkspaceCtx = workspaceCtx;
   const activePlan = normalizePlan(activeWorkspaceCtx?.licensing?.plan ?? me?.plan);
@@ -405,9 +428,12 @@ export function AppSidebar({
         <button
           type="button"
           className="focus-ring app-account-trigger app-sidebar-tooltip"
+          ref={accountMenuButtonRef}
           onClick={() => setMenuOpen((value) => !value)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
+          aria-controls={accountMenuId}
+          aria-label="Account menu"
           data-tooltip={collapsed ? "Account menu" : undefined}
         >
           <div className="app-account-avatar">
@@ -429,7 +455,7 @@ export function AppSidebar({
         </button>
 
         {menuOpen ? (
-          <div className="app-account-menu" role="menu">
+          <div id={accountMenuId} className="app-account-menu" role="menu" aria-label="Account actions">
             <Link
               href="/app/account"
               onClick={() => {
@@ -437,6 +463,7 @@ export function AppSidebar({
                 onNavigate?.();
               }}
               className="focus-ring app-account-menu-item"
+              role="menuitem"
             >
               Account
             </Link>
@@ -447,9 +474,11 @@ export function AppSidebar({
                 onNavigate?.();
               }}
               className="focus-ring app-account-menu-item"
+              role="menuitem"
             >
               Settings
             </Link>
+            <div className="app-account-menu-separator" aria-hidden />
             <button
               type="button"
               onClick={() => {
@@ -458,6 +487,7 @@ export function AppSidebar({
               }}
               className="focus-ring app-account-menu-item text-left"
               disabled={signingOut}
+              role="menuitem"
             >
               {signingOut ? "Signing out…" : "Sign out"}
             </button>

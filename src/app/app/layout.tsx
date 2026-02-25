@@ -263,6 +263,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const effectiveSidebarCollapsed = !isMobileViewport && sidebarCollapsed;
+
   return (
     <ToastProvider>
       <InviteReconcileNotifier />
@@ -296,11 +298,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
 
-          <aside className={`app-sidebar ${sidebarCollapsed ? "is-collapsed" : ""} ${mobileOpen ? "is-mobile-open" : ""}`.trim()}>
+          <aside className={`app-sidebar ${effectiveSidebarCollapsed ? "is-collapsed" : ""} ${mobileOpen ? "is-mobile-open" : ""}`.trim()}>
             <AppSidebar
               me={me}
               meLoading={meLoading}
-              collapsed={isMobileViewport ? false : sidebarCollapsed}
+              collapsed={effectiveSidebarCollapsed}
               onToggleCollapse={toggleSidebarCollapsed}
               onNavigate={() => setMobileOpen(false)}
               onSignOut={signOut}

@@ -485,6 +485,7 @@ html.dark .marketing-glow {
   background: color-mix(in srgb, var(--card) 96%, transparent);
   padding: 0.35rem;
   box-shadow: var(--app-shadow-sm);
+  backdrop-filter: blur(5px);
   transform-origin: left bottom;
   animation: app-account-menu-in 170ms var(--app-sidebar-motion-ease);
 }
@@ -646,16 +647,33 @@ html.dark .marketing-glow {
 
 .app-shell .app-account-menu-item {
   width: 100%;
-  display: block;
+  display: flex;
+  align-items: center;
   border-radius: 0.6rem;
   padding: 0.45rem 0.65rem;
   color: var(--muted);
   font-size: 0.84rem;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    transform 180ms var(--app-sidebar-motion-ease);
 }
 
-.app-shell .app-account-menu-item:hover {
+.app-shell .app-account-menu-separator {
+  height: 1px;
+  margin: 0.24rem 0.4rem;
+  background: var(--border2);
+}
+
+.app-shell .app-account-menu-item:hover,
+.app-shell .app-account-menu-item:focus-visible {
   color: var(--fg);
   background: color-mix(in srgb, var(--card2) 88%, #fff);
+  transform: translateY(-1px);
+}
+
+.app-shell .app-account-menu-item:active {
+  transform: translateY(0);
 }
 
 .app-shell .app-main-shell {
@@ -707,11 +725,24 @@ html.dark .marketing-glow {
     border: 1px solid var(--border);
     color: var(--fg);
     background: color-mix(in srgb, var(--card) 96%, transparent);
+    transition:
+      transform 180ms var(--app-sidebar-motion-ease),
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
   }
 
   .app-shell .app-mobile-menu-btn .app-sidebar-link-icon {
     width: 1.02rem;
     height: 1.02rem;
+  }
+
+  .app-shell .app-mobile-menu-btn:is(:hover, :focus-visible) {
+    transform: translateY(-1px);
+  }
+
+  .app-shell .app-mobile-menu-btn:active {
+    transform: translateY(0);
   }
 
   .app-shell .app-sidebar {
@@ -996,7 +1027,8 @@ html.dark .app-shell .app-sidebar {
 }
 
 html.dark .app-shell .app-sidebar-link:hover,
-html.dark .app-shell .app-account-menu-item:hover {
+html.dark .app-shell .app-account-menu-item:hover,
+html.dark .app-shell .app-account-menu-item:focus-visible {
   background: color-mix(in srgb, var(--card2) 78%, #101317);
 }
 
@@ -1010,7 +1042,9 @@ html.dark .app-shell .app-account-menu-item:hover {
   .app-shell .app-account-avatar,
   .app-shell .app-sidebar-brand-link,
   .app-shell .app-account-meta,
-  .app-shell .app-account-menu {
+  .app-shell .app-account-menu,
+  .app-shell .app-account-menu-item,
+  .app-shell .app-mobile-menu-btn {
     transition: none !important;
     animation: none !important;
   }
