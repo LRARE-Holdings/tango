@@ -34,13 +34,40 @@ export default async function WorkspaceSettingsLayout({
     redirect(`/app/workspaces/${id}/dashboard`);
   }
 
+  const settingsRoot = `/app/workspaces/${id}/settings`;
   const navItems = [
-    { href: `/app/workspaces/${id}/settings`, label: "Overview" },
-    { href: `/app/workspaces/${id}/settings/general`, label: "General" },
-    { href: `/app/workspaces/${id}/settings/branding`, label: "Branding" },
-    { href: `/app/workspaces/${id}/settings/members`, label: "Members" },
-    { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
-    { href: `/app/workspaces/${id}/settings/policy`, label: "Policy & MFA" },
-    { href: `/app/workspaces/${id}/settings/usage`, label: "Usage" },
+    { href: settingsRoot, label: "Overview" },
+    { href: `${settingsRoot}/general`, label: "General" },
+    { href: `${settingsRoot}/branding`, label: "Branding" },
+    { href: `${settingsRoot}/members`, label: "Members" },
+    { href: `${settingsRoot}/documents`, label: "Documents" },
+    { href: `${settingsRoot}/policy`, label: "Policy & MFA" },
+    { href: `${settingsRoot}/usage`, label: "Usage" },
   ];
+
+  return (
+    <AppPage>
+      <AppHero
+        kicker="WORKSPACE SETTINGS"
+        title="Workspace settings"
+        description="Owner/admin controls for workspace identity, branding, members, policy, documents, and usage."
+      />
+
+      <section className="app-content-card p-3 md:p-4">
+        <nav className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-7">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="focus-ring app-list-item px-3 py-2 text-sm font-semibold text-center"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+      </section>
+
+      <div className="space-y-4">{children}</div>
+    </AppPage>
+  );
 }

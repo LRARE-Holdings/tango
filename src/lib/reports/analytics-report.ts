@@ -100,11 +100,21 @@ function fmtDurationShort(seconds: number | null) {
   return `${m}m ${String(r).padStart(2, "0")}s`;
 }
 
+const UTC_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "UTC",
+});
+
 function fmtUtc(iso: string | null) {
   if (!iso) return "--";
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return "--";
-  return d.toUTCString();
+  return `${UTC_FORMATTER.format(d).replace(",", "")} UTC`;
 }
 
 function normalizePriority(value: string) {
@@ -119,14 +129,22 @@ function fmtScroll(value: number | null) {
 }
 
 export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Promise<Uint8Array> {
-  const ctx = await createReportContext();
+  const ctx = await createReportContext({
+    theme: {
+      pageWidth: 841.89,
+      pageHeight: 595.28,
+      marginTop: 46,
+      marginRight: 38,
+      marginBottom: 36,
+      marginLeft: 38,
+      titleSize: 19.5,
+    },
+  });
   const receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
-  const generatedLabel = Number.isFinite(generatedDate.getTime())
-    ? generatedDate.toUTCString()
-    : new Date().toUTCString();
+  const generatedLabel = fmtUtc(Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString());
 
   drawReportHeader(ctx, {
     title:
@@ -136,7 +154,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     subtitle: `${input.rangeLabel}`,
     eyebrow: input.mode === "compliance" ? "COMPLIANCE / REGULATORY" : "MANAGEMENT / OPERATIONS",
     rightMeta: `Generated ${generatedLabel}`,
-    logo: workspaceLogo,
+    logo: workspaceLogo ?? receiptLogo,
     logoWidthPx: input.brandLogoWidthPx,
     brandName: input.brandName ?? input.workspaceName,
     reportStyleVersion: input.reportStyleVersion,
@@ -279,22 +297,36 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             key: "recipient",
             header: "Recipient",
             value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
-            minWidth: 140,
+            minWidth: 170,
             maxLines: 2,
           },
-          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 120 },
+          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 132 },
           { key: "method", header: "How", value: (row) => row.method, minWidth: 90, maxLines: 2 },
           {
-            key: "metrics",
-            header: "Metrics",
-            value: (row) =>
-              `Scroll ${fmtScroll(row.max_scroll_percent)} | Active ${fmtDurationShort(row.active_seconds)} | Page ${fmtDurationShort(
-                row.time_on_page_seconds
-              )}`,
-            minWidth: 190,
-            maxLines: 2,
+            key: "scroll",
+            header: "Scroll",
+            value: (row) => fmtScroll(row.max_scroll_percent),
+            mode: "fixed",
+            width: 58,
+            align: "right",
           },
-          { key: "ip", header: "IP", value: (row) => row.ip ?? "--", minWidth: 70, font: "mono" },
+          {
+            key: "active",
+            header: "Active",
+            value: (row) => fmtDurationShort(row.active_seconds),
+            mode: "fixed",
+            width: 62,
+            align: "right",
+          },
+          {
+            key: "page",
+            header: "Page",
+            value: (row) => fmtDurationShort(row.time_on_page_seconds),
+            mode: "fixed",
+            width: 62,
+            align: "right",
+          },
+          { key: "ip", header: "IP", value: (row) => row.ip ?? "--", minWidth: 76, font: "mono" },
         ],
         rows:
           acknowledgements.length > 0
@@ -313,9 +345,9 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
                 },
               ],
         repeatHeader: true,
-        fontSize: 8.2,
-        headerFontSize: 8.4,
-        lineHeight: 9.8,
+        fontSize: 8.45,
+        headerFontSize: 8.75,
+        lineHeight: 10.2,
         maxCellLines: 2,
       });
 
@@ -331,20 +363,34 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             key: "recipient",
             header: "Recipient",
             value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
-            minWidth: 150,
+            minWidth: 180,
             maxLines: 2,
           },
-          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 130 },
-          { key: "method", header: "Status", value: (row) => row.method, minWidth: 170, maxLines: 2 },
+          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 136 },
+          { key: "method", header: "Status", value: (row) => row.method, minWidth: 190, maxLines: 2 },
           {
-            key: "metrics",
-            header: "Metrics",
-            value: (row) =>
-              `Scroll ${fmtScroll(row.max_scroll_percent)} | Active ${fmtDurationShort(row.active_seconds)} | Page ${fmtDurationShort(
-                row.time_on_page_seconds
-              )}`,
-            minWidth: 190,
-            maxLines: 2,
+            key: "scroll",
+            header: "Scroll",
+            value: (row) => fmtScroll(row.max_scroll_percent),
+            mode: "fixed",
+            width: 58,
+            align: "right",
+          },
+          {
+            key: "active",
+            header: "Active",
+            value: (row) => fmtDurationShort(row.active_seconds),
+            mode: "fixed",
+            width: 62,
+            align: "right",
+          },
+          {
+            key: "page",
+            header: "Page",
+            value: (row) => fmtDurationShort(row.time_on_page_seconds),
+            mode: "fixed",
+            width: 62,
+            align: "right",
           },
         ],
         rows:
@@ -362,8 +408,9 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
                 },
               ],
         repeatHeader: true,
-        fontSize: 8.2,
-        headerFontSize: 8.4,
+        fontSize: 8.45,
+        headerFontSize: 8.75,
+        lineHeight: 10.2,
         maxCellLines: 2,
       });
     }
@@ -380,28 +427,42 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           key: "document",
           header: "Document",
           value: (row) => `${row.document_title} (${row.document_public_id || "No public ID"})`,
-          minWidth: 175,
+          minWidth: 190,
           maxLines: 2,
         },
         {
           key: "recipient",
           header: "Recipient",
           value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
-          minWidth: 130,
+          minWidth: 140,
           maxLines: 2,
         },
-        { key: "how", header: "How", value: (row) => row.method, minWidth: 88, maxLines: 2 },
+        { key: "how", header: "How", value: (row) => row.method, minWidth: 86, maxLines: 2 },
         {
-          key: "metrics",
-          header: "Engagement",
-          value: (row) =>
-            `Scroll ${fmtScroll(row.max_scroll_percent)} | Active ${fmtDurationShort(row.active_seconds)} | Page ${fmtDurationShort(
-              row.time_on_page_seconds
-            )}`,
-          minWidth: 195,
-          maxLines: 2,
+          key: "scroll",
+          header: "Scroll",
+          value: (row) => fmtScroll(row.max_scroll_percent),
+          mode: "fixed",
+          width: 52,
+          align: "right",
         },
-        { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 130 },
+        {
+          key: "active",
+          header: "Active",
+          value: (row) => fmtDurationShort(row.active_seconds),
+          mode: "fixed",
+          width: 56,
+          align: "right",
+        },
+        {
+          key: "page",
+          header: "Page",
+          value: (row) => fmtDurationShort(row.time_on_page_seconds),
+          mode: "fixed",
+          width: 56,
+          align: "right",
+        },
+        { key: "when", header: "Ack at", value: (row) => fmtUtc(row.submitted_at), minWidth: 122 },
       ],
       rows:
         rows.length > 0
@@ -422,9 +483,9 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
               },
             ],
       repeatHeader: true,
-      fontSize: 8.3,
-      headerFontSize: 8.5,
-      lineHeight: 9.9,
+      fontSize: 8.45,
+      headerFontSize: 8.75,
+      lineHeight: 10.2,
       maxCellLines: 2,
     });
   }

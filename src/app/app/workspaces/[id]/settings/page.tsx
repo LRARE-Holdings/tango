@@ -9,8 +9,7 @@ export default async function WorkspaceSettingsIndex({
   return (
     <div className="space-y-4">
       <section className="app-content-card p-6">
-        <div className="app-section-kicker">WORKSPACE SETTINGS</div>
-        <h2 className="app-hero-title mt-2 text-3xl">Admin controls</h2>
+        <h2 className="text-xl font-semibold">Admin controls</h2>
         <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
           Centralized owner/admin configuration for workspace identity, members, policy, branding, documents, and usage.
         </p>
@@ -23,7 +22,7 @@ export default async function WorkspaceSettingsIndex({
       </section>
 
       <section className="app-content-card p-6">
-        <div className="app-section-kicker">QUICK ACTIONS</div>
+        <div className="text-sm font-semibold">Quick actions</div>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             href={`/app/workspaces/${id}/settings/general`}

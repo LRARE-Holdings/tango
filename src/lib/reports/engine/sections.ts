@@ -19,8 +19,11 @@ type FooterBrandingArgs = {
 };
 
 export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
-  const bandHeight = 84;
+  const bandHeight = 78;
   const top = ctx.theme.pageHeight;
+  const contentWidth = ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight;
+  const titleLineHeight = ctx.theme.titleSize + 4;
+  const subtitleLineHeight = ctx.theme.bodySize + 3.2;
 
   ctx.page.drawRectangle({
     x: 0,
@@ -66,51 +69,45 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
     const width = ctx.fonts.regular.widthOfTextAtSize(args.rightMeta, ctx.theme.smallSize);
     ctx.page.drawText(args.rightMeta, {
       x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
-      y: top - 43,
+      y: top - 41,
       font: ctx.fonts.regular,
       size: ctx.theme.smallSize,
       color: ctx.theme.colors.subtle,
     });
   }
 
-  const titleStartY = top - bandHeight - 26;
+  const titleStartY = top - bandHeight - (args.eyebrow ? 28 : 20);
   if (args.eyebrow) {
     ctx.page.drawText(args.eyebrow, {
       x: ctx.theme.marginLeft,
-      y: titleStartY + 18,
+      y: titleStartY + 16,
       font: ctx.fonts.bold,
       size: ctx.theme.smallSize,
       color: ctx.theme.colors.accent,
     });
   }
-  drawTextBlock(ctx, {
+  const titleResult = drawTextBlock(ctx, {
     text: args.title,
     x: ctx.theme.marginLeft,
     y: titleStartY,
-    maxWidth: ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight,
+    maxWidth: contentWidth,
     bold: true,
     size: ctx.theme.titleSize,
-    lineHeight: ctx.theme.titleSize + 4,
+    lineHeight: titleLineHeight,
   });
 
-  let y = titleStartY - (ctx.theme.titleSize + 7);
+  let y = titleResult.nextY - 7;
   if (args.subtitle) {
-    const h = measureTextBlockHeight(ctx, {
-      text: args.subtitle,
-      maxWidth: ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight,
-      size: ctx.theme.bodySize,
-      lineHeight: ctx.theme.bodySize + 3.2,
-    });
-    drawTextBlock(ctx, {
+    const subtitleResult = drawTextBlock(ctx, {
       text: args.subtitle,
       x: ctx.theme.marginLeft,
       y,
-      maxWidth: ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight,
+      maxWidth: contentWidth,
       size: ctx.theme.bodySize,
-      lineHeight: ctx.theme.bodySize + 3.2,
+      lineHeight: subtitleLineHeight,
       color: ctx.theme.colors.subtle,
     });
-    y -= h;
+    y = subtitleResult.nextY;
   }
 
   ctx.page.drawLine({
@@ -123,44 +120,56 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
 }
 
 export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?: string) {
+  const labelX = ctx.cursor.minX + 8;
+  const textWidth = ctx.cursor.maxX - labelX;
+  const headingLineHeight = ctx.theme.headingSize + 3.3;
+  const subtitleLineHeight = ctx.theme.smallSize + 3.2;
+  const labelHeight = measureTextBlockHeight(ctx, {
+    text: label,
+    maxWidth: textWidth,
+    size: ctx.theme.headingSize,
+    lineHeight: headingLineHeight,
+    font: "bold",
+  });
   const subtitleHeight = subtitle
     ? measureTextBlockHeight(ctx, {
         text: subtitle,
-        maxWidth: ctx.cursor.maxX - ctx.cursor.minX,
+        maxWidth: textWidth,
         size: ctx.theme.smallSize,
-        lineHeight: ctx.theme.smallSize + 3.2,
+        lineHeight: subtitleLineHeight,
       })
     : 0;
-  const needed = 20 + subtitleHeight + 12;
+  const needed = Math.max(13.5, labelHeight) + subtitleHeight + 16;
   ctx.ensureSpace(needed);
 
+  const accentHeight = Math.max(13.5, labelHeight);
   ctx.page.drawRectangle({
     x: ctx.cursor.minX,
-    y: ctx.cursor.y - 13.5,
+    y: ctx.cursor.y - accentHeight + 2,
     width: 3.2,
-    height: 13.5,
+    height: accentHeight,
     color: ctx.theme.colors.accent,
   });
 
-  drawTextBlock(ctx, {
+  const labelResult = drawTextBlock(ctx, {
     text: label,
-    x: ctx.cursor.minX + 8,
+    x: labelX,
     y: ctx.cursor.y,
-    maxWidth: ctx.cursor.maxX - ctx.cursor.minX,
+    maxWidth: textWidth,
     font: "bold",
     size: ctx.theme.headingSize,
-    lineHeight: ctx.theme.headingSize + 3.3,
+    lineHeight: headingLineHeight,
   });
-  ctx.cursor.y -= ctx.theme.headingSize + 6.4;
+  ctx.cursor.y = labelResult.nextY - 2;
 
   if (subtitle) {
     const result = drawTextBlock(ctx, {
       text: subtitle,
-      x: ctx.cursor.minX + 8,
+      x: labelX,
       y: ctx.cursor.y,
-      maxWidth: ctx.cursor.maxX - ctx.cursor.minX,
+      maxWidth: textWidth,
       size: ctx.theme.smallSize,
-      lineHeight: ctx.theme.smallSize + 3.2,
+      lineHeight: subtitleLineHeight,
       color: ctx.theme.colors.subtle,
     });
     ctx.cursor.y = result.nextY - 2;
@@ -177,7 +186,7 @@ export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?:
 
 export function drawParagraph(ctx: ReportContext, text: string, options?: { muted?: boolean; size?: number; maxWidth?: number }) {
   const size = options?.size ?? ctx.theme.bodySize;
-  const lineHeight = Math.max(size + 2.2, ctx.theme.lineHeight);
+  const lineHeight = Math.max(size + 2.8, size * 1.26);
   const maxWidth = options?.maxWidth ?? ctx.cursor.maxX - ctx.cursor.minX;
   const needed = measureTextBlockHeight(ctx, {
     text,
@@ -206,23 +215,31 @@ export function drawKeyValueRow(
 ) {
   const labelWidth = options?.labelWidth ?? 180;
   const valueWidth = Math.max(120, ctx.cursor.maxX - ctx.cursor.minX - labelWidth);
+  const lineHeight = Math.max(ctx.theme.lineHeight, ctx.theme.bodySize + 3.4);
+  const labelHeight = measureTextBlockHeight(ctx, {
+    text: key,
+    maxWidth: Math.max(72, labelWidth - 8),
+    size: ctx.theme.bodySize,
+    lineHeight,
+    font: "bold",
+  });
   const valueHeight = measureTextBlockHeight(ctx, {
     text: value,
     maxWidth: valueWidth,
     size: ctx.theme.bodySize,
-    lineHeight: ctx.theme.lineHeight,
+    lineHeight,
   });
-  const needed = Math.max(ctx.theme.lineHeight, valueHeight) + 4;
+  const needed = Math.max(labelHeight, valueHeight) + 4;
   ctx.ensureSpace(needed + 2);
 
-  drawTextBlock(ctx, {
+  const labelResult = drawTextBlock(ctx, {
     text: key,
     x: ctx.cursor.minX,
     y: ctx.cursor.y,
     maxWidth: labelWidth - 8,
     size: ctx.theme.bodySize,
     font: "bold",
-    lineHeight: ctx.theme.lineHeight,
+    lineHeight,
     color: ctx.theme.colors.muted,
   });
 
@@ -233,10 +250,10 @@ export function drawKeyValueRow(
     maxWidth: valueWidth,
     size: ctx.theme.bodySize,
     font: options?.valueFont ?? "regular",
-    lineHeight: ctx.theme.lineHeight,
+    lineHeight,
   });
 
-  ctx.cursor.y = Math.min(ctx.cursor.y - needed, valueResult.nextY - 2);
+  ctx.cursor.y = Math.min(labelResult.nextY, valueResult.nextY) - 2;
 }
 
 export function drawMetricCards(
@@ -244,16 +261,55 @@ export function drawMetricCards(
   metrics: Array<{ label: string; value: string }>,
   options?: { columns?: number }
 ) {
+  if (metrics.length === 0) return;
   const columns = Math.max(1, Math.min(options?.columns ?? metrics.length, metrics.length));
   const gap = ctx.theme.gutter;
   const width = (ctx.cursor.maxX - ctx.cursor.minX - gap * (columns - 1)) / columns;
-  const cardHeight = 56;
+  const cardPadX = 10;
+  const cardPadY = 10;
+  const labelLineHeight = ctx.theme.smallSize + 2.4;
+  const valueSize = ctx.theme.bodySize + 1;
+  const valueLineHeight = valueSize + 2.4;
+  const contentWidth = Math.max(36, width - cardPadX * 2);
+  const measured = metrics.map((item) => {
+    const labelHeight = measureTextBlockHeight(ctx, {
+      text: item.label,
+      maxWidth: contentWidth,
+      size: ctx.theme.smallSize,
+      lineHeight: labelLineHeight,
+      font: "bold",
+      maxLines: 2,
+    });
+    const valueHeight = measureTextBlockHeight(ctx, {
+      text: item.value,
+      maxWidth: contentWidth,
+      size: valueSize,
+      lineHeight: valueLineHeight,
+      font: "bold",
+      maxLines: 3,
+    });
+    return { labelHeight, valueHeight };
+  });
   const rows = Math.ceil(metrics.length / columns);
-  ctx.ensureSpace(rows * (cardHeight + gap));
+  const rowHeights: number[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    const start = row * columns;
+    const end = Math.min(start + columns, metrics.length);
+    const rowHeight = Math.max(
+      62,
+      ...measured
+        .slice(start, end)
+        .map((item) => Math.ceil(item.labelHeight + item.valueHeight + cardPadY * 2 + 7))
+    );
+    rowHeights.push(rowHeight);
+  }
+  const totalHeight = rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0) + gap * (rows - 1);
+  ctx.ensureSpace(totalHeight + 2);
 
   let index = 0;
+  let yTop = ctx.cursor.y;
   for (let row = 0; row < rows; row += 1) {
-    const yTop = ctx.cursor.y - row * (cardHeight + gap);
+    const cardHeight = rowHeights[row];
     for (let col = 0; col < columns; col += 1) {
       if (index >= metrics.length) break;
       const item = metrics[index];
@@ -274,27 +330,32 @@ export function drawMetricCards(
         height: 2.4,
         color: ctx.theme.colors.accent,
       });
-      ctx.page.drawText(item.label, {
-        x: x + 10,
-        y: yTop - 18,
-        font: ctx.fonts.bold,
+      const labelResult = drawTextBlock(ctx, {
+        text: item.label,
+        x: x + cardPadX,
+        y: yTop - cardPadY - ctx.theme.smallSize,
+        maxWidth: contentWidth,
+        font: "bold",
         size: ctx.theme.smallSize,
+        lineHeight: labelLineHeight,
         color: ctx.theme.colors.subtle,
+        maxLines: 2,
       });
       drawTextBlock(ctx, {
         text: item.value,
-        x: x + 10,
-        y: yTop - 37,
-        maxWidth: width - 20,
+        x: x + cardPadX,
+        y: labelResult.nextY - 6,
+        maxWidth: contentWidth,
         font: "bold",
-        size: ctx.theme.bodySize + 1,
-        lineHeight: ctx.theme.bodySize + 2.2,
-        maxLines: 2,
+        size: valueSize,
+        lineHeight: valueLineHeight,
+        maxLines: 3,
       });
       index += 1;
     }
+    yTop -= cardHeight + gap;
   }
-  ctx.cursor.y -= rows * (cardHeight + gap);
+  ctx.cursor.y -= totalHeight;
 }
 
 export function finalizeFooters(ctx: ReportContext, label: string, branding?: FooterBrandingArgs) {

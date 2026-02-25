@@ -64,6 +64,7 @@ function InviteReconcileNotifier() {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const pathname = usePathname();
+  const workspaceScopeId = useMemo(() => extractWorkspaceIdentifier(pathname), [pathname]);
 
   const [me, setMe] = useState<MeSummary | null>(null);
   const [meLoading, setMeLoading] = useState(true);
@@ -91,11 +92,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     async function loadMe() {
       setMeLoading(true);
       try {
-        const workspaceIdentifier = extractWorkspaceIdentifier(pathname);
-        const query = workspaceIdentifier
-          ? `?workspace_id=${encodeURIComponent(workspaceIdentifier)}`
-          : "";
-        const res = await fetch(`/api/app/me${query}`, { cache: "no-store" });
+        const query = new URLSearchParams({ summary: "1" });
+        if (workspaceScopeId) query.set("workspace_id", workspaceScopeId);
+        const res = await fetch(`/api/app/me?${query.toString()}`, { cache: "no-store" });
         if (!res.ok) {
           const { data } = await supabase.auth.getUser();
           if (!active) return;
@@ -118,7 +117,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [supabase, pathname]);
+  }, [supabase, workspaceScopeId]);
 
   useEffect(() => {
     let active = true;
