@@ -64,7 +64,7 @@ export default function InvitePasswordPage() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      router.replace(nextPath);
+      router.replace(`/onboarding/profile-photo?next=${encodeURIComponent(nextPath)}`);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Could not set password.";
       setSaveError(message);

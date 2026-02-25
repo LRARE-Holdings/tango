@@ -39,6 +39,20 @@ test.describe("workspace role matrix (env-driven)", () => {
     expect(res.status()).toBe(403);
   });
 
+  test("member cannot mutate workspace profile photo policy", async ({ request }) => {
+    test.skip(!workspaceId || !memberCookie, "WORKSPACE_IDENTIFIER or WORKSPACE_MEMBER_COOKIE not configured.");
+
+    const res = await request.patch(`/api/app/workspaces/${encodeURIComponent(workspaceId)}`, {
+      headers: {
+        ...authHeaders(memberCookie),
+        "content-type": "application/json",
+      },
+      data: { member_profile_photo_mode: "company" },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
   test("member cannot mutate contact groups endpoint", async ({ request }) => {
     test.skip(!groupsWorkspaceId || !memberCookie, "WORKSPACE_GROUPS_WORKSPACE_IDENTIFIER/WORKSPACE_MEMBER_COOKIE not configured.");
 
@@ -84,6 +98,32 @@ test.describe("workspace role matrix (env-driven)", () => {
       );
       expect([200, 204]).toContain(deleteRes.status());
     }
+  });
+
+  test("owner can patch workspace profile photo policy", async ({ request }) => {
+    test.skip(
+      !workspaceId || !ownerCookie || process.env.WORKSPACE_PHOTO_POLICY_EXPECT_ENABLED !== "1",
+      "Set WORKSPACE_IDENTIFIER, WORKSPACE_OWNER_COOKIE, and WORKSPACE_PHOTO_POLICY_EXPECT_ENABLED=1."
+    );
+
+    const getRes = await request.get(`/api/app/workspaces/${encodeURIComponent(workspaceId)}`, {
+      headers: authHeaders(ownerCookie),
+    });
+    expect(getRes.status()).toBe(200);
+    const getJson = (await getRes.json().catch(() => null)) as
+      | { workspace?: { member_profile_photo_mode?: "allow" | "disabled" | "company" } }
+      | null;
+    const current = getJson?.workspace?.member_profile_photo_mode ?? "allow";
+
+    const patchRes = await request.patch(`/api/app/workspaces/${encodeURIComponent(workspaceId)}`, {
+      headers: {
+        ...authHeaders(ownerCookie),
+        "content-type": "application/json",
+      },
+      data: { member_profile_photo_mode: current },
+    });
+
+    expect(patchRes.status()).toBe(200);
   });
 
   test("feature-gated templates endpoint denies non-entitled workspace", async ({ request }) => {

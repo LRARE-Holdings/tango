@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { getVerifiedMfaStatus, type MfaRequirementReason } from "@/lib/security/mfa-enforcement";
+import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,9 @@ type OptionalPrefs = {
   marketing_opt_in: boolean;
   default_ack_limit: number;
   default_password_enabled: boolean;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
+  profile_photo_prompt_completed: boolean;
 };
 
 type DbErrorLike = {
@@ -81,6 +85,12 @@ function displayNameFromUserMetadata(user: { user_metadata?: unknown; email?: st
   return firstToken(String(user?.email ?? "").split("@")[0] ?? "");
 }
 
+function normalizeProfilePhotoMode(value: unknown): "allow" | "disabled" | "company" {
+  const normalized = String(value ?? "allow").trim().toLowerCase();
+  if (normalized === "disabled" || normalized === "company") return normalized;
+  return "allow";
+}
+
 async function readOptionalPrefs(
   supabase: Awaited<ReturnType<typeof supabaseServer>>,
   userId: string
@@ -90,6 +100,9 @@ async function readOptionalPrefs(
     marketing_opt_in: false,
     default_ack_limit: 1,
     default_password_enabled: false,
+    profile_photo_path: null,
+    profile_photo_updated_at: null,
+    profile_photo_prompt_completed: true,
   };
 
   const columns = [
@@ -97,6 +110,9 @@ async function readOptionalPrefs(
     "marketing_opt_in",
     "default_ack_limit",
     "default_password_enabled",
+    "profile_photo_path",
+    "profile_photo_updated_at",
+    "profile_photo_prompt_completed_at",
   ] as const;
 
   for (const col of columns) {
@@ -113,12 +129,21 @@ async function readOptionalPrefs(
     if (col === "default_password_enabled") {
       prefs.default_password_enabled = Boolean(row.default_password_enabled ?? false);
     }
+    if (col === "profile_photo_path") {
+      prefs.profile_photo_path = (row.profile_photo_path as string | null) ?? null;
+    }
+    if (col === "profile_photo_updated_at") {
+      prefs.profile_photo_updated_at = (row.profile_photo_updated_at as string | null) ?? null;
+    }
+    if (col === "profile_photo_prompt_completed_at") {
+      prefs.profile_photo_prompt_completed = Boolean(row.profile_photo_prompt_completed_at);
+    }
   }
 
   return { prefs, error: null };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const supabase = await supabaseServer();
 
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
@@ -242,6 +267,55 @@ export async function GET() {
   if (workspacePolicyMfaRequired) mfaRequiredReasons.push("workspace_policy");
   const mfaRequired = mfaRequiredReasons.length > 0;
 
+  const url = new URL(req.url);
+  const workspaceIdentifierParam = String(url.searchParams.get("workspace_id") ?? "").trim();
+  let activeWorkspaceId: string | null = null;
+  if (workspaceIdentifierParam) {
+    try {
+      const resolved = await resolveWorkspaceIdentifier(workspaceIdentifierParam);
+      activeWorkspaceId = resolved?.id ?? null;
+    } catch {
+      activeWorkspaceId = null;
+    }
+  } else {
+    activeWorkspaceId = primaryWorkspaceId;
+  }
+
+  let activeWorkspacePhotoPolicy: "allow" | "disabled" | "company" | "none" = "none";
+  let activeWorkspaceHasCompanyPhoto = false;
+  if (activeWorkspaceId) {
+    const memberRes = await supabase
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", activeWorkspaceId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!memberRes.error && memberRes.data) {
+      const workspaceRes = await supabase
+        .from("workspaces")
+        .select("member_profile_photo_mode,member_profile_photo_path")
+        .eq("id", activeWorkspaceId)
+        .maybeSingle();
+
+      if (workspaceRes.error) {
+        if (
+          !isMissingColumnError(workspaceRes.error as DbErrorLike, "member_profile_photo_mode") &&
+          !isMissingColumnError(workspaceRes.error as DbErrorLike, "member_profile_photo_path")
+        ) {
+          return NextResponse.json({ error: workspaceRes.error.message }, { status: 500 });
+        }
+      } else {
+        activeWorkspacePhotoPolicy = normalizeProfilePhotoMode(
+          (workspaceRes.data as { member_profile_photo_mode?: unknown } | null)?.member_profile_photo_mode
+        );
+        activeWorkspaceHasCompanyPhoto = Boolean(
+          (workspaceRes.data as { member_profile_photo_path?: string | null } | null)?.member_profile_photo_path
+        );
+      }
+    }
+  }
+
   return NextResponse.json({
     id: userId,
     email: userRes.user.email ?? null,
@@ -271,6 +345,11 @@ export async function GET() {
     marketing_opt_in: prefs.marketing_opt_in,
     default_ack_limit: prefs.default_ack_limit,
     default_password_enabled: prefs.default_password_enabled,
+    has_profile_photo: Boolean(prefs.profile_photo_path),
+    profile_photo_updated_at: prefs.profile_photo_updated_at,
+    profile_photo_prompt_completed: prefs.profile_photo_prompt_completed,
+    active_workspace_photo_policy: activeWorkspacePhotoPolicy,
+    active_workspace_has_company_photo: activeWorkspaceHasCompanyPhoto,
     mfa_enabled: mfaEnabled,
     mfa_verified_factor_count: mfaVerifiedFactorCount,
     mfa_required: mfaRequired,

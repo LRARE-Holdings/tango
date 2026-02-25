@@ -8,6 +8,12 @@ test.describe("api security controls", () => {
 
     const docs = await request.get("/api/app/documents");
     expect(docs.status()).toBe(401);
+
+    const profilePhoto = await request.get("/api/app/account/profile-photo/view");
+    expect(profilePhoto.status()).toBe(401);
+
+    const workspacePhoto = await request.get("/api/app/workspaces/test/branding/profile-photo/view");
+    expect([400, 401, 404]).toContain(workspacePhoto.status());
   });
 
   test("billing webhook rejects missing signature", async ({ request }) => {

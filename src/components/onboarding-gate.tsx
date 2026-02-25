@@ -53,8 +53,14 @@ export function OnboardingGate() {
         const meRes = await fetch("/api/app/me", { cache: "no-store" }).catch(() => null);
         if (meRes?.ok) {
           const me = (await meRes.json().catch(() => null)) as
-            | { primary_workspace_id?: string | null }
+            | { primary_workspace_id?: string | null; profile_photo_prompt_completed?: boolean | null }
             | null;
+          const profilePromptCompleted = me?.profile_photo_prompt_completed === true;
+          if (!profilePromptCompleted) {
+            const next = safeNext(sp.get("next"), pathname || "/app");
+            router.replace(`/onboarding/profile-photo?next=${encodeURIComponent(next)}`);
+            return;
+          }
           if (typeof me?.primary_workspace_id === "string" && me.primary_workspace_id.length > 0) {
             if (!cancelled) setChecked(true);
             return;

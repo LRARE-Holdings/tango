@@ -75,6 +75,12 @@ function parseMfaRequired(input: unknown): boolean {
   return input === true;
 }
 
+function parseMemberProfilePhotoMode(input: unknown): "allow" | "disabled" | "company" {
+  const normalized = String(input ?? "allow").trim().toLowerCase();
+  if (normalized === "disabled" || normalized === "company") return normalized;
+  return "allow";
+}
+
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> | { id: string } }
@@ -108,7 +114,7 @@ export async function GET(
     const withSlug = await supabase
       .from("workspaces")
       .select(
-        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,billing_owner_user_id,policy_mode_enabled,mfa_required"
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,billing_owner_user_id,policy_mode_enabled,mfa_required,member_profile_photo_mode,member_profile_photo_path,member_profile_photo_updated_at"
       )
       .eq("id", resolved.id)
       .maybeSingle();
@@ -122,7 +128,10 @@ export async function GET(
         isMissingColumnError(wsErr, "billing_owner_user_id") ||
         isMissingColumnError(wsErr, "policy_mode_enabled") ||
         isMissingColumnError(wsErr, "mfa_required") ||
-        isMissingColumnError(wsErr, "brand_logo_width_px"))
+        isMissingColumnError(wsErr, "brand_logo_width_px") ||
+        isMissingColumnError(wsErr, "member_profile_photo_mode") ||
+        isMissingColumnError(wsErr, "member_profile_photo_path") ||
+        isMissingColumnError(wsErr, "member_profile_photo_updated_at"))
     ) {
       const fallback = await supabase
         .from("workspaces")
@@ -138,6 +147,9 @@ export async function GET(
         workspace.policy_mode_enabled = false;
         workspace.mfa_required = false;
         workspace.brand_logo_width_px = 104;
+        workspace.member_profile_photo_mode = "allow";
+        workspace.member_profile_photo_path = null;
+        workspace.member_profile_photo_updated_at = null;
       }
     }
 
@@ -172,6 +184,13 @@ export async function GET(
           (workspace as { policy_mode_enabled?: unknown }).policy_mode_enabled
         ),
         mfa_required: parseMfaRequired((workspace as { mfa_required?: unknown }).mfa_required),
+        member_profile_photo_mode: parseMemberProfilePhotoMode(
+          (workspace as { member_profile_photo_mode?: unknown }).member_profile_photo_mode
+        ),
+        member_profile_photo_path:
+          (workspace as { member_profile_photo_path?: string | null }).member_profile_photo_path ?? null,
+        member_profile_photo_updated_at:
+          (workspace as { member_profile_photo_updated_at?: string | null }).member_profile_photo_updated_at ?? null,
       },
       licensing,
       members: membersWithEmails,
@@ -223,6 +242,7 @@ export async function PATCH(
       document_tag_fields?: unknown;
       policy_mode_enabled?: boolean;
       mfa_required?: boolean;
+      member_profile_photo_mode?: "allow" | "disabled" | "company";
     } | null;
     const nextName = typeof body?.name === "string" ? body.name.trim() : undefined;
     const slugRaw = typeof body?.slug === "string" ? body.slug : undefined;
@@ -255,6 +275,15 @@ export async function PATCH(
         );
       }
       payload.mfa_required = body.mfa_required === true;
+    }
+    if (body && "member_profile_photo_mode" in body) {
+      if (licensing.plan !== "team" && licensing.plan !== "enterprise") {
+        return NextResponse.json(
+          { error: "Workspace member profile photo policy is available on Team and Enterprise workspaces only." },
+          { status: 403 }
+        );
+      }
+      payload.member_profile_photo_mode = parseMemberProfilePhotoMode(body.member_profile_photo_mode);
     }
 
     const { data: existingWorkspace, error: existingErr } = await admin
@@ -299,7 +328,7 @@ export async function PATCH(
       .update(payload)
       .eq("id", resolved.id)
       .select(
-        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,policy_mode_enabled,mfa_required"
+        "id,name,slug,created_by,created_at,updated_at,brand_logo_path,brand_logo_updated_at,brand_logo_width_px,document_tag_fields,policy_mode_enabled,mfa_required,member_profile_photo_mode,member_profile_photo_path,member_profile_photo_updated_at"
       )
       .single();
 
@@ -309,11 +338,14 @@ export async function PATCH(
         isMissingColumnError(result.error, "document_tag_fields") ||
         isMissingColumnError(result.error, "policy_mode_enabled") ||
         isMissingColumnError(result.error, "mfa_required") ||
-        isMissingColumnError(result.error, "brand_logo_width_px"))
+        isMissingColumnError(result.error, "brand_logo_width_px") ||
+        isMissingColumnError(result.error, "member_profile_photo_mode") ||
+        isMissingColumnError(result.error, "member_profile_photo_path") ||
+        isMissingColumnError(result.error, "member_profile_photo_updated_at"))
     ) {
-      if (body && ("policy_mode_enabled" in body || "mfa_required" in body)) {
+      if (body && ("policy_mode_enabled" in body || "mfa_required" in body || "member_profile_photo_mode" in body)) {
         return NextResponse.json(
-          { error: "Workspace security settings are not configured yet. Run the latest SQL migrations first." },
+          { error: "Workspace security/profile policy settings are not configured yet. Run the latest SQL migrations first." },
           { status: 500 }
         );
       }
@@ -344,6 +376,9 @@ export async function PATCH(
           document_tag_fields: [],
           policy_mode_enabled: false,
           mfa_required: false,
+          member_profile_photo_mode: "allow",
+          member_profile_photo_path: null,
+          member_profile_photo_updated_at: null,
         },
       });
     }
@@ -365,6 +400,13 @@ export async function PATCH(
           (result.data as { policy_mode_enabled?: unknown } | null)?.policy_mode_enabled
         ),
         mfa_required: parseMfaRequired((result.data as { mfa_required?: unknown } | null)?.mfa_required),
+        member_profile_photo_mode: parseMemberProfilePhotoMode(
+          (result.data as { member_profile_photo_mode?: unknown } | null)?.member_profile_photo_mode
+        ),
+        member_profile_photo_path:
+          (result.data as { member_profile_photo_path?: string | null } | null)?.member_profile_photo_path ?? null,
+        member_profile_photo_updated_at:
+          (result.data as { member_profile_photo_updated_at?: string | null } | null)?.member_profile_photo_updated_at ?? null,
       },
     });
   } catch (e: unknown) {

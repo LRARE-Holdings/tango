@@ -30,6 +30,11 @@ type MeResponse = {
   recommended_plan?: string | null;
 
   primary_workspace_id?: string | null;
+  has_profile_photo?: boolean | null;
+  profile_photo_updated_at?: string | null;
+  profile_photo_prompt_completed?: boolean | null;
+  active_workspace_photo_policy?: "allow" | "disabled" | "company" | "none" | null;
+  active_workspace_has_company_photo?: boolean | null;
   mfa_enabled?: boolean | null;
   mfa_verified_factor_count?: number | null;
   mfa_required?: boolean | null;
@@ -116,6 +121,17 @@ function firstNameFromDisplayName(input: string | null | undefined) {
   const clean = String(input ?? "").trim().replace(/\s+/g, " ");
   if (!clean) return "";
   return clean.split(" ")[0] ?? "";
+}
+
+function initialsFromProfile(displayName: string | null | undefined, email: string | null | undefined) {
+  const name = String(displayName ?? "").trim();
+  if (name) {
+    const tokens = name.split(/\s+/).filter(Boolean);
+    if (tokens.length === 1) return tokens[0].slice(0, 2).toUpperCase();
+    return `${tokens[0][0] ?? ""}${tokens[1][0] ?? ""}`.toUpperCase();
+  }
+  const local = String(email ?? "").trim().split("@")[0] ?? "";
+  return local.slice(0, 2).toUpperCase() || "ME";
 }
 
 function normalizeMfaFactor(input: unknown): MfaFactor | null {
@@ -354,6 +370,8 @@ export default function AccountPage() {
   // Defaults used on /app/new – your “templates and defaults” foundation
   const [defaultAckLimit, setDefaultAckLimit] = useState<number>(1);
   const [defaultPasswordEnabled, setDefaultPasswordEnabled] = useState(false);
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [profilePhotoSaving, setProfilePhotoSaving] = useState(false);
 
   // Billing portal
   const [billingLoadingFlow, setBillingLoadingFlow] = useState<BillingPortalFlow | null>(null);
@@ -465,6 +483,13 @@ export default function AccountPage() {
 
   const email = me?.email ?? null;
   const firstName = useMemo(() => firstNameFromDisplayName(me?.display_name ?? null), [me?.display_name]);
+  const profilePhotoPolicy = String(me?.active_workspace_photo_policy ?? "none").toLowerCase();
+  const profileUploadsBlocked = profilePhotoPolicy === "disabled" || profilePhotoPolicy === "company";
+  const profilePhotoSrc = me?.has_profile_photo
+    ? `/api/app/account/profile-photo/view${
+        me?.profile_photo_updated_at ? `?v=${encodeURIComponent(String(me.profile_photo_updated_at))}` : ""
+      }`
+    : null;
 
   const plan = useMemo(() => planLabel(me?.display_plan ?? me?.plan ?? null), [me?.display_plan, me?.plan]);
   const isLicensedDisplayPlan = String(me?.display_plan ?? "").trim().toLowerCase() === "licensed";
@@ -558,6 +583,55 @@ export default function AccountPage() {
       setPrefsSaving(false);
     } finally {
       setPrefsSaving(false);
+    }
+  }
+
+  async function uploadProfilePhoto() {
+    if (!profilePhotoFile) return;
+    if (profileUploadsBlocked) {
+      toast.error("Profile photo", "Profile photo uploads are disabled by your active workspace policy.");
+      return;
+    }
+
+    setProfilePhotoSaving(true);
+    try {
+      const form = new FormData();
+      form.append("file", profilePhotoFile);
+      const res = await fetch("/api/app/account/profile-photo", {
+        method: "POST",
+        body: form,
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(json?.error ?? "Could not upload profile photo.");
+
+      setProfilePhotoFile(null);
+      toast.success("Profile photo", "Your profile photo has been updated.");
+      await loadMe();
+    } catch (error: unknown) {
+      toast.error("Profile photo", errorMessage(error, "Could not upload profile photo."));
+    } finally {
+      setProfilePhotoSaving(false);
+    }
+  }
+
+  async function removeProfilePhoto() {
+    if (profileUploadsBlocked) {
+      toast.error("Profile photo", "Profile photo changes are disabled by your active workspace policy.");
+      return;
+    }
+
+    setProfilePhotoSaving(true);
+    try {
+      const res = await fetch("/api/app/account/profile-photo", { method: "DELETE" });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(json?.error ?? "Could not remove profile photo.");
+
+      toast.success("Profile photo", "Your profile photo has been removed.");
+      await loadMe();
+    } catch (error: unknown) {
+      toast.error("Profile photo", errorMessage(error, "Could not remove profile photo."));
+    } finally {
+      setProfilePhotoSaving(false);
     }
   }
 
@@ -999,6 +1073,72 @@ export default function AccountPage() {
         </div>
       </Section>
       ) : null}
+
+      <Section
+        title="Profile photo"
+        subtitle="Shown in navigation and account surfaces."
+      >
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-[auto,1fr] md:items-start">
+          <div
+            className="h-20 w-20 overflow-hidden border flex items-center justify-center text-sm font-semibold"
+            style={{ borderColor: "var(--border)", borderRadius: 999, background: "var(--card2)" }}
+          >
+            {profilePhotoSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={profilePhotoSrc} alt="Profile" className="h-full w-full object-cover" />
+            ) : (
+              initialsFromProfile(me?.display_name ?? null, me?.email ?? null)
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {profileUploadsBlocked ? (
+              <div
+                className="border px-4 py-3 text-sm"
+                style={{ borderColor: "var(--border)", borderRadius: 12, color: "var(--muted)" }}
+              >
+                {profilePhotoPolicy === "company"
+                  ? "Your active workspace enforces a company profile photo, so personal photo changes are disabled."
+                  : "Your active workspace policy currently disables personal profile photo uploads."}
+              </div>
+            ) : null}
+
+            <label
+              className="focus-ring inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium hover:opacity-90"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              Choose photo
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={profileUploadsBlocked || profilePhotoSaving}
+                onChange={(event) => setProfilePhotoFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+
+            <div className="text-xs" style={{ color: "var(--muted2)" }}>
+              {profilePhotoFile ? profilePhotoFile.name : "JPG, PNG, or WebP • max 2MB • auto-cropped square"}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                onClick={() => void uploadProfilePhoto()}
+                disabled={profileUploadsBlocked || profilePhotoSaving || !profilePhotoFile}
+              >
+                {profilePhotoSaving ? "Saving…" : "Upload photo"}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => void removeProfilePhoto()}
+                disabled={profileUploadsBlocked || profilePhotoSaving || !me?.has_profile_photo}
+              >
+                Remove photo
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Section>
 
       {/* Preferences */}
       <Section

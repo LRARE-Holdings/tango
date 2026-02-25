@@ -50,7 +50,7 @@ export default async function WorkspaceSettingsLayout({
       <AppHero
         kicker="WORKSPACE"
         title="Settings"
-        description="Manage members, policy mode, MFA enforcement, branding, domains, and workspace defaults from one place."
+        description="Manage members, policy mode, MFA enforcement, branding, profile-photo governance, domains, and workspace defaults from one place."
         actions={
           <>
             <Link href="/app/account" className="focus-ring app-btn-secondary">
