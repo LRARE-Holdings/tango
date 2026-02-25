@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ToastProvider } from "@/components/toast";
@@ -209,7 +209,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => media.removeEventListener("change", update);
   }, []);
 
-  function toggleSidebarCollapsed() {
+  const toggleSidebarCollapsed = useCallback(() => {
     setSidebarCollapsed((previous) => {
       const next = !previous;
       try {
@@ -219,7 +219,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       }
       return next;
     });
-  }
+  }, []);
+
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      if (!element) return false;
+      const tag = element.tagName.toLowerCase();
+      return (
+        element.isContentEditable ||
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        tag === "button"
+      );
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isMobileViewport) return;
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if (event.key.toLowerCase() !== "b") return;
+      if (isEditableTarget(event.target)) return;
+      event.preventDefault();
+      toggleSidebarCollapsed();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isMobileViewport, toggleSidebarCollapsed]);
 
   async function signOut() {
     setSigningOut(true);

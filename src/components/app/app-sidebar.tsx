@@ -68,6 +68,79 @@ function displayName(displayNameValue: string | null | undefined, email: string 
   return local || "Account";
 }
 
+function SidebarControlIcon({
+  kind,
+}: {
+  kind: "close" | "collapse" | "expand" | "plus";
+}) {
+  switch (kind) {
+    case "close":
+      return (
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          className="app-sidebar-link-icon"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m6 6 12 12" />
+          <path d="m18 6-12 12" />
+        </svg>
+      );
+    case "collapse":
+      return (
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          className="app-sidebar-link-icon"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4.5 4.5h5v15h-5z" />
+          <path d="m15.7 8.5-3.6 3.5 3.6 3.5" />
+        </svg>
+      );
+    case "expand":
+      return (
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          className="app-sidebar-link-icon"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4.5 4.5h5v15h-5z" />
+          <path d="m12.2 8.5 3.6 3.5-3.6 3.5" />
+        </svg>
+      );
+    case "plus":
+      return (
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          className="app-sidebar-link-icon"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+      );
+  }
+}
+
 export function AppSidebar({
   me,
   meLoading,
@@ -281,14 +354,15 @@ export function AppSidebar({
               onToggleCollapse();
             }}
             aria-label={isMobile ? "Close sidebar" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="focus-ring app-sidebar-icon-btn"
+            className="focus-ring app-sidebar-icon-btn app-sidebar-tooltip"
+            data-tooltip={isMobile ? "Close sidebar" : `${collapsed ? "Expand" : "Collapse"} sidebar (Ctrl/Cmd+B)`}
           >
-            {isMobile ? "×" : collapsed ? "»" : "≡"}
+            <SidebarControlIcon kind={isMobile ? "close" : collapsed ? "expand" : "collapse"} />
           </button>
 
           {!collapsed ? (
-            <Link href={homeHref} className="focus-ring" onClick={onNavigate}>
-              <Image src="/receipt-logo.svg" alt="Receipt" width={80} height={20} priority />
+            <Link href={homeHref} className="focus-ring app-sidebar-brand-link" onClick={onNavigate}>
+              <Image src="/receipt-logo.svg" alt="Receipt" width={70} height={18} priority />
             </Link>
           ) : null}
         </div>
@@ -297,12 +371,24 @@ export function AppSidebar({
           href="/app/new"
           onClick={onNavigate}
           className={
-            collapsed ? "focus-ring app-sidebar-icon-btn" : "focus-ring app-btn-primary w-full justify-center"
+            collapsed
+              ? "focus-ring app-sidebar-icon-btn app-sidebar-tooltip"
+              : "focus-ring app-btn-primary w-full justify-center gap-2"
           }
           aria-label="Create new receipt"
-          title={collapsed ? "New Receipt" : undefined}
+          data-tooltip="New receipt"
         >
-          {collapsed ? "+" : "New Receipt"}
+          {collapsed ? (
+            <>
+              <SidebarControlIcon kind="plus" />
+              <span className="sr-only">New Receipt</span>
+            </>
+          ) : (
+            <>
+              <SidebarControlIcon kind="plus" />
+              <span>New Receipt</span>
+            </>
+          )}
         </Link>
 
         <PlanMenu items={navItems} vertical collapsed={collapsed} onNavigate={onNavigate} />
@@ -311,10 +397,11 @@ export function AppSidebar({
       <div className="app-sidebar-bottom" data-account-menu-root="true">
         <button
           type="button"
-          className="focus-ring app-account-trigger"
+          className="focus-ring app-account-trigger app-sidebar-tooltip"
           onClick={() => setMenuOpen((value) => !value)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
+          data-tooltip={collapsed ? "Account menu" : undefined}
         >
           <div className="app-account-avatar">
             {avatarSrc ? (
@@ -325,7 +412,7 @@ export function AppSidebar({
             )}
           </div>
           {!collapsed ? (
-            <div className="min-w-0 text-left">
+            <div className="app-account-meta min-w-0 text-left">
               <div className="truncate text-sm font-semibold">{meLoading ? "Loading…" : accountDisplayName}</div>
               <div className="truncate text-xs" style={{ color: "var(--muted2)" }}>
                 {me?.email ?? ""}

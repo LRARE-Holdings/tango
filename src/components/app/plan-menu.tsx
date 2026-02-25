@@ -91,19 +91,22 @@ export function PlanMenu({
       {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const icon = item.icon;
+        const tooltipLabel = vertical && collapsed ? item.label : undefined;
 
         return (
           <Link
             key={item.href}
             href={item.href}
-            title={collapsed ? item.label : undefined}
+            title={tooltipLabel}
+            data-tooltip={tooltipLabel}
             data-active={active ? "true" : "false"}
             className={
               vertical
-                ? `app-sidebar-link focus-ring ${collapsed ? "is-collapsed" : ""}`.trim()
+                ? `app-sidebar-link focus-ring app-sidebar-tooltip ${collapsed ? "is-collapsed" : ""}`.trim()
                 : "app-topbar-link focus-ring px-3.5 py-1.5 text-sm font-medium transition"
             }
             onClick={onNavigate}
+            aria-label={tooltipLabel ?? undefined}
           >
             {vertical && icon ? (
               <>

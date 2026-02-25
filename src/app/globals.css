@@ -232,6 +232,10 @@ html.dark .marketing-glow {
   --card2: #eef2f6;
   --app-shadow-sm: 0 10px 26px rgba(13, 20, 30, 0.08);
   --app-shadow-md: 0 16px 38px rgba(13, 20, 30, 0.14);
+  --app-sidebar-expanded-width: 264px;
+  --app-sidebar-collapsed-width: 80px;
+  --app-sidebar-control-size: 2.4rem;
+  --app-sidebar-control-radius: 0.78rem;
   background: linear-gradient(180deg, #ffffff 0%, var(--bg) 34%, var(--bg) 100%);
   color: var(--fg);
 }
@@ -243,15 +247,18 @@ html.dark .marketing-glow {
 }
 
 .app-shell .app-sidebar {
-  width: 264px;
-  flex: 0 0 264px;
+  width: var(--app-sidebar-expanded-width);
+  flex: 0 0 var(--app-sidebar-expanded-width);
   border-right: 1px solid var(--border);
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--card) 96%, #fff),
     color-mix(in srgb, var(--card2) 40%, transparent)
   );
-  transition: width 160ms ease, transform 180ms ease;
+  transition:
+    width 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -259,23 +266,25 @@ html.dark .marketing-glow {
 }
 
 .app-shell .app-sidebar.is-collapsed {
-  width: 88px;
-  flex-basis: 88px;
+  width: var(--app-sidebar-collapsed-width);
+  flex-basis: var(--app-sidebar-collapsed-width);
 }
 
 .app-shell .app-sidebar-content {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.95rem;
   height: 100%;
-  padding: 0.9rem 0.75rem;
+  padding: 0.9rem 0.7rem;
+  transition: padding 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-shell .app-sidebar-top {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+  transition: gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-shell .app-sidebar-bottom {
@@ -290,15 +299,23 @@ html.dark .marketing-glow {
 }
 
 .app-shell .app-sidebar-icon-btn {
+  width: 2.25rem;
   height: 2.25rem;
   min-width: 2.25rem;
-  border-radius: 0.7rem;
+  min-height: 2.25rem;
+  border-radius: var(--app-sidebar-control-radius);
   border: 1px solid var(--border);
   color: var(--muted);
   background: color-mix(in srgb, var(--card2) 70%, transparent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-shell .app-sidebar-icon-btn:hover {
@@ -308,7 +325,7 @@ html.dark .marketing-glow {
 .app-shell .app-sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
 }
 
 .app-shell .app-sidebar-link {
@@ -317,12 +334,21 @@ html.dark .marketing-glow {
   justify-content: flex-start;
   gap: 0.55rem;
   min-height: 2.25rem;
-  border-radius: 0.7rem;
+  border-radius: var(--app-sidebar-control-radius);
   padding: 0.45rem 0.7rem;
   color: var(--muted);
   font-size: 0.875rem;
   font-weight: 500;
   border: 1px solid transparent;
+  overflow: hidden;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-shell .app-sidebar-link:hover {
@@ -342,13 +368,24 @@ html.dark .marketing-glow {
 }
 
 .app-shell .app-sidebar-link-icon {
-  width: 1rem;
-  height: 1rem;
+  width: 1.04rem;
+  height: 1.04rem;
   flex: 0 0 auto;
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease;
 }
 
 .app-shell .app-sidebar-link-label {
+  display: inline-block;
   white-space: nowrap;
+  opacity: 1;
+  max-width: 9rem;
+  transform: translateX(0);
+  transition:
+    opacity 140ms ease,
+    max-width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-shell .app-account-trigger {
@@ -357,10 +394,17 @@ html.dark .marketing-glow {
   align-items: center;
   gap: 0.65rem;
   border: 1px solid var(--border);
-  border-radius: 0.8rem;
+  border-radius: var(--app-sidebar-control-radius);
   background: color-mix(in srgb, var(--card2) 70%, transparent);
   padding: 0.45rem 0.55rem;
   color: var(--fg);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-shell .app-account-avatar {
@@ -375,6 +419,25 @@ html.dark .marketing-glow {
   font-size: 0.67rem;
   font-weight: 700;
   background: color-mix(in srgb, var(--card2) 72%, transparent);
+  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1), height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-shell .app-sidebar-brand-link {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 140ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-shell .app-account-meta {
+  opacity: 1;
+  max-width: 10rem;
+  transform: translateX(0);
+  transition:
+    opacity 140ms ease,
+    max-width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-shell .app-account-menu {
@@ -397,10 +460,13 @@ html.dark .marketing-glow {
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-nav {
   align-items: center;
+  width: 100%;
+  gap: 0.38rem;
 }
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-top {
   align-items: center;
+  gap: 0.72rem;
 }
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-brand-row {
@@ -408,10 +474,17 @@ html.dark .marketing-glow {
   justify-content: center;
 }
 
+.app-shell .app-sidebar.is-collapsed .app-sidebar-icon-btn,
+.app-shell .app-sidebar.is-collapsed .app-sidebar-link,
+.app-shell .app-sidebar.is-collapsed .app-account-trigger {
+  width: var(--app-sidebar-control-size);
+  height: var(--app-sidebar-control-size);
+  min-width: var(--app-sidebar-control-size);
+  min-height: var(--app-sidebar-control-size);
+  border-radius: var(--app-sidebar-control-radius);
+}
+
 .app-shell .app-sidebar.is-collapsed .app-sidebar-icon-btn {
-  width: 2.4rem;
-  height: 2.4rem;
-  min-width: 2.4rem;
   border-color: var(--border2);
   background: color-mix(in srgb, var(--card2) 58%, transparent);
 }
@@ -422,13 +495,20 @@ html.dark .marketing-glow {
 }
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-link {
-  width: 2.4rem;
-  height: 2.4rem;
-  min-height: 2.4rem;
   padding: 0;
   justify-content: center;
   border-color: var(--border2);
   background: color-mix(in srgb, var(--card2) 58%, transparent);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-link-icon {
+  transform: scale(1.05);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-link-label {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-4px);
 }
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-link:hover {
@@ -442,8 +522,6 @@ html.dark .marketing-glow {
 }
 
 .app-shell .app-sidebar.is-collapsed .app-account-trigger {
-  width: 2.4rem;
-  height: 2.4rem;
   padding: 0;
   justify-content: center;
   margin-inline: auto;
@@ -454,6 +532,66 @@ html.dark .marketing-glow {
 .app-shell .app-sidebar.is-collapsed .app-account-avatar {
   width: 1.5rem;
   height: 1.5rem;
+}
+
+.app-shell .app-sidebar.is-collapsed .app-account-meta,
+.app-shell .app-sidebar.is-collapsed .app-sidebar-brand-link {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-4px);
+  pointer-events: none;
+}
+
+.app-shell .app-sidebar-tooltip {
+  position: relative;
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-tooltip[data-tooltip]::before,
+.app-shell .app-sidebar.is-collapsed .app-sidebar-tooltip[data-tooltip]::after {
+  position: absolute;
+  top: 50%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 80;
+  transition:
+    opacity 120ms ease,
+    transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-tooltip[data-tooltip]::before {
+  content: "";
+  left: calc(100% + 0.34rem);
+  width: 0.5rem;
+  height: 0.5rem;
+  background: color-mix(in srgb, var(--fg) 96%, #0f1720);
+  transform: translate(-6px, -50%) rotate(45deg);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-tooltip[data-tooltip]::after {
+  content: attr(data-tooltip);
+  left: calc(100% + 0.58rem);
+  border-radius: 0.56rem;
+  background: color-mix(in srgb, var(--fg) 96%, #0f1720);
+  color: color-mix(in srgb, var(--bg) 88%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  padding: 0.36rem 0.52rem;
+  transform: translate(-6px, -50%);
+  box-shadow: 0 8px 24px rgba(7, 11, 17, 0.24);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-tooltip[data-tooltip]:is(:hover, :focus-visible, :focus-within)::before {
+  opacity: 1;
+  transform: translate(0, -50%) rotate(45deg);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-tooltip[data-tooltip]:is(:hover, :focus-visible, :focus-within)::after {
+  opacity: 1;
+  transform: translate(0, -50%);
 }
 
 .app-shell .app-account-menu-item {
@@ -537,6 +675,11 @@ html.dark .marketing-glow {
 
   .app-shell .app-sidebar.is-mobile-open {
     transform: translateX(0);
+  }
+
+  .app-shell .app-sidebar-tooltip::before,
+  .app-shell .app-sidebar-tooltip::after {
+    display: none;
   }
 
   .app-shell .app-main-content {
@@ -789,6 +932,20 @@ html.dark .app-shell .app-sidebar {
 html.dark .app-shell .app-sidebar-link:hover,
 html.dark .app-shell .app-account-menu-item:hover {
   background: color-mix(in srgb, var(--card2) 78%, #101317);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .app-sidebar,
+  .app-shell .app-sidebar-content,
+  .app-shell .app-sidebar-icon-btn,
+  .app-shell .app-sidebar-link,
+  .app-shell .app-sidebar-link-label,
+  .app-shell .app-account-trigger,
+  .app-shell .app-account-avatar,
+  .app-shell .app-sidebar-brand-link,
+  .app-shell .app-account-meta {
+    transition: none !important;
+  }
 }
 
 html.dark .app-shell .app-error {
