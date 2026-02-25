@@ -399,6 +399,28 @@ html.dark .marketing-glow {
   align-items: center;
 }
 
+.app-shell .app-sidebar.is-collapsed .app-sidebar-top {
+  align-items: center;
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-brand-row {
+  width: 100%;
+  justify-content: center;
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-icon-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  min-width: 2.4rem;
+  border-color: var(--border2);
+  background: color-mix(in srgb, var(--card2) 58%, transparent);
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-icon-btn:hover {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--card2) 74%, transparent);
+}
+
 .app-shell .app-sidebar.is-collapsed .app-sidebar-link {
   width: 2.4rem;
   height: 2.4rem;
