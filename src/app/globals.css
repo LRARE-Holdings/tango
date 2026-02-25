@@ -451,6 +451,12 @@ html.dark .marketing-glow {
 }
 
 .app-shell .app-sidebar-brand-link {
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(var(--app-sidebar-expanded-width) - 4.55rem);
+  min-height: var(--app-sidebar-control-size);
+  border-radius: 0.62rem;
+  padding-inline: 0.08rem;
   opacity: 1;
   transform: translateX(0);
   transition:
@@ -458,10 +464,29 @@ html.dark .marketing-glow {
     transform var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
+.app-shell .app-sidebar-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 1.16rem;
+  min-width: 3.88rem;
+}
+
 .app-shell .app-sidebar-brand-logo {
-  width: 62px;
+  width: auto;
+  max-width: 100%;
+  max-height: 1.16rem;
   height: auto;
   display: block;
+  object-fit: contain;
+}
+
+.app-shell .app-sidebar-brand-logo-receipt {
+  width: 62px;
+}
+
+.app-shell .app-sidebar-brand-logo-workspace {
+  max-width: 6rem;
 }
 
 .app-shell .app-account-meta {

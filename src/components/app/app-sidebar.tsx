@@ -7,7 +7,6 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { PlanMenu } from "@/components/app/plan-menu";
 import {
   canAccessAdminSettings,
-  canAccessKeySettings,
   canUseStackDelivery,
   canViewAnalytics,
 } from "@/lib/workspace-permissions";
@@ -21,6 +20,8 @@ type WorkspaceContext = {
     id: string;
     slug?: string | null;
     name?: string | null;
+    brand_logo_path?: string | null;
+    brand_logo_updated_at?: string | null;
     member_profile_photo_updated_at?: string | null;
   } | null;
   viewer?: { user_id: string; role: WorkspaceRole };
@@ -327,21 +328,10 @@ export function AppSidebar({
     ...(showAnalytics && idForLinks ? [{ href: `/app/workspaces/${idForLinks}/analytics`, label: "Analytics", icon: "analytics" as const }] : []),
   ];
 
-  const settingsHref = (() => {
-    if (!idForLinks || !activeWorkspaceCtx?.viewer?.role) return "/app/account";
-    if (canAccessAdminSettings(activeWorkspaceCtx.viewer.role)) {
-      return `/app/workspaces/${idForLinks}/settings`;
-    }
-    if (
-      canAccessKeySettings({
-        role: activeWorkspaceCtx.viewer.role,
-        license_active: currentMember?.license_active !== false,
-      })
-    ) {
-      return "/app/account";
-    }
-    return "/app/account";
-  })();
+  const workspaceSettingsHref =
+    idForLinks && activeWorkspaceCtx?.viewer?.role && canAccessAdminSettings(activeWorkspaceCtx.viewer.role)
+      ? `/app/workspaces/${idForLinks}/settings`
+      : null;
 
   const avatarWorkspaceIdentifier = activeWorkspaceCtx?.workspace?.slug ?? contextWorkspaceIdentifier;
   const companyPolicyActive = me?.active_workspace_photo_policy === "company";
@@ -362,6 +352,22 @@ export function AppSidebar({
 
   const avatarSrc = companyAvatarSrc ?? personalAvatarSrc;
   const accountDisplayName = displayName(me?.display_name ?? null, me?.email ?? null);
+  const workspaceName = String(activeWorkspaceCtx?.workspace?.name ?? "").trim();
+  const brandWorkspaceIdentifier =
+    activeWorkspaceCtx?.workspace?.slug ?? contextWorkspaceIdentifier ?? idForLinks ?? null;
+  const useWorkspaceBranding = Boolean(
+    brandWorkspaceIdentifier && (activePlan === "team" || activePlan === "enterprise")
+  );
+  const workspaceBrandLogoPath = String(activeWorkspaceCtx?.workspace?.brand_logo_path ?? "").trim();
+  const workspaceBrandLogoSrc =
+    useWorkspaceBranding && workspaceBrandLogoPath
+      ? `/api/app/workspaces/${encodeURIComponent(brandWorkspaceIdentifier ?? "")}/branding/logo/view${
+          activeWorkspaceCtx?.workspace?.brand_logo_updated_at
+            ? `?v=${encodeURIComponent(String(activeWorkspaceCtx.workspace.brand_logo_updated_at))}`
+            : ""
+        }`
+      : null;
+  const brandAlt = workspaceName ? `${workspaceName} logo` : "Workspace logo";
 
   return (
     <div className="app-sidebar-content">
@@ -385,14 +391,25 @@ export function AppSidebar({
 
           {!collapsed ? (
             <Link href={homeHref} className="focus-ring app-sidebar-brand-link" onClick={onNavigate}>
-              <Image
-                src="/receipt-logo.svg"
-                alt="Receipt"
-                width={62}
-                height={16}
-                className="app-sidebar-brand-logo"
-                priority
-              />
+              <span className="app-sidebar-brand-mark">
+                {workspaceBrandLogoSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={workspaceBrandLogoSrc}
+                    alt={brandAlt}
+                    className="app-sidebar-brand-logo app-sidebar-brand-logo-workspace"
+                  />
+                ) : (
+                  <Image
+                    src="/receipt-logo.svg"
+                    alt="Receipt"
+                    width={62}
+                    height={16}
+                    className="app-sidebar-brand-logo app-sidebar-brand-logo-receipt"
+                    priority
+                  />
+                )}
+              </span>
             </Link>
           ) : null}
         </div>
@@ -465,19 +482,21 @@ export function AppSidebar({
               className="focus-ring app-account-menu-item"
               role="menuitem"
             >
-              Account
+              Account settings
             </Link>
-            <Link
-              href={settingsHref}
-              onClick={() => {
-                setMenuOpen(false);
-                onNavigate?.();
-              }}
-              className="focus-ring app-account-menu-item"
-              role="menuitem"
-            >
-              Settings
-            </Link>
+            {workspaceSettingsHref ? (
+              <Link
+                href={workspaceSettingsHref}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onNavigate?.();
+                }}
+                className="focus-ring app-account-menu-item"
+                role="menuitem"
+              >
+                Workspace settings
+              </Link>
+            ) : null}
             <div className="app-account-menu-separator" aria-hidden />
             <button
               type="button"

@@ -42,19 +42,18 @@ export default async function WorkspaceSettingsLayout({
     { href: `/app/workspaces/${id}/settings/documents`, label: "Documents" },
     { href: `/app/workspaces/${id}/settings/policy`, label: "Policy & MFA" },
     { href: `/app/workspaces/${id}/settings/usage`, label: "Usage" },
-    { href: `/app/workspaces/${id}/settings/domains`, label: "Domains" },
   ];
 
   return (
     <AppPage>
       <AppHero
-        kicker="WORKSPACE"
-        title="Settings"
-        description="Manage members, policy mode, MFA enforcement, branding, profile-photo governance, domains, and workspace defaults from one place."
+        kicker="WORKSPACE ADMIN"
+        title="Workspace settings"
+        description="Owner/admin controls for team configuration, governance, branding, and workspace-level defaults."
         actions={
           <>
             <Link href="/app/account" className="focus-ring app-btn-secondary">
-              My settings
+              Account settings
             </Link>
             <Link href={`/app/workspaces/${id}/dashboard`} className="focus-ring app-btn-secondary">
               Back to dashboard
@@ -63,24 +62,18 @@ export default async function WorkspaceSettingsLayout({
         }
       />
 
-      <details
-        className="app-card p-3"
-      >
-        <summary className="focus-ring app-subtle cursor-pointer list-none select-none text-sm font-medium">
-          Workspace sections
-        </summary>
+      <section className="app-card-soft p-4">
+        <div className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted2)" }}>
+          SECTIONS
+        </div>
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="focus-ring app-btn-chip"
-            >
+            <Link key={item.href} href={item.href} className="focus-ring app-btn-chip">
               {item.label}
             </Link>
           ))}
         </div>
-      </details>
+      </section>
 
       {children}
     </AppPage>

@@ -7,44 +7,59 @@ export default async function WorkspaceSettingsIndex({
 }) {
   const { id } = (await params) as { id: string };
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
       <section className="app-content-card p-6">
-        <div className="app-section-kicker">INDIVIDUAL</div>
-        <h2 className="app-hero-title mt-2 text-3xl">My settings</h2>
+        <div className="app-section-kicker">WORKSPACE SETTINGS</div>
+        <h2 className="app-hero-title mt-2 text-3xl">Admin controls</h2>
         <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-          Personal defaults, notifications, and profile preferences.
+          Centralized owner/admin configuration for workspace identity, members, policy, branding, documents, and usage.
         </p>
-        <div className="mt-4">
-          <Link
-            href="/app/account"
-            className="focus-ring inline-flex px-4 py-2 text-sm font-semibold"
-            style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--muted)" }}
-          >
-            Open my settings
-          </Link>
+        <div
+          className="mt-4 text-sm border px-4 py-3"
+          style={{ borderColor: "var(--border)", borderRadius: 12, color: "var(--muted)" }}
+        >
+          Only owners and admins can access workspace settings.
         </div>
       </section>
 
       <section className="app-content-card p-6">
-        <div className="app-section-kicker">WORKSPACE ADMIN</div>
-        <h2 className="app-hero-title mt-2 text-3xl">Workspace controls</h2>
-        <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-          Manage members, policies, documents, domains, and workspace-level defaults.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link
-            href={`/app/workspaces/${id}/settings/members`}
-            className="focus-ring inline-flex px-4 py-2 text-sm font-semibold"
-            style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--muted)" }}
-          >
-            Manage users
-          </Link>
+        <div className="app-section-kicker">QUICK ACTIONS</div>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             href={`/app/workspaces/${id}/settings/general`}
-            className="focus-ring inline-flex px-4 py-2 text-sm font-semibold"
-            style={{ borderRadius: 999, border: "1px solid var(--border)", color: "var(--muted)" }}
+            className="focus-ring app-list-item px-4 py-3 text-sm font-semibold"
           >
-            General settings
+            General
+          </Link>
+          <Link
+            href={`/app/workspaces/${id}/settings/branding`}
+            className="focus-ring app-list-item px-4 py-3 text-sm font-semibold"
+          >
+            Branding
+          </Link>
+          <Link
+            href={`/app/workspaces/${id}/settings/members`}
+            className="focus-ring app-list-item px-4 py-3 text-sm font-semibold"
+          >
+            Members
+          </Link>
+          <Link
+            href={`/app/workspaces/${id}/settings/documents`}
+            className="focus-ring app-list-item px-4 py-3 text-sm font-semibold"
+          >
+            Documents
+          </Link>
+          <Link
+            href={`/app/workspaces/${id}/settings/policy`}
+            className="focus-ring app-list-item px-4 py-3 text-sm font-semibold"
+          >
+            Policy & MFA
+          </Link>
+          <Link
+            href={`/app/workspaces/${id}/settings/usage`}
+            className="focus-ring app-list-item px-4 py-3 text-sm font-semibold"
+          >
+            Usage
           </Link>
         </div>
       </section>

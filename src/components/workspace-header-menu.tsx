@@ -75,7 +75,7 @@ export function WorkspaceHeaderMenu() {
           { href: `/app/workspaces/${idForLinks}/branding`, label: "Branding" },
         ]
       : []),
-    ...(canManageSettings ? [{ href: `/app/workspaces/${idForLinks}/settings`, label: "Settings" }] : []),
+    ...(canManageSettings ? [{ href: `/app/workspaces/${idForLinks}/settings`, label: "Workspace settings" }] : []),
   ];
 
   return (

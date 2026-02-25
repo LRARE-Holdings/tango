@@ -827,10 +827,10 @@ export default function AccountPage() {
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-            {firstName ? `${firstName}'s account` : "Account"}
+            {firstName ? `${firstName}'s account settings` : "Account settings"}
           </h1>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-            Settings, billing, security, and workspace context — in one place.
+            Personal settings, billing, security, and workspace context — in one place.
           </p>
         </div>
 
