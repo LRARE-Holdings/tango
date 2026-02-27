@@ -457,7 +457,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-12">
+    <main className="app-entry-shell min-h-screen px-6 py-12">
       <div className="mx-auto w-full max-w-2xl">
         {/* Top */}
         <div className="flex items-center justify-between gap-4">

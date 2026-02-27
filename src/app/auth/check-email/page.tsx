@@ -91,7 +91,7 @@ export default function CheckEmailPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6 py-10">
+    <main className="app-entry-shell min-h-screen flex items-center justify-center px-6 py-10">
       <div className="relative w-full max-w-md border p-6 md:p-7" style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 18 }}>
         <Link
           href="/"

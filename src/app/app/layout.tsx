@@ -272,7 +272,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <OnboardingGate />
       </Suspense>
 
-      <div className="app-shell min-h-screen">
+      <div className="app-shell app-shell-v2 min-h-screen">
         <RouteTransitionOverlay />
         <div className="app-layout-frame">
           <button
@@ -320,8 +320,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             />
           ) : null}
 
-          <div className="app-main-shell">
-            <main className="app-main-content">
+          <div className="app-main-shell app-main-shell-v2">
+            <main className="app-main-content app-main-content-v2">
               <Suspense fallback={null}>{children}</Suspense>
             </main>
 

@@ -134,7 +134,7 @@ export default function OnboardingProfilePhotoPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6 py-12">
+    <main className="app-entry-shell min-h-screen flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-lg space-y-6 border p-6 md:p-7" style={{ borderColor: "var(--border)", borderRadius: 18, background: "var(--card)" }}>
         <div>
           <div className="text-xs tracking-widest" style={{ color: "var(--muted2)" }}>

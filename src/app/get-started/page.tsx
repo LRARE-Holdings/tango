@@ -116,7 +116,7 @@ export default function GetStartedPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6 py-12">
+    <main className="app-entry-shell min-h-screen flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md space-y-6">
         <div>
           <div className="text-xs font-semibold tracking-widest" style={{ color: "var(--muted2)" }}>

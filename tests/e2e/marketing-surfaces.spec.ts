@@ -61,4 +61,13 @@ test.describe("marketing and public surfaces", () => {
       expect([200, 302, 307, 308]).toContain(res.status());
     }
   });
+
+  test("auth and get-started use app entry shell styling hooks", async ({ request }) => {
+    for (const route of ["/auth", "/get-started"]) {
+      const res = await request.get(route);
+      expect(res.ok()).toBeTruthy();
+      const html = await res.text();
+      expect(html).toContain("app-entry-shell");
+    }
+  });
 });

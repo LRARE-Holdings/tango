@@ -382,7 +382,7 @@ export default function BillingCheckoutPage() {
   }, [session?.clientSecret]);
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-8 sm:px-6 lg:px-8">
+    <main className="app-entry-shell relative min-h-screen overflow-hidden px-4 py-8 sm:px-6 lg:px-8">
       <style>{`
         .checkout-logo { height: 30px; width: auto; display: block; }
         html.dark .checkout-logo { filter: invert(1) hue-rotate(180deg); }

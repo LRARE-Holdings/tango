@@ -102,8 +102,8 @@ export function PlanMenu({
             data-active={active ? "true" : "false"}
             className={
               vertical
-                ? `app-sidebar-link focus-ring app-sidebar-tooltip ${collapsed ? "is-collapsed" : ""}`.trim()
-                : "app-topbar-link focus-ring px-3.5 py-1.5 text-sm font-medium transition"
+                ? `app-sidebar-link app-v2-nav-link focus-ring app-sidebar-tooltip ${collapsed ? "is-collapsed" : ""}`.trim()
+                : "app-topbar-link app-v2-topbar-link focus-ring px-3.5 py-1.5 text-sm font-medium transition"
             }
             onClick={onNavigate}
             aria-label={tooltipLabel ?? undefined}

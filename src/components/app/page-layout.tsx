@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 export function AppPage({ children }: { children: ReactNode }) {
-  return <div className="app-page">{children}</div>;
+  return <div className="app-page app-v2-page">{children}</div>;
 }
 
 export function AppHero({
@@ -18,8 +18,8 @@ export function AppHero({
   return (
     <section className="app-content-card app-hero-card">
       {kicker ? <div className="app-section-kicker">{kicker}</div> : null}
-      <h1 className="app-hero-title mt-3 text-4xl tracking-tight">{title}</h1>
-      {description ? <p className="app-subtle mt-3 max-w-3xl text-sm">{description}</p> : null}
+      <h1 className="app-hero-title mt-3 text-4xl md:text-5xl tracking-tight">{title}</h1>
+      {description ? <p className="app-subtle mt-3 max-w-3xl text-sm leading-relaxed">{description}</p> : null}
       {actions ? <div className="mt-5 flex flex-wrap gap-2">{actions}</div> : null}
     </section>
   );
@@ -53,4 +53,3 @@ export function AppPanel({
     </section>
   );
 }
-

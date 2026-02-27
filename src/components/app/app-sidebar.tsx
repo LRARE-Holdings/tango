@@ -370,7 +370,7 @@ export function AppSidebar({
   const brandAlt = workspaceName ? `${workspaceName} logo` : "Workspace logo";
 
   return (
-    <div className="app-sidebar-content">
+    <div className="app-sidebar-content app-v2-sidebar-content">
       <div className="app-sidebar-top">
         <div className="app-sidebar-brand-row">
           <button

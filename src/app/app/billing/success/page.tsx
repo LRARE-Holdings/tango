@@ -204,7 +204,7 @@ export default function BillingSuccessPage() {
   }
 
   return (
-    <main className="space-y-6 py-2 md:py-4">
+    <main className="app-entry-shell space-y-6 py-2 md:py-4">
       <section
         className="mx-auto max-w-3xl border p-6 md:p-7"
         style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}
