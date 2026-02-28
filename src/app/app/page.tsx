@@ -78,6 +78,7 @@ export default function AppHome() {
   const recentFiles = data?.recent_files ?? [];
   const quickActions = data?.quick_actions ?? [];
   const activity = data?.activity ?? [];
+  const recentActivity = activity.slice(0, 5);
 
   const statCards = useMemo(
     () => [
@@ -206,7 +207,7 @@ export default function AppHome() {
 
           <AppPanel title="Recent activity" className="app-v2-rail-panel">
             <div className="app-v2-activity-feed">
-              {activity.map((row) => (
+              {recentActivity.map((row) => (
                 <div key={row.id} className="app-v2-activity-row">
                   <span className={`app-v2-activity-dot is-${row.type}`} aria-hidden />
                   <div className="min-w-0 flex-1">
@@ -219,6 +220,11 @@ export default function AppHome() {
               ))}
               {activity.length === 0 ? <div className="app-empty">No recent activity.</div> : null}
             </div>
+            {activity.length > 0 ? (
+              <Link href="/app/activity" className="focus-ring app-btn-secondary mt-3 w-full justify-center">
+                Show more
+              </Link>
+            ) : null}
           </AppPanel>
 
           <AppPanel title="While you were away" className="app-v2-rail-panel">

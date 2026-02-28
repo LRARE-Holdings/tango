@@ -97,6 +97,7 @@ export default function WorkspaceDashboardPage() {
   const recentFiles = data?.recent_files ?? [];
   const quickActions = data?.quick_actions ?? [];
   const activity = data?.activity ?? [];
+  const recentActivity = activity.slice(0, 5);
   const usage = data?.workspace_usage;
 
   const statCards = [
@@ -209,7 +210,7 @@ export default function WorkspaceDashboardPage() {
 
           <AppPanel title="Recent activity" className="app-v2-rail-panel">
             <div className="app-v2-activity-feed">
-              {activity.map((row) => (
+              {recentActivity.map((row) => (
                 <div key={row.id} className="app-v2-activity-row">
                   <span className={`app-v2-activity-dot is-${row.type}`} aria-hidden />
                   <div className="min-w-0 flex-1">
@@ -222,6 +223,14 @@ export default function WorkspaceDashboardPage() {
               ))}
               {activity.length === 0 ? <div className="app-empty">No recent activity.</div> : null}
             </div>
+            {activity.length > 0 ? (
+              <Link
+                href={`/app/workspaces/${linkId}/activity`}
+                className="focus-ring app-btn-secondary mt-3 w-full justify-center"
+              >
+                Show more
+              </Link>
+            ) : null}
           </AppPanel>
 
           <AppPanel title="Workspace" className="app-v2-rail-panel">
