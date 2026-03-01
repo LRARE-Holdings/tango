@@ -4,7 +4,7 @@
 - PDF exports support two styles: `v2` and `v3`.
 - `v3` standardizes all report exports on portrait A4 with shared typography, spacing, table, watermark, and footer tokens.
 - Style can be selected per request with `?pdf_style=v3`.
-- Default style is controlled by `PDF_STYLE_DEFAULT` (`v2` fallback).
+- Default style is controlled by `PDF_STYLE_DEFAULT` (`v3` fallback).
 
 ## Engine Structure
 - Format contract: `src/lib/reports/engine/report-format.ts`
@@ -36,4 +36,3 @@
   - `PDF_VISUAL_REQUIRED=1` fails if `pdftoppm` is unavailable.
   - `PDF_BASELINE_FILE=/path/to/pdf-baseline.json` enables baseline comparison in regression script.
   - `PDF_UPDATE_BASELINE=1` writes/updates baseline fingerprints.
-

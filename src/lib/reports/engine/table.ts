@@ -192,7 +192,11 @@ export function drawTable<T>(ctx: ReportContext, spec: TableSpec<T>) {
   const maxWidth = spec.maxWidth ?? ctx.cursor.maxX - x;
   const fontSize = spec.fontSize ?? ctx.theme.tableDefaults.fontSize;
   const headerFontSize = spec.headerFontSize ?? ctx.theme.tableDefaults.headerFontSize ?? fontSize;
-  const lineHeight = spec.lineHeight ?? ctx.theme.tableDefaults.lineHeight;
+  const lineHeight = Math.max(
+    spec.lineHeight ?? ctx.theme.tableDefaults.lineHeight,
+    fontSize * 1.26,
+    headerFontSize * 1.22
+  );
   const cellPaddingX = spec.cellPaddingX ?? ctx.theme.tableDefaults.cellPaddingX;
   const cellPaddingY = spec.cellPaddingY ?? ctx.theme.tableDefaults.cellPaddingY;
   const stripedRows = spec.stripedRows ?? ctx.theme.tableDefaults.stripedRows;

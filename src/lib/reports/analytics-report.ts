@@ -138,7 +138,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             pageHeight: 595.28,
             marginTop: 46,
             marginRight: 38,
-            marginBottom: 36,
+            marginBottom: 44,
             marginLeft: 38,
             titleSize: 19.5,
           }

@@ -183,13 +183,14 @@ export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?:
     ctx.cursor.y = result.nextY - 2;
   }
 
+  const dividerY = ctx.cursor.y - 2;
   ctx.page.drawLine({
-    start: { x: ctx.cursor.minX, y: ctx.cursor.y },
-    end: { x: ctx.cursor.maxX, y: ctx.cursor.y },
+    start: { x: ctx.cursor.minX, y: dividerY },
+    end: { x: ctx.cursor.maxX, y: dividerY },
     thickness: 1,
     color: ctx.theme.colors.border,
   });
-  ctx.cursor.y -= ctx.theme.sectionGap + 2;
+  ctx.cursor.y = dividerY - (ctx.theme.sectionGap + 2);
 }
 
 export function drawParagraph(ctx: ReportContext, text: string, options?: { muted?: boolean; size?: number; maxWidth?: number }) {

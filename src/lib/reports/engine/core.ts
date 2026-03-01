@@ -142,20 +142,33 @@ export async function createReportContext(options?: CreateReportContextOptions):
   const pdf = await PDFDocument.create();
   pdf.defaultWordBreaks = theme.wordBreaks;
   const fonts = await loadReportFonts(pdf);
+  const footerBandBaseY = 12;
+  const footerSafeTopY = footerBandBaseY + theme.footerBandHeight + theme.baseline * 2;
+  const contentMinY = Math.max(theme.marginBottom, footerSafeTopY);
 
   const cursor: LayoutCursor = {
     x: theme.marginLeft,
     y: theme.pageHeight - theme.marginTop,
     minX: theme.marginLeft,
     maxX: theme.pageWidth - theme.marginRight,
-    minY: theme.marginBottom,
+    minY: contentMinY,
     maxY: theme.pageHeight - theme.marginTop,
   };
 
   const context = {} as ReportContext;
+  const paintPageBackground = (page: PDFPage) => {
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width: theme.pageWidth,
+      height: theme.pageHeight,
+      color: theme.colors.white,
+    });
+  };
 
   const addPage = () => {
     context.page = pdf.addPage([theme.pageWidth, theme.pageHeight]);
+    paintPageBackground(context.page);
     cursor.x = cursor.minX;
     cursor.y = cursor.maxY;
     options?.onPageAdded?.(context);
@@ -171,6 +184,7 @@ export async function createReportContext(options?: CreateReportContextOptions):
 
   context.pdf = pdf;
   context.page = pdf.addPage([theme.pageWidth, theme.pageHeight]);
+  paintPageBackground(context.page);
   context.theme = theme;
   context.fonts = fonts;
   context.cursor = cursor;

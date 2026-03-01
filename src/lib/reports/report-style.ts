@@ -7,7 +7,7 @@ function parseStyle(value: string | null | undefined): ReportStyleVersion | null
 }
 
 export function getDefaultReportStyle(): ReportStyleVersion {
-  return parseStyle(process.env.PDF_STYLE_DEFAULT) ?? "v2";
+  return parseStyle(process.env.PDF_STYLE_DEFAULT) ?? "v3";
 }
 
 export function resolveReportStyleFromRequest(req: Request): ReportStyleVersion {
@@ -20,4 +20,3 @@ export function resolveReportStyleFromRequest(req: Request): ReportStyleVersion 
   }
   return getDefaultReportStyle();
 }
-
