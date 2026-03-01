@@ -318,7 +318,7 @@ export function drawTable<T>(ctx: ReportContext, spec: TableSpec<T>) {
     drawRowBorder(ctx, x, ctx.cursor.y, maxWidth);
   }
 
-  ctx.cursor.y -= 6;
+  ctx.cursor.y -= 10;
 }
 
 export function drawPresetTable<T>(ctx: ReportContext, preset: ReportTablePreset, spec: TableSpec<T>) {

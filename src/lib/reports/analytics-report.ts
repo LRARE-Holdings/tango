@@ -279,7 +279,8 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     }
 
     for (const doc of docs) {
-      ctx.ensureSpace(100);
+      // Keep each document evidence block from starting at the very bottom of a page.
+      ctx.ensureSpace(220);
       section(ctx, `${doc.document_title} (${doc.document_public_id || "No public ID"})`);
       keyValueList(ctx, [
         { key: "Created", value: fmtUtc(doc.created_at) },
@@ -307,69 +308,58 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "") ||
           (a.recipient_email ?? "").localeCompare(b.recipient_email ?? "")
       );
-      dataTable(ctx, "evidence", {
-        columns: [
-          {
-            key: "recipient",
-            header: "Recipient",
-            value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
-            minWidth: 170,
-            maxLines: 2,
-            semantic: "text",
-          },
-          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 132, semantic: "datetime" },
-          { key: "method", header: "How", value: (row) => row.method, minWidth: 90, maxLines: 2, semantic: "text" },
-          {
-            key: "scroll",
-            header: "Scroll",
-            value: (row) => fmtScroll(row.max_scroll_percent),
-            mode: "fixed",
-            width: 66,
-            align: "right",
-            semantic: "metric",
-          },
-          {
-            key: "active",
-            header: "Active",
-            value: (row) => fmtDurationShort(row.active_seconds),
-            mode: "fixed",
-            width: 68,
-            align: "right",
-            semantic: "metric",
-          },
-          {
-            key: "page",
-            header: "Page",
-            value: (row) => fmtDurationShort(row.time_on_page_seconds),
-            mode: "fixed",
-            width: 68,
-            align: "right",
-            semantic: "metric",
-          },
-          { key: "ip", header: "IP", value: (row) => row.ip ?? "--", minWidth: 76, semantic: "identifier" },
-        ],
-        rows:
-          acknowledgements.length > 0
-            ? acknowledgements
-            : [
-                {
-                  recipient_name: null,
-                  recipient_email: null,
-                  submitted_at: null,
-                  method: "No acknowledgements in selected range",
-                  max_scroll_percent: null,
-                  active_seconds: null,
-                  time_on_page_seconds: null,
-                  ip: null,
-                  user_agent: null,
-                },
-              ],
-        repeatHeader: true,
-        fontSize: 8.45,
-        headerFontSize: 8.75,
-        lineHeight: 10.2,
-        maxCellLines: 2,
-      });
+      if (acknowledgements.length === 0) {
+        note(ctx, "No acknowledgements in selected range.", { muted: true, size: 8.9 });
+      } else {
+        dataTable(ctx, "evidence", {
+          columns: [
+            {
+              key: "recipient",
+              header: "Recipient",
+              value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
+              minWidth: 170,
+              maxLines: 2,
+              semantic: "text",
+            },
+            { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 132, semantic: "datetime" },
+            { key: "method", header: "How", value: (row) => row.method, minWidth: 90, maxLines: 2, semantic: "text" },
+            {
+              key: "scroll",
+              header: "Scroll",
+              value: (row) => fmtScroll(row.max_scroll_percent),
+              mode: "fixed",
+              width: 66,
+              align: "right",
+              semantic: "metric",
+            },
+            {
+              key: "active",
+              header: "Active",
+              value: (row) => fmtDurationShort(row.active_seconds),
+              mode: "fixed",
+              width: 68,
+              align: "right",
+              semantic: "metric",
+            },
+            {
+              key: "page",
+              header: "Page",
+              value: (row) => fmtDurationShort(row.time_on_page_seconds),
+              mode: "fixed",
+              width: 68,
+              align: "right",
+              semantic: "metric",
+            },
+            { key: "ip", header: "IP", value: (row) => row.ip ?? "--", minWidth: 76, semantic: "identifier" },
+          ],
+          rows: acknowledgements,
+          repeatHeader: true,
+          fontSize: 8.85,
+          headerFontSize: 9,
+          lineHeight: 10.8,
+          maxCellLines: 2,
+        });
+      }
 
       section(ctx, "Outstanding acknowledgements / pending submissions");
       const pending = [...doc.pending_submissions].sort(
@@ -377,66 +367,57 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "") ||
           (a.recipient_email ?? "").localeCompare(b.recipient_email ?? "")
       );
-      dataTable(ctx, "evidence", {
-        columns: [
-          {
-            key: "recipient",
-            header: "Recipient",
-            value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
-            minWidth: 180,
-            maxLines: 2,
-            semantic: "text",
-          },
-          { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 136, semantic: "datetime" },
-          { key: "method", header: "Status", value: (row) => row.method, minWidth: 190, maxLines: 2, semantic: "text" },
-          {
-            key: "scroll",
-            header: "Scroll",
-            value: (row) => fmtScroll(row.max_scroll_percent),
-            mode: "fixed",
-            width: 66,
-            align: "right",
-            semantic: "metric",
-          },
-          {
-            key: "active",
-            header: "Active",
-            value: (row) => fmtDurationShort(row.active_seconds),
-            mode: "fixed",
-            width: 68,
-            align: "right",
-            semantic: "metric",
-          },
-          {
-            key: "page",
-            header: "Page",
-            value: (row) => fmtDurationShort(row.time_on_page_seconds),
-            mode: "fixed",
-            width: 68,
-            align: "right",
-            semantic: "metric",
-          },
-        ],
-        rows:
-          pending.length > 0
-            ? pending
-            : [
-                {
-                  recipient_name: null,
-                  recipient_email: null,
-                  submitted_at: null,
-                  method: "None recorded",
-                  max_scroll_percent: null,
-                  time_on_page_seconds: null,
-                  active_seconds: null,
-                },
-              ],
-        repeatHeader: true,
-        fontSize: 8.45,
-        headerFontSize: 8.75,
-        lineHeight: 10.2,
-        maxCellLines: 2,
-      });
+      if (pending.length === 0) {
+        note(ctx, "No pending submissions recorded in selected range.", { muted: true, size: 8.9 });
+      } else {
+        dataTable(ctx, "evidence", {
+          columns: [
+            {
+              key: "recipient",
+              header: "Recipient",
+              value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
+              minWidth: 180,
+              maxLines: 2,
+              semantic: "text",
+            },
+            { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 136, semantic: "datetime" },
+            { key: "method", header: "Status", value: (row) => row.method, minWidth: 190, maxLines: 2, semantic: "text" },
+            {
+              key: "scroll",
+              header: "Scroll",
+              value: (row) => fmtScroll(row.max_scroll_percent),
+              mode: "fixed",
+              width: 66,
+              align: "right",
+              semantic: "metric",
+            },
+            {
+              key: "active",
+              header: "Active",
+              value: (row) => fmtDurationShort(row.active_seconds),
+              mode: "fixed",
+              width: 68,
+              align: "right",
+              semantic: "metric",
+            },
+            {
+              key: "page",
+              header: "Page",
+              value: (row) => fmtDurationShort(row.time_on_page_seconds),
+              mode: "fixed",
+              width: 68,
+              align: "right",
+              semantic: "metric",
+            },
+          ],
+          rows: pending,
+          repeatHeader: true,
+          fontSize: 8.85,
+          headerFontSize: 9,
+          lineHeight: 10.8,
+          maxCellLines: 2,
+        });
+      }
     }
   } else {
     section(ctx, "Acknowledgement evidence");
@@ -512,9 +493,9 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
               },
             ],
       repeatHeader: true,
-      fontSize: 8.45,
-      headerFontSize: 8.75,
-      lineHeight: 10.2,
+      fontSize: 8.85,
+      headerFontSize: 9,
+      lineHeight: 10.8,
       maxCellLines: 2,
     });
   }
@@ -543,8 +524,8 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
       ],
       rows: stackReceipts,
       repeatHeader: true,
-      fontSize: 8.5,
-      headerFontSize: 8.7,
+      fontSize: 8.85,
+      headerFontSize: 9,
       maxCellLines: 2,
     });
   }
