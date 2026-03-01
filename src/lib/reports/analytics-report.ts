@@ -129,20 +129,19 @@ function fmtScroll(value: number | null) {
 }
 
 export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Promise<Uint8Array> {
+  const isV3 = input.reportStyleVersion === "v3";
   const ctx = await createReportContext({
     styleVersion: input.reportStyleVersion,
-    theme:
-      input.reportStyleVersion === "v2"
-        ? {
-            pageWidth: 841.89,
-            pageHeight: 595.28,
-            marginTop: 46,
-            marginRight: 38,
-            marginBottom: 44,
-            marginLeft: 38,
-            titleSize: 19.5,
-          }
-        : undefined,
+    theme: {
+      // Analytics exports are table-heavy; keep a stable landscape layout to avoid narrow-column collapse.
+      pageWidth: 841.89,
+      pageHeight: 595.28,
+      marginTop: isV3 ? 44 : 46,
+      marginRight: isV3 ? 36 : 38,
+      marginBottom: isV3 ? 44 : 44,
+      marginLeft: isV3 ? 36 : 38,
+      titleSize: isV3 ? 18.8 : 19.5,
+    },
   });
   const receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
@@ -325,7 +324,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             header: "Scroll",
             value: (row) => fmtScroll(row.max_scroll_percent),
             mode: "fixed",
-            width: 58,
+            width: 66,
             align: "right",
             semantic: "metric",
           },
@@ -334,7 +333,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             header: "Active",
             value: (row) => fmtDurationShort(row.active_seconds),
             mode: "fixed",
-            width: 62,
+            width: 68,
             align: "right",
             semantic: "metric",
           },
@@ -343,7 +342,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             header: "Page",
             value: (row) => fmtDurationShort(row.time_on_page_seconds),
             mode: "fixed",
-            width: 62,
+            width: 68,
             align: "right",
             semantic: "metric",
           },
@@ -395,7 +394,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             header: "Scroll",
             value: (row) => fmtScroll(row.max_scroll_percent),
             mode: "fixed",
-            width: 58,
+            width: 66,
             align: "right",
             semantic: "metric",
           },
@@ -404,7 +403,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             header: "Active",
             value: (row) => fmtDurationShort(row.active_seconds),
             mode: "fixed",
-            width: 62,
+            width: 68,
             align: "right",
             semantic: "metric",
           },
@@ -413,7 +412,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             header: "Page",
             value: (row) => fmtDurationShort(row.time_on_page_seconds),
             mode: "fixed",
-            width: 62,
+            width: 68,
             align: "right",
             semantic: "metric",
           },
@@ -470,7 +469,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           header: "Scroll",
           value: (row) => fmtScroll(row.max_scroll_percent),
           mode: "fixed",
-          width: 52,
+          width: 62,
           align: "right",
           semantic: "metric",
         },
@@ -479,7 +478,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           header: "Active",
           value: (row) => fmtDurationShort(row.active_seconds),
           mode: "fixed",
-          width: 56,
+          width: 66,
           align: "right",
           semantic: "metric",
         },
@@ -488,7 +487,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           header: "Page",
           value: (row) => fmtDurationShort(row.time_on_page_seconds),
           mode: "fixed",
-          width: 56,
+          width: 66,
           align: "right",
           semantic: "metric",
         },
