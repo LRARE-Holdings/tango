@@ -1,6 +1,10 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+const appBaseVersion = String(process.env.NEXT_PUBLIC_APP_BASE_VERSION ?? "1.0").trim() || "1.0";
+const commitSha = String(process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "").trim();
+const appBuildRef = String(process.env.NEXT_PUBLIC_APP_BUILD_REF ?? (commitSha ? commitSha.slice(0, 7) : "")).trim();
+
 const cspDirectives = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -91,6 +95,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_BASE_VERSION: appBaseVersion,
+    NEXT_PUBLIC_APP_BUILD_REF: appBuildRef,
+  },
   async redirects() {
     return [
       {

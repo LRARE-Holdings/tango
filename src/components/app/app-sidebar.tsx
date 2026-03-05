@@ -40,6 +40,10 @@ type SidebarMe = {
   active_workspace_has_company_photo?: boolean | null;
 };
 
+const SIDEBAR_BASE_VERSION = String(process.env.NEXT_PUBLIC_APP_BASE_VERSION ?? "1.0").trim() || "1.0";
+const SIDEBAR_BUILD_REF = String(process.env.NEXT_PUBLIC_APP_BUILD_REF ?? "").trim();
+const SIDEBAR_VERSION = SIDEBAR_BUILD_REF ? `${SIDEBAR_BASE_VERSION}+${SIDEBAR_BUILD_REF}` : SIDEBAR_BASE_VERSION;
+
 function normalizePlan(input: string | null | undefined): Plan {
   const plan = String(input ?? "free").trim().toLowerCase();
   if (plan === "personal" || plan === "pro" || plan === "team" || plan === "enterprise") return plan;
@@ -470,6 +474,8 @@ export function AppSidebar({
             </div>
           ) : null}
         </button>
+
+        {!collapsed ? <div className="app-sidebar-version">v{SIDEBAR_VERSION}</div> : null}
 
         {menuOpen ? (
           <div id={accountMenuId} className="app-account-menu" role="menu" aria-label="Account actions">

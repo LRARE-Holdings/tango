@@ -20,77 +20,80 @@ export type TextBlockOptions = {
   minLastLineChars?: number;
 };
 
-function escapeRegExp(input: string) {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function splitOversizedToken(
-  token: string,
-  maxWidth: number,
-  size: number,
-  measure: (text: string, size: number) => number
-) {
-  if (maxWidth <= 1) return [token];
-  const out: string[] = [];
-  let chunk = "";
-  for (const char of token) {
-    const next = `${chunk}${char}`;
-    if (measure(next, size) <= maxWidth || chunk.length === 0) {
-      chunk = next;
-      continue;
-    }
-    out.push(chunk);
-    chunk = char;
-  }
-  if (chunk) out.push(chunk);
-  return out;
-}
-
-function getFont(ctx: ReportContext, font: ReportFontFamily) {
+function pickFont(ctx: ReportContext, font: ReportFontFamily) {
   if (font === "bold") return ctx.fonts.bold;
   if (font === "mono") return ctx.fonts.mono;
   return ctx.fonts.regular;
 }
 
-function resolveFontFamily(font?: ReportFontFamily, bold?: boolean): ReportFontFamily {
+function resolveFamily(font?: ReportFontFamily, bold?: boolean): ReportFontFamily {
   if (font) return font;
   return bold ? "bold" : "regular";
 }
 
-function applyDeterministicEllipsis(
+function splitTokenByWidth(
+  token: string,
+  maxWidth: number,
+  measure: (value: string) => number
+): string[] {
+  if (!token) return [""];
+  if (measure(token) <= maxWidth) return [token];
+  const out: string[] = [];
+  let cursor = "";
+  for (const char of token) {
+    const next = `${cursor}${char}`;
+    if (measure(next) <= maxWidth || cursor.length === 0) {
+      cursor = next;
+    } else {
+      out.push(cursor);
+      cursor = char;
+    }
+  }
+  if (cursor) out.push(cursor);
+  return out.length > 0 ? out : [token];
+}
+
+function getTokens(input: string, breakChars: string[]) {
+  const escaped = breakChars
+    .filter((token) => token.length === 1 && !/\s/.test(token))
+    .map((token) => token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("");
+  if (!escaped) return input.split(/(\s+)/).filter((token) => token.length > 0);
+  const pattern = new RegExp(`([\\s${escaped}]+)`);
+  return input.split(pattern).filter((token) => token.length > 0);
+}
+
+function truncateLastLine(
   lines: string[],
   maxWidth: number,
-  size: number,
-  minLastLineChars: number,
-  measure: (text: string, atSize: number) => number
+  measure: (value: string) => number,
+  minLastLineChars: number
 ) {
+  if (lines.length === 0) return lines;
   const out = [...lines];
-  if (out.length === 0) return out;
-
   const ellipsis = "…";
-  const lastIndex = out.length - 1;
-  let last = (out[lastIndex] ?? "").trimEnd();
+  const i = out.length - 1;
+  let last = out[i].trimEnd();
 
-  while (last.length > 1 && measure(`${last}${ellipsis}`, size) > maxWidth) {
+  while (last.length > 1 && measure(`${last}${ellipsis}`) > maxWidth) {
     last = last.slice(0, -1);
   }
 
-  // Avoid a visually awkward 1-3 character final line after truncation.
-  if (last.length < minLastLineChars && lastIndex > 0) {
-    const prev = (out[lastIndex - 1] ?? "").trimEnd();
-    const tokens = prev.split(/\s+/).filter(Boolean);
-    while (last.length < minLastLineChars && tokens.length > 1) {
+  if (last.length < minLastLineChars && i > 0) {
+    const previous = out[i - 1].trimEnd();
+    const tokens = previous.split(/\s+/).filter(Boolean);
+    while (tokens.length > 1 && last.length < minLastLineChars) {
       const moved = tokens.pop();
       if (!moved) break;
       last = `${moved} ${last}`.trim();
-      while (last.length > 1 && measure(`${last}${ellipsis}`, size) > maxWidth) {
+      while (last.length > 1 && measure(`${last}${ellipsis}`) > maxWidth) {
         last = last.slice(0, -1);
       }
     }
-    out[lastIndex - 1] = tokens.join(" ").trimEnd() || " ";
+    out[i - 1] = tokens.join(" ").trimEnd() || " ";
   }
 
-  out[lastIndex] = last ? `${last}${ellipsis}` : ellipsis;
+  out[i] = last ? `${last}${ellipsis}` : ellipsis;
   return out;
 }
 
@@ -102,22 +105,15 @@ export function wrapTextToLines(
   font: ReportFontFamily | boolean = false,
   wordBreaks: string[] = DEFAULT_REPORT_WORD_BREAKS
 ) {
-  if (maxWidth <= 1) return [String(text ?? "")];
   const family = typeof font === "boolean" ? (font ? "bold" : "regular") : font;
-  const resolvedFont = getFont(ctx, family);
-  const breakChars = wordBreaks
-    .filter((token) => token.length === 1 && !/\s/.test(token))
-    .map(escapeRegExp)
-    .join("");
-  const tokenPattern = new RegExp(`([\\s${breakChars}]+)`);
+  const resolvedFont = pickFont(ctx, family);
+  if (maxWidth <= 1) return [String(text ?? "") || " "];
 
+  const paragraphs = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
   const lines: string[] = [];
-  const paragraphs = String(text ?? "")
-    .replace(/\r\n/g, "\n")
-    .split("\n");
 
   for (const paragraph of paragraphs) {
-    const tokens = paragraph.split(tokenPattern).filter((token) => token.length > 0);
+    const tokens = getTokens(paragraph, wordBreaks);
     let line = "";
 
     for (const token of tokens) {
@@ -127,12 +123,12 @@ export function wrapTextToLines(
         continue;
       }
 
-      const cleanToken = token.trim();
-      if (cleanToken && resolvedFont.widthOfTextAtSize(cleanToken, size) > maxWidth) {
-        const parts = splitOversizedToken(cleanToken, maxWidth, size, (value, fSize) =>
-          resolvedFont.widthOfTextAtSize(value, fSize)
-        );
+      const clean = token.trim();
+      if (clean && resolvedFont.widthOfTextAtSize(clean, size) > maxWidth) {
         if (line.trim().length > 0) lines.push(line.trimEnd());
+        const parts = splitTokenByWidth(clean, maxWidth, (value) =>
+          resolvedFont.widthOfTextAtSize(value, size)
+        );
         lines.push(...parts.slice(0, -1));
         line = parts.at(-1) ?? "";
       } else {
@@ -141,10 +137,10 @@ export function wrapTextToLines(
       }
     }
 
-    lines.push(line.trimEnd());
+    lines.push(line.trimEnd() || " ");
   }
 
-  return lines.map((line) => (line.length === 0 ? " " : line));
+  return lines;
 }
 
 export function drawTextBlock(ctx: ReportContext, options: TextBlockOptions) {
@@ -153,36 +149,39 @@ export function drawTextBlock(ctx: ReportContext, options: TextBlockOptions) {
   const maxWidth = options.maxWidth ?? ctx.cursor.maxX - x;
   const size = options.size ?? ctx.theme.bodySize;
   const lineHeight = options.lineHeight ?? Math.max(size + 2, ctx.theme.lineHeight);
-  const family = resolveFontFamily(options.font, options.bold);
-  const font = getFont(ctx, family);
-  const wordBreaks = options.wordBreaks ?? ctx.theme.wordBreaks;
+  const family = resolveFamily(options.font, options.bold);
+  const resolvedFont = pickFont(ctx, family);
+  const wrapped = wrapTextToLines(
+    ctx,
+    options.text,
+    maxWidth,
+    size,
+    family,
+    options.wordBreaks ?? ctx.theme.wordBreaks
+  );
 
-  const wrapped = wrapTextToLines(ctx, options.text, maxWidth, size, family, wordBreaks);
   const maxLines = options.maxLines && options.maxLines > 0 ? options.maxLines : undefined;
   const lines = maxLines ? wrapped.slice(0, maxLines) : wrapped;
 
   if (maxLines && wrapped.length > maxLines && (options.truncateMode ?? "ellipsis") !== "clip") {
-    const minLastLineChars = Math.max(1, options.minLastLineChars ?? 4);
-    const adjusted = applyDeterministicEllipsis(
+    const adjusted = truncateLastLine(
       lines,
       maxWidth,
-      size,
-      minLastLineChars,
-      (value, atSize) => font.widthOfTextAtSize(value, atSize)
+      (value) => resolvedFont.widthOfTextAtSize(value, size),
+      Math.max(1, options.minLastLineChars ?? 4)
     );
     lines.splice(0, lines.length, ...adjusted);
   }
 
-  const text = lines.join("\n");
-  ctx.page.drawText(text, {
+  ctx.page.drawText(lines.join("\n"), {
     x,
     y,
-    font,
+    font: resolvedFont,
     size,
     color: options.color ?? ctx.theme.colors.text,
     lineHeight,
     maxWidth,
-    wordBreaks,
+    wordBreaks: options.wordBreaks ?? ctx.theme.wordBreaks,
   });
 
   const consumedHeight = lines.length * lineHeight;
@@ -193,12 +192,16 @@ export function drawTextBlock(ctx: ReportContext, options: TextBlockOptions) {
   };
 }
 
-export function measureTextBlockHeight(ctx: ReportContext, options: Omit<TextBlockOptions, "x" | "y">) {
+export function measureTextBlockHeight(
+  ctx: ReportContext,
+  options: Omit<TextBlockOptions, "x" | "y">
+) {
   const x = ctx.cursor.x;
   const maxWidth = options.maxWidth ?? ctx.cursor.maxX - x;
   const size = options.size ?? ctx.theme.bodySize;
   const lineHeight = options.lineHeight ?? Math.max(size + 2, ctx.theme.lineHeight);
-  const family = resolveFontFamily(options.font, options.bold);
+  const family = resolveFamily(options.font, options.bold);
+
   const lines = wrapTextToLines(
     ctx,
     options.text,
@@ -207,7 +210,8 @@ export function measureTextBlockHeight(ctx: ReportContext, options: Omit<TextBlo
     family,
     options.wordBreaks ?? ctx.theme.wordBreaks
   );
+
   const maxLines = options.maxLines && options.maxLines > 0 ? options.maxLines : undefined;
-  const lineCount = maxLines ? Math.min(lines.length, maxLines) : lines.length;
-  return lineCount * lineHeight;
+  const visible = maxLines ? Math.min(maxLines, lines.length) : lines.length;
+  return visible * lineHeight;
 }

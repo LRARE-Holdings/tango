@@ -65,4 +65,3 @@ export function getDefaultReportTheme(styleVersion: ReportStyleVersion = "v2"): 
 
 export const DEFAULT_REPORT_THEME = getDefaultReportTheme("v2");
 export const DEFAULT_REPORT_WORD_BREAKS = [...DEFAULT_REPORT_THEME.wordBreaks];
-

@@ -3,9 +3,9 @@ import {
   createReportContext,
   embedImageIfPresent,
   saveReport,
-  type ReportContext,
 } from "@/lib/reports/engine/core";
 import {
+  dataTable,
   footer,
   header,
   keyValueList,
@@ -14,7 +14,6 @@ import {
   section,
   watermark,
 } from "@/lib/reports/engine/composer";
-import { measureTextBlockHeight } from "@/lib/reports/engine/text";
 import { applyReportPdfMetadata } from "@/lib/reports/pdf-metadata";
 
 export type DocumentEvidenceCompletion = {
@@ -61,9 +60,9 @@ const UTC_FORMATTER = new Intl.DateTimeFormat("en-GB", {
 
 function fmtUtc(iso: string | null) {
   if (!iso) return "--";
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return "--";
-  return `${UTC_FORMATTER.format(d).replace(",", "")} UTC`;
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "--";
+  return `${UTC_FORMATTER.format(date).replace(",", "")} UTC`;
 }
 
 function fmtDuration(seconds: number | null) {
@@ -79,31 +78,22 @@ function fmtScroll(value: number | null) {
   return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
 }
 
-function estimateKeyValueHeight(ctx: ReportContext, key: string, value: string, labelWidth: number) {
-  const lineHeight = Math.max(ctx.theme.lineHeight, ctx.theme.bodySize + 3.4);
-  const valueWidth = Math.max(120, ctx.cursor.maxX - ctx.cursor.minX - labelWidth);
-  const labelHeight = measureTextBlockHeight(ctx, {
-    text: key,
-    maxWidth: Math.max(72, labelWidth - 8),
-    size: ctx.theme.bodySize,
-    lineHeight,
-    font: "bold",
-  });
-  const valueHeight = measureTextBlockHeight(ctx, {
-    text: value,
-    maxWidth: valueWidth,
-    size: ctx.theme.bodySize,
-    lineHeight,
-  });
-  return Math.max(labelHeight, valueHeight) + 6;
+function recipientLabel(row: DocumentEvidenceCompletion) {
+  const name = row.recipient_name?.trim() ?? "";
+  const email = row.recipient_email?.trim() ?? "";
+  if (name && email) return `${name} <${email}>`;
+  if (name) return name;
+  if (email) return email;
+  return "Recipient unavailable";
 }
 
 export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInput) {
   let receiptLogo: PDFImage | null = null;
+
   const ctx = await createReportContext({
     styleVersion: input.reportStyleVersion,
-    onPageAdded: (pageCtx) => {
-      watermark(pageCtx, { enabled: input.watermarkEnabled, receiptLogo });
+    onPageAdded: (nextCtx) => {
+      watermark(nextCtx, { enabled: input.watermarkEnabled, receiptLogo });
     },
   });
 
@@ -113,19 +103,22 @@ export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInpu
 
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
-  const generatedLabel = fmtUtc(
-    Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString()
-  );
+  const generatedLabel = fmtUtc(metadataDate.toISOString());
   const workspaceLabel = input.workspaceName.trim();
   const subtitle =
     workspaceLabel && workspaceLabel.toLowerCase() !== "receipt"
       ? `${workspaceLabel} delivery evidence and acknowledgement record.`
       : "Delivery evidence and acknowledgement record.";
-  const acknowledgements = input.completions.filter((row) => row.acknowledged).length;
-  const latestAck =
-    [...input.completions]
-      .filter((row) => row.acknowledged && row.submitted_at)
-      .sort((a, b) => String(b.submitted_at).localeCompare(String(a.submitted_at)))[0]?.submitted_at ?? null;
+
+  const completions = [...input.completions].sort(
+    (a, b) =>
+      String(b.submitted_at ?? "").localeCompare(String(a.submitted_at ?? "")) ||
+      recipientLabel(a).localeCompare(recipientLabel(b))
+  );
+
+  const acknowledgementCount = completions.filter((row) => row.acknowledged).length;
+  const latestAcknowledgement =
+    completions.find((row) => row.acknowledged && row.submitted_at)?.submitted_at ?? null;
 
   header(ctx, {
     title: input.document.title,
@@ -141,14 +134,14 @@ export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInpu
   kpiRow(
     ctx,
     [
-      { label: "STATUS", value: acknowledgements > 0 ? "Acknowledged" : "Pending" },
-      { label: "ACKNOWLEDGEMENTS", value: String(acknowledgements) },
-      { label: "LATEST ACK", value: fmtUtc(latestAck) },
+      { label: "Status", value: acknowledgementCount > 0 ? "Acknowledged" : "Pending" },
+      { label: "Acknowledgements", value: String(acknowledgementCount) },
+      { label: "Latest acknowledgement", value: fmtUtc(latestAcknowledgement) },
     ],
     { columns: 3 }
   );
 
-  section(ctx, "Document details", "Reference and integrity fields");
+  section(ctx, "Document Details", "Reference and integrity fields");
   keyValueList(
     ctx,
     [
@@ -163,57 +156,111 @@ export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInpu
 
   section(
     ctx,
-    "Completions",
-    `${input.completions.length} total submission${input.completions.length === 1 ? "" : "s"}`
-  );
-
-  const completions = [...input.completions].sort(
-    (a, b) =>
-      String(b.submitted_at ?? "").localeCompare(String(a.submitted_at ?? "")) ||
-      String(a.recipient_email ?? "").localeCompare(String(b.recipient_email ?? ""))
+    "Completion Evidence",
+    `${completions.length} submission${completions.length === 1 ? "" : "s"}`
   );
 
   if (completions.length === 0) {
-    note(ctx, "No completions recorded yet.", { muted: true });
-  }
-
-  for (const completion of completions) {
-    const recipientName = completion.recipient_name?.trim() || completion.recipient_email?.trim() || "Recipient";
-    const recipientSecondary =
-      completion.recipient_name && completion.recipient_email ? completion.recipient_email : null;
-    const engagementValue = `Scroll ${fmtScroll(completion.max_scroll_percent)} | Active ${fmtDuration(
-      completion.active_seconds
-    )} | Time on page ${fmtDuration(completion.time_on_page_seconds)}`;
-
-    const labelWidth = ctx.theme.keyValueLabelWidth;
-    const openingRowsHeight =
-      estimateKeyValueHeight(ctx, "Status", completion.acknowledged ? "Acknowledged" : "Not acknowledged", labelWidth) +
-      estimateKeyValueHeight(ctx, "Submitted", fmtUtc(completion.submitted_at), labelWidth) +
-      estimateKeyValueHeight(ctx, "Engagement", engagementValue, labelWidth);
-    ctx.ensureSpace(openingRowsHeight + 28);
-
-    section(ctx, recipientName, recipientSecondary ?? undefined);
-    keyValueList(
-      ctx,
-      [
-        { key: "Status", value: completion.acknowledged ? "Acknowledged" : "Not acknowledged" },
-        { key: "Submitted", value: fmtUtc(completion.submitted_at) },
-        { key: "Engagement", value: engagementValue },
-        { key: "IP address", value: completion.ip ?? "--", valueFont: "mono" },
-        { key: "User agent", value: completion.user_agent ?? "--" },
+    note(ctx, "No completion events are recorded for this document yet.", { muted: true });
+  } else {
+    dataTable(ctx, "evidence", {
+      columns: [
+        {
+          key: "recipient",
+          header: "Recipient",
+          value: (row) => recipientLabel(row),
+          minWidth: 170,
+          maxLines: 2,
+          semantic: "text",
+        },
+        {
+          key: "status",
+          header: "Status",
+          value: (row) => (row.acknowledged ? "Acknowledged" : "Not acknowledged"),
+          mode: "fixed",
+          width: 110,
+          semantic: "status",
+        },
+        {
+          key: "submitted",
+          header: "Submitted",
+          value: (row) => fmtUtc(row.submitted_at),
+          minWidth: 124,
+          semantic: "datetime",
+        },
+        {
+          key: "scroll",
+          header: "Scroll",
+          value: (row) => fmtScroll(row.max_scroll_percent),
+          mode: "fixed",
+          width: 62,
+          semantic: "metric",
+        },
+        {
+          key: "active",
+          header: "Active",
+          value: (row) => fmtDuration(row.active_seconds),
+          mode: "fixed",
+          width: 70,
+          semantic: "metric",
+        },
+        {
+          key: "page",
+          header: "Time on page",
+          value: (row) => fmtDuration(row.time_on_page_seconds),
+          mode: "fixed",
+          width: 90,
+          semantic: "metric",
+        },
       ],
-      { gapAfter: Math.max(5, ctx.theme.sectionGap - 2) }
-    );
+      rows: completions,
+      repeatHeader: true,
+      maxCellLines: 2,
+    });
+
+    section(ctx, "Technical Trace");
+    dataTable(ctx, "evidence", {
+      columns: [
+        {
+          key: "recipient",
+          header: "Recipient",
+          value: (row) => recipientLabel(row),
+          minWidth: 170,
+          maxLines: 2,
+          semantic: "text",
+        },
+        {
+          key: "ip",
+          header: "IP address",
+          value: (row) => row.ip ?? "--",
+          minWidth: 88,
+          semantic: "identifier",
+        },
+        {
+          key: "userAgent",
+          header: "User agent",
+          value: (row) => row.user_agent ?? "--",
+          minWidth: 300,
+          maxLines: 2,
+          semantic: "text",
+        },
+      ],
+      rows: completions,
+      repeatHeader: true,
+      maxCellLines: 2,
+    });
   }
 
   footer(ctx, "Document Evidence Report", {
     poweredByLogo: receiptLogo,
   });
+
   applyReportPdfMetadata(ctx.pdf, {
     title: "Document Evidence Record",
     subject: "Acknowledgement and delivery evidence export",
     generatedAt: metadataDate,
     keywords: ["evidence", "acknowledgement", "audit"],
   });
+
   return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }

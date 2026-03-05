@@ -18,35 +18,27 @@ type FooterBrandingArgs = {
 };
 
 function truncateToWidth(
-  text: string,
+  value: string,
   maxWidth: number,
-  measure: (value: string) => number
+  measure: (text: string) => number
 ) {
-  const source = text.trim();
-  if (!source) return "";
-  if (measure(source) <= maxWidth) return source;
+  const text = value.trim();
+  if (!text) return "";
+  if (measure(text) <= maxWidth) return text;
   if (maxWidth <= 4) return "";
 
   const ellipsis = "…";
-  let trimmed = source;
-  while (trimmed.length > 1 && measure(`${trimmed}${ellipsis}`) > maxWidth) {
-    trimmed = trimmed.slice(0, -1);
+  let current = text;
+  while (current.length > 1 && measure(`${current}${ellipsis}`) > maxWidth) {
+    current = current.slice(0, -1);
   }
-  return trimmed ? `${trimmed}${ellipsis}` : ellipsis;
+  return current ? `${current}${ellipsis}` : ellipsis;
 }
 
 export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
-  const bandHeight = ctx.theme.headerBandHeight;
   const top = ctx.theme.pageHeight;
+  const bandHeight = ctx.theme.headerBandHeight;
   const contentWidth = ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight;
-  const titleLineHeight = ctx.theme.titleSize + 4;
-  const subtitleLineHeight = ctx.theme.bodySize + 3.2;
-  const rightMeta = args.rightMeta?.trim() ?? "";
-  const rightMetaWidth = rightMeta
-    ? ctx.fonts.regular.widthOfTextAtSize(rightMeta, ctx.theme.smallSize)
-    : 0;
-  const rightMetaGap = rightMeta ? 16 : 0;
-  const rightMetaX = ctx.theme.pageWidth - ctx.theme.marginRight - rightMetaWidth;
 
   ctx.page.drawRectangle({
     x: 0,
@@ -55,58 +47,61 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
     height: bandHeight,
     color: ctx.theme.colors.panel,
   });
-  ctx.page.drawRectangle({
-    x: 0,
-    y: top - bandHeight,
-    width: 7,
-    height: bandHeight,
-    color: ctx.theme.colors.accent,
-  });
 
-  const logoX = ctx.theme.marginLeft;
-  const logoTop = top - 21;
-  const maxHeaderBrandWidth = Math.max(24, rightMetaX - rightMetaGap - logoX);
+  const metaText = args.rightMeta?.trim() ?? "";
+  const metaWidth = metaText
+    ? ctx.fonts.regular.widthOfTextAtSize(metaText, ctx.theme.smallSize)
+    : 0;
+  const metaX = ctx.theme.pageWidth - ctx.theme.marginRight - metaWidth;
+
+  const brandLeft = ctx.theme.marginLeft;
+  const brandTop = top - 18;
+  const brandMaxWidth = Math.max(24, metaX - brandLeft - 14);
+
   if (args.logo) {
-    const targetH = 19;
-    const byHeightScale = targetH / args.logo.height;
-    const widthByHeight = args.logo.width * byHeightScale;
-    const preferredWidth = Math.max(48, Math.min(200, Math.floor(Number(args.logoWidthPx ?? widthByHeight))));
-    const targetW = Math.max(24, Math.min(widthByHeight, preferredWidth, maxHeaderBrandWidth));
-    const targetRenderH = targetW * (args.logo.height / args.logo.width);
+    const targetHeight = 17.5;
+    const scale = targetHeight / args.logo.height;
+    const naturalWidth = args.logo.width * scale;
+    const configuredWidth = Math.max(
+      40,
+      Math.min(190, Math.floor(Number(args.logoWidthPx ?? naturalWidth)))
+    );
+    const targetWidth = Math.max(24, Math.min(configuredWidth, naturalWidth, brandMaxWidth));
+    const renderHeight = targetWidth * (args.logo.height / args.logo.width);
     ctx.page.drawImage(args.logo, {
-      x: logoX,
-      y: logoTop - targetRenderH,
-      width: targetW,
-      height: targetRenderH,
+      x: brandLeft,
+      y: brandTop - renderHeight,
+      width: targetWidth,
+      height: renderHeight,
     });
   } else if (args.brandName && args.brandName.trim().toLowerCase() !== "receipt") {
     const brandText = truncateToWidth(
-      args.brandName.trim(),
-      maxHeaderBrandWidth,
-      (value) => ctx.fonts.bold.widthOfTextAtSize(value, 12.2)
+      args.brandName,
+      brandMaxWidth,
+      (text) => ctx.fonts.bold.widthOfTextAtSize(text, 11.8)
     );
     if (brandText) {
       ctx.page.drawText(brandText, {
-        x: logoX,
-        y: logoTop - 12.5,
+        x: brandLeft,
+        y: brandTop - 11.4,
         font: ctx.fonts.bold,
-        size: 12.2,
+        size: 11.8,
         color: ctx.theme.colors.accent,
       });
     }
   }
 
-  if (rightMeta) {
-    const metaText = truncateToWidth(
-      rightMeta,
-      Math.max(24, ctx.theme.pageWidth - ctx.theme.marginRight - (logoX + 120)),
-      (value) => ctx.fonts.regular.widthOfTextAtSize(value, ctx.theme.smallSize)
+  if (metaText) {
+    const safeMeta = truncateToWidth(
+      metaText,
+      Math.max(24, ctx.theme.pageWidth - (ctx.theme.marginRight + ctx.theme.marginLeft + 130)),
+      (text) => ctx.fonts.regular.widthOfTextAtSize(text, ctx.theme.smallSize)
     );
-    if (metaText) {
-      const width = ctx.fonts.regular.widthOfTextAtSize(metaText, ctx.theme.smallSize);
-      ctx.page.drawText(metaText, {
-        x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
-        y: top - 41,
+    if (safeMeta) {
+      const safeWidth = ctx.fonts.regular.widthOfTextAtSize(safeMeta, ctx.theme.smallSize);
+      ctx.page.drawText(safeMeta, {
+        x: ctx.theme.pageWidth - ctx.theme.marginRight - safeWidth,
+        y: top - 37,
         font: ctx.fonts.regular,
         size: ctx.theme.smallSize,
         color: ctx.theme.colors.subtle,
@@ -114,27 +109,32 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
     }
   }
 
-  const titleStartY = top - bandHeight - (args.eyebrow ? 28 : 20);
+  const headingStartY = top - bandHeight - (args.eyebrow ? 26 : 20);
   if (args.eyebrow) {
-    ctx.page.drawText(args.eyebrow, {
-      x: logoX,
-      y: titleStartY + 16,
-      font: ctx.fonts.bold,
+    drawTextBlock(ctx, {
+      text: args.eyebrow,
+      x: ctx.theme.marginLeft,
+      y: headingStartY + 15,
+      maxWidth: contentWidth,
+      font: "bold",
       size: ctx.theme.smallSize,
-      color: ctx.theme.colors.accent,
+      lineHeight: ctx.theme.smallSize + 2.2,
+      color: ctx.theme.colors.subtle,
+      maxLines: 1,
     });
   }
+
   const titleResult = drawTextBlock(ctx, {
     text: args.title,
     x: ctx.theme.marginLeft,
-    y: titleStartY,
+    y: headingStartY,
     maxWidth: contentWidth,
-    bold: true,
+    font: "bold",
     size: ctx.theme.titleSize,
-    lineHeight: titleLineHeight,
+    lineHeight: ctx.theme.titleSize + 3.8,
   });
 
-  let y = titleResult.nextY - 7;
+  let y = titleResult.nextY - 5;
   if (args.subtitle) {
     const subtitleResult = drawTextBlock(ctx, {
       text: args.subtitle,
@@ -142,112 +142,131 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
       y,
       maxWidth: contentWidth,
       size: ctx.theme.bodySize,
-      lineHeight: subtitleLineHeight,
+      lineHeight: ctx.theme.bodySize + 3,
       color: ctx.theme.colors.subtle,
     });
     y = subtitleResult.nextY;
   }
 
+  const dividerY = y - 4;
   ctx.page.drawLine({
-    start: { x: ctx.theme.marginLeft, y: y - 4 },
-    end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: y - 4 },
+    start: { x: ctx.theme.marginLeft, y: dividerY },
+    end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: dividerY },
     thickness: 1,
     color: ctx.theme.colors.strongBorder,
   });
-  ctx.cursor.y = y - (ctx.theme.sectionGap + 9);
+
+  ctx.cursor.y = dividerY - (ctx.theme.sectionGap + 6);
 }
 
 function ensureWidowOrphanHeadroom(ctx: ReportContext, lineHeight: number) {
-  const minimum = Math.max(1, ctx.theme.widowOrphanMinLines) * lineHeight;
-  if (ctx.remainingHeight() < minimum) {
+  const minLines = Math.max(1, ctx.theme.widowOrphanMinLines);
+  if (ctx.remainingHeight() < minLines * lineHeight) {
     ctx.addPage();
   }
 }
 
 export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?: string) {
-  const labelX = ctx.cursor.minX + 8;
-  const textWidth = ctx.cursor.maxX - labelX;
-  const headingLineHeight = ctx.theme.headingSize + 3.3;
-  const subtitleLineHeight = ctx.theme.smallSize + 3.2;
+  const contentX = ctx.cursor.minX + 10;
+  const contentWidth = ctx.cursor.maxX - contentX - 6;
+  const headingLineHeight = ctx.theme.headingSize + 3;
+  const subtitleLineHeight = ctx.theme.smallSize + 3;
+
   const labelHeight = measureTextBlockHeight(ctx, {
     text: label,
-    maxWidth: textWidth,
+    maxWidth: contentWidth,
     size: ctx.theme.headingSize,
     lineHeight: headingLineHeight,
     font: "bold",
   });
+
   const subtitleHeight = subtitle
     ? measureTextBlockHeight(ctx, {
         text: subtitle,
-        maxWidth: textWidth,
+        maxWidth: contentWidth,
         size: ctx.theme.smallSize,
         lineHeight: subtitleLineHeight,
       })
     : 0;
-  const needed = Math.max(13.5, labelHeight) + subtitleHeight + 16;
-  ensureWidowOrphanHeadroom(ctx, Math.max(headingLineHeight, subtitleLineHeight));
-  ctx.ensureSpace(needed);
 
-  const headingStartY = ctx.cursor.y;
+  const boxPaddingTop = 6;
+  const boxPaddingBottom = 5;
+  const boxHeight = labelHeight + subtitleHeight + boxPaddingTop + boxPaddingBottom + (subtitle ? 1 : 0);
+
+  ensureWidowOrphanHeadroom(ctx, Math.max(headingLineHeight, subtitleLineHeight));
+  ctx.ensureSpace(boxHeight + 6);
+
+  const top = ctx.cursor.y;
+  const bottom = top - boxHeight;
+
+  ctx.page.drawRectangle({
+    x: ctx.cursor.minX,
+    y: bottom,
+    width: ctx.cursor.maxX - ctx.cursor.minX,
+    height: boxHeight,
+    color: ctx.theme.colors.panelAlt,
+  });
+
+  ctx.page.drawRectangle({
+    x: ctx.cursor.minX,
+    y: bottom + 3,
+    width: 2.6,
+    height: Math.max(8, boxHeight - 6),
+    color: ctx.theme.colors.accent,
+  });
+
   const labelResult = drawTextBlock(ctx, {
     text: label,
-    x: labelX,
-    y: ctx.cursor.y,
-    maxWidth: textWidth,
+    x: contentX,
+    y: top - boxPaddingTop - ctx.theme.headingSize,
+    maxWidth: contentWidth,
     font: "bold",
     size: ctx.theme.headingSize,
     lineHeight: headingLineHeight,
   });
-  ctx.cursor.y = labelResult.nextY - 2;
 
   if (subtitle) {
-    const result = drawTextBlock(ctx, {
+    drawTextBlock(ctx, {
       text: subtitle,
-      x: labelX,
-      y: ctx.cursor.y,
-      maxWidth: textWidth,
+      x: contentX,
+      y: labelResult.nextY - 1,
+      maxWidth: contentWidth,
       size: ctx.theme.smallSize,
       lineHeight: subtitleLineHeight,
       color: ctx.theme.colors.subtle,
     });
-    ctx.cursor.y = result.nextY - 2;
   }
 
-  const headingEndY = ctx.cursor.y;
-  const headingGlyphHeight = ctx.fonts.bold.heightAtSize(ctx.theme.headingSize, { descender: false });
-  const accentTop = headingStartY + Math.max(4, headingGlyphHeight * 0.85);
-  const accentBottom = headingEndY + Math.max(1.4, ctx.theme.baseline * 0.35);
-  const accentHeight = Math.max(13.5, accentTop - accentBottom);
-  ctx.page.drawRectangle({
-    x: ctx.cursor.minX,
-    y: accentBottom,
-    width: 3.2,
-    height: accentHeight,
-    color: ctx.theme.colors.accent,
-  });
-
-  const dividerY = ctx.cursor.y - 2;
+  const dividerY = bottom;
   ctx.page.drawLine({
     start: { x: ctx.cursor.minX, y: dividerY },
     end: { x: ctx.cursor.maxX, y: dividerY },
     thickness: 1,
     color: ctx.theme.colors.border,
   });
-  ctx.cursor.y = dividerY - (ctx.theme.sectionGap + 2);
+
+  ctx.cursor.y = dividerY - ctx.theme.sectionGap;
 }
 
-export function drawParagraph(ctx: ReportContext, text: string, options?: { muted?: boolean; size?: number; maxWidth?: number }) {
+export function drawParagraph(
+  ctx: ReportContext,
+  text: string,
+  options?: { muted?: boolean; size?: number; maxWidth?: number }
+) {
   const size = options?.size ?? ctx.theme.bodySize;
-  const lineHeight = Math.max(size + 2.8, size * 1.26);
+  const lineHeight = Math.max(size + 2.6, size * 1.24);
   const maxWidth = options?.maxWidth ?? ctx.cursor.maxX - ctx.cursor.minX;
+
   const needed = measureTextBlockHeight(ctx, {
     text,
     maxWidth,
     size,
     lineHeight,
   });
+
   ensureWidowOrphanHeadroom(ctx, lineHeight);
   ctx.ensureSpace(needed + 2);
+
   const result = drawTextBlock(ctx, {
     text,
     x: ctx.cursor.minX,
@@ -257,6 +276,7 @@ export function drawParagraph(ctx: ReportContext, text: string, options?: { mute
     lineHeight,
     color: options?.muted ? ctx.theme.colors.subtle : ctx.theme.colors.text,
   });
+
   ctx.cursor.y = result.nextY - 2;
 }
 
@@ -268,31 +288,35 @@ export function drawKeyValueRow(
 ) {
   const labelWidth = options?.labelWidth ?? ctx.theme.keyValueLabelWidth;
   const valueWidth = Math.max(120, ctx.cursor.maxX - ctx.cursor.minX - labelWidth);
-  const lineHeight = Math.max(ctx.theme.lineHeight, ctx.theme.bodySize + 3.4);
-  const labelHeight = measureTextBlockHeight(ctx, {
+  const lineHeight = Math.max(ctx.theme.lineHeight, ctx.theme.bodySize + 3.2);
+
+  const keyHeight = measureTextBlockHeight(ctx, {
     text: key,
-    maxWidth: Math.max(72, labelWidth - 8),
+    maxWidth: Math.max(70, labelWidth - 10),
+    font: "bold",
     size: ctx.theme.bodySize,
     lineHeight,
-    font: "bold",
   });
+
   const valueHeight = measureTextBlockHeight(ctx, {
     text: value,
     maxWidth: valueWidth,
     size: ctx.theme.bodySize,
     lineHeight,
+    font: options?.valueFont ?? "regular",
   });
-  const needed = Math.max(labelHeight, valueHeight) + 4;
+
+  const needed = Math.max(keyHeight, valueHeight) + 4;
   ensureWidowOrphanHeadroom(ctx, lineHeight);
   ctx.ensureSpace(needed + 2);
 
-  const labelResult = drawTextBlock(ctx, {
+  const keyResult = drawTextBlock(ctx, {
     text: key,
     x: ctx.cursor.minX,
     y: ctx.cursor.y,
-    maxWidth: labelWidth - 8,
-    size: ctx.theme.bodySize,
+    maxWidth: labelWidth - 10,
     font: "bold",
+    size: ctx.theme.bodySize,
     lineHeight,
     color: ctx.theme.colors.muted,
   });
@@ -302,12 +326,12 @@ export function drawKeyValueRow(
     x: ctx.cursor.minX + labelWidth,
     y: ctx.cursor.y,
     maxWidth: valueWidth,
-    size: ctx.theme.bodySize,
     font: options?.valueFont ?? "regular",
+    size: ctx.theme.bodySize,
     lineHeight,
   });
 
-  ctx.cursor.y = Math.min(labelResult.nextY, valueResult.nextY) - 2;
+  ctx.cursor.y = Math.min(keyResult.nextY, valueResult.nextY) - 2;
 }
 
 export function drawMetricCards(
@@ -316,18 +340,20 @@ export function drawMetricCards(
   options?: { columns?: number }
 ) {
   if (metrics.length === 0) return;
+
   const columns = Math.max(1, Math.min(options?.columns ?? metrics.length, metrics.length));
   const gap = ctx.theme.gutter;
   const width = (ctx.cursor.maxX - ctx.cursor.minX - gap * (columns - 1)) / columns;
-  const cardPadX = 10;
-  const cardPadY = 10;
-  const labelLineHeight = ctx.theme.smallSize + 2.4;
-  const valueSize = ctx.theme.bodySize + 1;
+  const labelLineHeight = ctx.theme.smallSize + 2.2;
+  const valueSize = ctx.theme.bodySize + 0.8;
   const valueLineHeight = valueSize + 2.4;
-  const contentWidth = Math.max(36, width - cardPadX * 2);
-  const measured = metrics.map((item) => {
+  const padX = 10;
+  const padY = 9;
+  const contentWidth = Math.max(36, width - padX * 2);
+
+  const measured = metrics.map((metric) => {
     const labelHeight = measureTextBlockHeight(ctx, {
-      text: item.label,
+      text: metric.label,
       maxWidth: contentWidth,
       size: ctx.theme.smallSize,
       lineHeight: labelLineHeight,
@@ -335,7 +361,7 @@ export function drawMetricCards(
       maxLines: 2,
     });
     const valueHeight = measureTextBlockHeight(ctx, {
-      text: item.value,
+      text: metric.value,
       maxWidth: contentWidth,
       size: valueSize,
       lineHeight: valueLineHeight,
@@ -344,6 +370,7 @@ export function drawMetricCards(
     });
     return { labelHeight, valueHeight };
   });
+
   const rows = Math.ceil(metrics.length / columns);
   const rowHeights: number[] = [];
   for (let row = 0; row < rows; row += 1) {
@@ -353,105 +380,115 @@ export function drawMetricCards(
       ctx.theme.metricCardMinHeight,
       ...measured
         .slice(start, end)
-        .map((item) => Math.ceil(item.labelHeight + item.valueHeight + cardPadY * 2 + 7))
+        .map((item) => Math.ceil(item.labelHeight + item.valueHeight + padY * 2 + 5))
     );
     rowHeights.push(rowHeight);
   }
-  const totalHeight = rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0) + gap * (rows - 1);
+
+  const totalHeight = rowHeights.reduce((sum, h) => sum + h, 0) + gap * (rows - 1);
   ctx.ensureSpace(totalHeight + 2);
 
   let index = 0;
-  let yTop = ctx.cursor.y;
+  let rowTop = ctx.cursor.y;
   for (let row = 0; row < rows; row += 1) {
-    const cardHeight = rowHeights[row];
+    const rowHeight = rowHeights[row];
     for (let col = 0; col < columns; col += 1) {
       if (index >= metrics.length) break;
-      const item = metrics[index];
+      const metric = metrics[index];
       const x = ctx.cursor.minX + col * (width + gap);
+
       ctx.page.drawRectangle({
         x,
-        y: yTop - cardHeight,
+        y: rowTop - rowHeight,
         width,
-        height: cardHeight,
+        height: rowHeight,
         color: ctx.theme.colors.white,
         borderColor: ctx.theme.colors.strongBorder,
         borderWidth: 1,
       });
       ctx.page.drawRectangle({
         x,
-        y: yTop - 2.4,
+        y: rowTop - 2.2,
         width,
-        height: 2.4,
+        height: 2.2,
         color: ctx.theme.colors.accent,
       });
+
       const labelResult = drawTextBlock(ctx, {
-        text: item.label,
-        x: x + cardPadX,
-        y: yTop - cardPadY - ctx.theme.smallSize,
+        text: metric.label,
+        x: x + padX,
+        y: rowTop - padY - ctx.theme.smallSize,
         maxWidth: contentWidth,
         font: "bold",
         size: ctx.theme.smallSize,
         lineHeight: labelLineHeight,
-        color: ctx.theme.colors.subtle,
         maxLines: 2,
+        color: ctx.theme.colors.subtle,
       });
+
       drawTextBlock(ctx, {
-        text: item.value,
-        x: x + cardPadX,
-        y: labelResult.nextY - 6,
+        text: metric.value,
+        x: x + padX,
+        y: labelResult.nextY - 4,
         maxWidth: contentWidth,
         font: "bold",
         size: valueSize,
         lineHeight: valueLineHeight,
         maxLines: 3,
       });
+
       index += 1;
     }
-    yTop -= cardHeight + gap;
+    rowTop -= rowHeight + gap;
   }
+
   ctx.cursor.y -= totalHeight;
 }
 
 export function finalizeFooters(ctx: ReportContext, label: string, branding?: FooterBrandingArgs) {
-  const bandY = 12;
-  const bandHeight = ctx.theme.footerBandHeight;
-  const textY = bandY + Math.max(3.5, bandHeight - (ctx.theme.smallSize + 4.2));
-  const topY = bandY + bandHeight;
-  const footerLabel = label.trim();
+  const footerBandY = 12;
+  const footerBandHeight = ctx.theme.footerBandHeight;
+  const textY = footerBandY + Math.max(3.4, footerBandHeight - (ctx.theme.smallSize + 4));
+  const footerTopY = footerBandY + footerBandHeight;
+  const safeLabel = label.trim();
   const pages = ctx.pdf.getPages();
+
   for (let i = 0; i < pages.length; i += 1) {
     const page = pages[i];
-    const pageText = `Page ${i + 1} of ${pages.length}`;
-    const pageTextWidth = ctx.fonts.regular.widthOfTextAtSize(pageText, ctx.theme.smallSize);
-    const pageTextX = ctx.theme.pageWidth - ctx.theme.marginRight - pageTextWidth;
+    const pageCounter = `Page ${i + 1} of ${pages.length}`;
+    const pageCounterWidth = ctx.fonts.regular.widthOfTextAtSize(pageCounter, ctx.theme.smallSize);
+    const pageCounterX = ctx.theme.pageWidth - ctx.theme.marginRight - pageCounterWidth;
+
     const logoHeight = 8;
     const logoScale = branding?.poweredByLogo ? logoHeight / branding.poweredByLogo.height : 0;
     const logoWidth = branding?.poweredByLogo ? branding.poweredByLogo.width * logoScale : 0;
     const logoX = branding?.poweredByLogo ? (ctx.theme.pageWidth - logoWidth) / 2 : 0;
-    const centerLeftBound = branding?.poweredByLogo ? logoX - 12 : ctx.theme.pageWidth / 2;
-    const leftMaxX = Math.max(ctx.theme.marginLeft, Math.min(centerLeftBound, pageTextX - 12));
-    const leftMaxWidth = Math.max(24, leftMaxX - ctx.theme.marginLeft);
-    const safeLabel = truncateToWidth(
-      footerLabel,
-      leftMaxWidth,
-      (value) => ctx.fonts.regular.widthOfTextAtSize(value, ctx.theme.smallSize)
+
+    const leftLimitX = branding?.poweredByLogo ? logoX - 12 : ctx.theme.pageWidth / 2;
+    const labelMaxX = Math.max(ctx.theme.marginLeft, Math.min(leftLimitX, pageCounterX - 12));
+    const labelMaxWidth = Math.max(24, labelMaxX - ctx.theme.marginLeft);
+    const labelText = truncateToWidth(
+      safeLabel,
+      labelMaxWidth,
+      (text) => ctx.fonts.regular.widthOfTextAtSize(text, ctx.theme.smallSize)
     );
 
     page.drawRectangle({
       x: 0,
-      y: bandY,
+      y: footerBandY,
       width: ctx.theme.pageWidth,
-      height: bandHeight,
+      height: footerBandHeight,
       color: ctx.theme.colors.footerPanel,
     });
     page.drawLine({
-      start: { x: ctx.theme.marginLeft, y: topY },
-      end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: topY },
+      start: { x: ctx.theme.marginLeft, y: footerTopY },
+      end: { x: ctx.theme.pageWidth - ctx.theme.marginRight, y: footerTopY },
       thickness: 1,
       color: ctx.theme.colors.border,
     });
-    if (safeLabel) {
-      page.drawText(safeLabel, {
+
+    if (labelText) {
+      page.drawText(labelText, {
         x: ctx.theme.marginLeft,
         y: textY,
         size: ctx.theme.smallSize,
@@ -466,12 +503,12 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
         y: textY - 1.1,
         width: logoWidth,
         height: logoHeight,
-        opacity: 0.75,
+        opacity: 0.78,
       });
     }
 
-    page.drawText(pageText, {
-      x: pageTextX,
+    page.drawText(pageCounter, {
+      x: pageCounterX,
       y: textY,
       size: ctx.theme.smallSize,
       font: ctx.fonts.regular,

@@ -1,22 +1,22 @@
 import { type ReportStyleVersion } from "@/lib/reports/engine/report-format";
 
-function parseStyle(value: string | null | undefined): ReportStyleVersion | null {
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (raw === "v2" || raw === "v3") return raw;
+function normalizeStyle(input: string | null | undefined): ReportStyleVersion | null {
+  const value = String(input ?? "").trim().toLowerCase();
+  if (value === "v2" || value === "v3") return value;
   return null;
 }
 
 export function getDefaultReportStyle(): ReportStyleVersion {
-  return parseStyle(process.env.PDF_STYLE_DEFAULT) ?? "v3";
+  return normalizeStyle(process.env.PDF_STYLE_DEFAULT) ?? "v3";
 }
 
 export function resolveReportStyleFromRequest(req: Request): ReportStyleVersion {
   try {
     const url = new URL(req.url);
-    const queryStyle = parseStyle(url.searchParams.get("pdf_style"));
-    if (queryStyle) return queryStyle;
+    const explicit = normalizeStyle(url.searchParams.get("pdf_style"));
+    if (explicit) return explicit;
   } catch {
-    // fall through to default
+    // Ignore URL parse failures and use default style.
   }
   return getDefaultReportStyle();
 }

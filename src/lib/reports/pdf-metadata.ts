@@ -7,14 +7,14 @@ type ReportPdfMetadataInput = {
   keywords?: string[];
 };
 
-function sanitizeKeywords(input: string[] | undefined) {
-  if (!input) return [];
-  return input.map((value) => value.trim()).filter(Boolean);
+function normalizeKeywords(keywords?: string[]) {
+  if (!keywords) return [];
+  return keywords.map((value) => value.trim()).filter(Boolean);
 }
 
 export function applyReportPdfMetadata(pdf: PDFDocument, input: ReportPdfMetadataInput) {
   const generatedAt = Number.isFinite(input.generatedAt.getTime()) ? input.generatedAt : new Date();
-  const keywords = sanitizeKeywords(input.keywords);
+  const keywords = normalizeKeywords(input.keywords);
 
   pdf.setTitle(input.title, { showInWindowTitleBar: true });
   pdf.setSubject(input.subject);

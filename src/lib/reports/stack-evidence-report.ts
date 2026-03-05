@@ -36,15 +36,6 @@ export type StackEvidenceReportInput = {
   documents: StackEvidenceDocument[];
 };
 
-function fmtDuration(seconds: unknown) {
-  const raw = Number(seconds);
-  if (!Number.isFinite(raw) || raw < 0) return "--";
-  const s = Math.floor(raw);
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}m ${String(r).padStart(2, "0")}s`;
-}
-
 const UTC_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "short",
@@ -57,34 +48,48 @@ const UTC_FORMATTER = new Intl.DateTimeFormat("en-GB", {
 
 function fmtUtc(iso: string | null) {
   if (!iso) return "--";
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return "--";
-  return `${UTC_FORMATTER.format(d).replace(",", "")} UTC`;
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "--";
+  return `${UTC_FORMATTER.format(date).replace(",", "")} UTC`;
+}
+
+function fmtDuration(rawSeconds: unknown) {
+  const seconds = Number(rawSeconds);
+  if (!Number.isFinite(seconds) || seconds < 0) return "--";
+  const safe = Math.floor(seconds);
+  const minutes = Math.floor(safe / 60);
+  const remainder = safe % 60;
+  return `${minutes}m ${String(remainder).padStart(2, "0")}s`;
+}
+
+function recipientLabel(name: string | null, email: string) {
+  const cleanName = name?.trim() ?? "";
+  const cleanEmail = email.trim();
+  if (cleanName) return `${cleanName} <${cleanEmail}>`;
+  return cleanEmail;
 }
 
 export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Promise<Uint8Array> {
   const ctx = await createReportContext({
     styleVersion: input.reportStyleVersion,
-    theme:
-      input.reportStyleVersion === "v2"
-        ? {
-            pageWidth: 841.89,
-            pageHeight: 595.28,
-            marginTop: 46,
-            marginRight: 38,
-            marginBottom: 36,
-            marginLeft: 38,
-            titleSize: 19.5,
-          }
-        : undefined,
+    theme: {
+      pageWidth: 841.89,
+      pageHeight: 595.28,
+      marginTop: input.reportStyleVersion === "v3" ? 42 : 44,
+      marginRight: input.reportStyleVersion === "v3" ? 34 : 36,
+      marginBottom: 34,
+      marginLeft: input.reportStyleVersion === "v3" ? 34 : 36,
+      titleSize: input.reportStyleVersion === "v3" ? 18.8 : 19.3,
+    },
   });
+
   const receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
+
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
-  const generatedLabel = fmtUtc(
-    Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString()
-  );
+  const generatedLabel = fmtUtc(metadataDate.toISOString());
+
   const workspaceLabel = input.workspaceName.trim();
   const subtitle =
     workspaceLabel && workspaceLabel.toLowerCase() !== "receipt"
@@ -105,32 +110,28 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
   kpiRow(
     ctx,
     [
-      { label: "STACK STATUS", value: input.acknowledgedDocuments >= input.totalDocuments ? "Complete" : "Partial" },
-      { label: "DOCUMENTS", value: String(input.totalDocuments) },
-      { label: "ACKNOWLEDGED", value: `${input.acknowledgedDocuments}/${input.totalDocuments}` },
+      {
+        label: "Stack status",
+        value: input.acknowledgedDocuments >= input.totalDocuments ? "Complete" : "Partial",
+      },
+      { label: "Documents", value: String(input.totalDocuments) },
+      { label: "Acknowledged", value: `${input.acknowledgedDocuments}/${input.totalDocuments}` },
     ],
     { columns: 3 }
   );
 
-  section(ctx, "Delivery summary");
+  section(ctx, "Delivery Summary");
   keyValueList(
     ctx,
     [
       { key: "Evidence reference", value: input.receiptId, valueFont: "mono" },
-      {
-        key: "Recipient",
-        value: input.recipientName ? `${input.recipientName} <${input.recipientEmail}>` : input.recipientEmail,
-      },
+      { key: "Recipient", value: recipientLabel(input.recipientName, input.recipientEmail) },
       { key: "Completed at", value: fmtUtc(input.completedAt) },
     ],
     { gapAfter: Math.max(6, ctx.theme.sectionGap - 1) }
   );
 
-  section(
-    ctx,
-    "Document-level evidence",
-    "Each document remains independently acknowledged and auditable."
-  );
+  section(ctx, "Document Evidence", "Each document remains independently acknowledged and auditable.");
 
   const rows = [...input.documents]
     .sort(
@@ -138,70 +139,113 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
         a.document_title.localeCompare(b.document_title) ||
         a.document_public_id.localeCompare(b.document_public_id)
     )
-    .map((doc) => {
-      const ackData = doc.acknowledgement_data ?? {};
-      const scroll = Number(ackData.max_scroll_percent ?? 0);
-      const engagement = `Scroll ${
-        Number.isFinite(scroll) ? `${Math.max(0, Math.min(100, Math.floor(scroll)))}%` : "--"
-      } | Active ${fmtDuration(ackData.active_seconds)} | Page ${fmtDuration(ackData.time_on_page_seconds)}`;
-      const method = doc.method ?? "--";
-      const ip = String(ackData.ip ?? "--");
+    .map((document) => {
+      const evidence = document.acknowledgement_data ?? {};
+      const scroll = Number(evidence.max_scroll_percent ?? 0);
+      const scrollLabel = Number.isFinite(scroll)
+        ? `${Math.max(0, Math.min(100, Math.floor(scroll)))}%`
+        : "--";
+
       return {
-        title: doc.document_title,
-        id: doc.document_public_id || "No public ID",
-        status: doc.acknowledged ? "Acknowledged" : "Pending",
-        method,
-        at: fmtUtc(doc.acknowledged_at),
-        engagement,
-        ip,
-        details: `${method} | ${engagement} | IP ${ip}`,
+        title: document.document_title,
+        id: document.document_public_id || "No public ID",
+        status: document.acknowledged ? "Acknowledged" : "Pending",
+        method: document.method ?? "--",
+        acknowledgedAt: fmtUtc(document.acknowledged_at),
+        scroll: scrollLabel,
+        active: fmtDuration(evidence.active_seconds),
+        page: fmtDuration(evidence.time_on_page_seconds),
+        ip: String(evidence.ip ?? "--"),
       };
     });
 
-  if (input.reportStyleVersion === "v3") {
-    dataTable(ctx, "evidence", {
-      columns: [
-        { key: "title", header: "Document", value: (row) => row.title, minWidth: 195, maxLines: 2, semantic: "text" },
-        { key: "id", header: "Public ID", value: (row) => row.id, minWidth: 84, semantic: "identifier" },
-        { key: "status", header: "Status", value: (row) => row.status, mode: "fixed", width: 76, semantic: "status" },
-        { key: "at", header: "Acknowledged at", value: (row) => row.at, minWidth: 112, semantic: "datetime" },
-        { key: "details", header: "Evidence details", value: (row) => row.details, minWidth: 175, maxLines: 3, semantic: "text" },
-      ],
-      rows,
-      repeatHeader: true,
-      maxCellLines: 3,
-    });
-  } else {
-    dataTable(ctx, "evidence", {
-      columns: [
-        { key: "title", header: "Document", value: (row) => row.title, minWidth: 180, maxLines: 2, semantic: "text" },
-        { key: "id", header: "Public ID", value: (row) => row.id, minWidth: 86, semantic: "identifier" },
-        { key: "status", header: "Status", value: (row) => row.status, mode: "fixed", width: 74, semantic: "status" },
-        { key: "method", header: "Method", value: (row) => row.method, minWidth: 88, maxLines: 2, semantic: "text" },
-        { key: "at", header: "Acknowledged at", value: (row) => row.at, minWidth: 118, semantic: "datetime" },
-        { key: "engagement", header: "Engagement", value: (row) => row.engagement, minWidth: 125, maxLines: 2, semantic: "text" },
-        { key: "ip", header: "IP", value: (row) => row.ip, minWidth: 66, semantic: "identifier" },
-      ],
-      rows,
-      repeatHeader: true,
-      fontSize: 8.6,
-      headerFontSize: 8.85,
-      lineHeight: 10.2,
-      cellPaddingY: 4,
-      cellPaddingX: 5,
-      maxCellLines: 2,
-      stripedRows: true,
-    });
-  }
+  dataTable(ctx, "evidence", {
+    columns: [
+      {
+        key: "title",
+        header: "Document",
+        value: (row) => row.title,
+        minWidth: 185,
+        maxLines: 2,
+        semantic: "text",
+      },
+      {
+        key: "id",
+        header: "Public ID",
+        value: (row) => row.id,
+        minWidth: 82,
+        semantic: "identifier",
+      },
+      {
+        key: "status",
+        header: "Status",
+        value: (row) => row.status,
+        mode: "fixed",
+        width: 80,
+        semantic: "status",
+      },
+      {
+        key: "method",
+        header: "Method",
+        value: (row) => row.method,
+        minWidth: 90,
+        maxLines: 2,
+        semantic: "text",
+      },
+      {
+        key: "acknowledgedAt",
+        header: "Acknowledged at",
+        value: (row) => row.acknowledgedAt,
+        minWidth: 115,
+        semantic: "datetime",
+      },
+      {
+        key: "scroll",
+        header: "Scroll",
+        value: (row) => row.scroll,
+        mode: "fixed",
+        width: 58,
+        semantic: "metric",
+      },
+      {
+        key: "active",
+        header: "Active",
+        value: (row) => row.active,
+        mode: "fixed",
+        width: 70,
+        semantic: "metric",
+      },
+      {
+        key: "page",
+        header: "Time on page",
+        value: (row) => row.page,
+        mode: "fixed",
+        width: 90,
+        semantic: "metric",
+      },
+      {
+        key: "ip",
+        header: "IP",
+        value: (row) => row.ip,
+        minWidth: 74,
+        semantic: "identifier",
+      },
+    ],
+    rows,
+    repeatHeader: true,
+    maxCellLines: 2,
+  });
 
   footer(ctx, "Stack Evidence Report", {
     poweredByLogo: receiptLogo,
   });
+
   applyReportPdfMetadata(ctx.pdf, {
     title: "Stack Evidence Record",
     subject: "Stack acknowledgement evidence export",
     generatedAt: metadataDate,
     keywords: ["stack", "evidence", "acknowledgement", "audit"],
   });
+
   return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }

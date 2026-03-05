@@ -85,22 +85,6 @@ export type AnalyticsReportInput = {
   }>;
 };
 
-function fmtDurationLong(seconds: number | null) {
-  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--";
-  const s = Math.max(0, Math.floor(seconds));
-  const days = Math.floor(s / 86400);
-  const hours = Math.floor((s % 86400) / 3600);
-  return `${days}d ${hours}h`;
-}
-
-function fmtDurationShort(seconds: number | null) {
-  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--";
-  const s = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}m ${String(r).padStart(2, "0")}s`;
-}
-
 const UTC_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "short",
@@ -113,15 +97,25 @@ const UTC_FORMATTER = new Intl.DateTimeFormat("en-GB", {
 
 function fmtUtc(iso: string | null) {
   if (!iso) return "--";
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return "--";
-  return `${UTC_FORMATTER.format(d).replace(",", "")} UTC`;
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "--";
+  return `${UTC_FORMATTER.format(date).replace(",", "")} UTC`;
 }
 
-function normalizePriority(value: string) {
-  const clean = value.trim().toLowerCase();
-  if (!clean) return "normal";
-  return clean;
+function fmtDurationLong(seconds: number | null) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--";
+  const safe = Math.max(0, Math.floor(seconds));
+  const days = Math.floor(safe / 86400);
+  const hours = Math.floor((safe % 86400) / 3600);
+  return `${days}d ${hours}h`;
+}
+
+function fmtDurationShort(seconds: number | null) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--";
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safe / 60);
+  const remainder = safe % 60;
+  return `${minutes}m ${String(remainder).padStart(2, "0")}s`;
 }
 
 function fmtScroll(value: number | null) {
@@ -129,39 +123,57 @@ function fmtScroll(value: number | null) {
   return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
 }
 
+function normalizePriority(priority: string) {
+  const clean = priority.trim().toLowerCase();
+  return clean || "normal";
+}
+
+function recipientLabel(name: string | null, email: string | null) {
+  const cleanName = name?.trim() ?? "";
+  const cleanEmail = email?.trim() ?? "";
+  if (cleanName && cleanEmail) return `${cleanName} <${cleanEmail}>`;
+  if (cleanName) return cleanName;
+  if (cleanEmail) return cleanEmail;
+  return "Unknown recipient";
+}
+
 export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Promise<Uint8Array> {
   const isV3 = input.reportStyleVersion === "v3";
+
   const ctx = await createReportContext({
     styleVersion: input.reportStyleVersion,
     theme: {
-      // Analytics exports are table-heavy; keep a stable landscape layout to avoid narrow-column collapse.
       pageWidth: 841.89,
       pageHeight: 595.28,
-      marginTop: isV3 ? 44 : 46,
-      marginRight: isV3 ? 36 : 38,
-      marginBottom: isV3 ? 44 : 44,
-      marginLeft: isV3 ? 36 : 38,
-      titleSize: isV3 ? 18.8 : 19.5,
+      marginTop: isV3 ? 42 : 44,
+      marginRight: isV3 ? 34 : 36,
+      marginBottom: 34,
+      marginLeft: isV3 ? 34 : 36,
+      titleSize: isV3 ? 18.8 : 19.3,
     },
   });
+
   const receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoImageBytes);
+
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
-  const generatedLabel = fmtUtc(Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString());
+  const generatedLabel = fmtUtc(metadataDate.toISOString());
+
   const workspaceLabel = input.workspaceName.trim();
   const includeWorkspaceLabel =
     workspaceLabel.length > 0 &&
     workspaceLabel.toLowerCase() !== "receipt" &&
     workspaceLabel.toLowerCase() !== "workspace";
-  const reportTitle =
+
+  const title =
     input.mode === "compliance"
       ? `${includeWorkspaceLabel ? `${workspaceLabel} ` : ""}Compliance Report`
       : `${includeWorkspaceLabel ? `${workspaceLabel} ` : ""}Management KPI Report`;
 
   header(ctx, {
-    title: reportTitle,
-    subtitle: `${input.rangeLabel}`,
+    title,
+    subtitle: input.rangeLabel,
     eyebrow: input.mode === "compliance" ? "COMPLIANCE / REGULATORY" : "MANAGEMENT / OPERATIONS",
     rightMeta: `Generated ${generatedLabel}`,
     logo: workspaceLogo ?? receiptLogo,
@@ -179,51 +191,74 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
   ]);
 
   if (input.mode === "compliance") {
-    note(ctx, "Regulatory scope: policy-tagged receipts only.", { muted: true, size: 9.2 });
+    note(ctx, "Regulatory scope: policy-tagged receipts only.", { muted: true, size: 9.1 });
   }
 
-  ctx.cursor.y -= 8;
+  ctx.cursor.y -= 7;
   kpiRow(
     ctx,
     [
-      { label: "TOTAL SENT", value: String(input.metrics.total_documents_sent) },
-      { label: "ACK RATE", value: `${input.metrics.acknowledgement_rate_percent}%` },
-      { label: "AVG TIME TO ACK", value: fmtDurationLong(input.metrics.avg_time_to_ack_seconds) },
-      { label: "OUTSTANDING", value: String(input.metrics.outstanding_acknowledgements) },
+      { label: "Total sent", value: String(input.metrics.total_documents_sent) },
+      { label: "Ack rate", value: `${input.metrics.acknowledgement_rate_percent}%` },
+      { label: "Avg time to ack", value: fmtDurationLong(input.metrics.avg_time_to_ack_seconds) },
+      { label: "Outstanding", value: String(input.metrics.outstanding_acknowledgements) },
     ],
     { columns: 4 }
   );
 
-  section(ctx, "Breakdown by priority");
+  section(ctx, "Breakdown by Priority");
   dataTable(ctx, "analytics", {
     columns: [
-      { key: "priority", header: "Priority", value: (row) => row.priority, minWidth: 120, semantic: "text" },
-      { key: "ack", header: "Acknowledged", value: (row) => row.ack, minWidth: 150, semantic: "metric" },
-      { key: "rate", header: "Rate", value: (row) => row.rate, minWidth: 80, align: "right", mode: "fixed", width: 80, semantic: "metric" },
+      {
+        key: "priority",
+        header: "Priority",
+        value: (row) => row.priority,
+        minWidth: 150,
+        semantic: "text",
+      },
+      {
+        key: "acknowledged",
+        header: "Acknowledged",
+        value: (row) => row.acknowledged,
+        minWidth: 160,
+        semantic: "metric",
+      },
+      {
+        key: "rate",
+        header: "Rate",
+        value: (row) => row.rate,
+        mode: "fixed",
+        width: 90,
+        semantic: "metric",
+      },
     ],
     rows: [...input.byPriority]
       .sort((a, b) => normalizePriority(a.priority).localeCompare(normalizePriority(b.priority)))
       .map((row) => ({
         priority: normalizePriority(row.priority),
-        ack: `${row.acknowledged}/${row.total}`,
+        acknowledged: `${row.acknowledged}/${row.total}`,
         rate: row.total > 0 ? `${Math.round((row.acknowledged / row.total) * 100)}%` : "0%",
       })),
     repeatHeader: true,
-    fontSize: 9,
-    headerFontSize: 9.2,
   });
 
-  section(ctx, "Top labels and tags");
+  section(ctx, "Top Labels and Tags");
   dataTable(ctx, "analytics", {
     columns: [
-      { key: "label", header: "Label / Tag", value: (row) => row.label, minWidth: 280, maxLines: 2, semantic: "text" },
+      {
+        key: "label",
+        header: "Label / Tag",
+        value: (row) => row.label,
+        minWidth: 310,
+        maxLines: 2,
+        semantic: "text",
+      },
       {
         key: "total",
         header: "Documents",
         value: (row) => String(row.total),
         mode: "fixed",
-        width: 90,
-        align: "right",
+        width: 100,
         semantic: "metric",
       },
     ],
@@ -231,23 +266,33 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
       .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
       .slice(0, 24),
     repeatHeader: true,
-    fontSize: 9,
-    headerFontSize: 9.2,
     maxCellLines: 2,
   });
 
-  section(ctx, "Daily trend");
+  section(ctx, "Daily Trend");
   dataTable(ctx, "analytics", {
     columns: [
-      { key: "date", header: "Date", value: (row) => row.date, minWidth: 130, semantic: "identifier" },
-      { key: "sent", header: "Sent", value: (row) => String(row.sent), mode: "fixed", width: 65, align: "right", semantic: "metric" },
       {
-        key: "ack",
+        key: "date",
+        header: "Date",
+        value: (row) => row.date,
+        minWidth: 132,
+        semantic: "identifier",
+      },
+      {
+        key: "sent",
+        header: "Sent",
+        value: (row) => String(row.sent),
+        mode: "fixed",
+        width: 70,
+        semantic: "metric",
+      },
+      {
+        key: "acknowledged",
         header: "Acknowledged",
         value: (row) => String(row.acknowledged),
         mode: "fixed",
-        width: 110,
-        align: "right",
+        width: 120,
         semantic: "metric",
       },
       {
@@ -255,66 +300,66 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
         header: "Ack rate",
         value: (row) => (row.sent > 0 ? `${Math.round((row.acknowledged / row.sent) * 100)}%` : "0%"),
         mode: "fixed",
-        width: 80,
-        align: "right",
+        width: 90,
         semantic: "metric",
       },
     ],
-    rows: [...input.series]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-30),
+    rows: [...input.series].sort((a, b) => a.date.localeCompare(b.date)).slice(-30),
     repeatHeader: true,
-    fontSize: 8.8,
-    headerFontSize: 9.1,
   });
 
   if (input.mode === "compliance") {
     section(
       ctx,
-      "Policy document evidence",
+      "Policy Document Evidence",
       "Each policy document includes acknowledgement evidence and outstanding submissions."
     );
 
-    const docs = [...(input.complianceDocuments ?? [])].sort(
+    const documents = [...(input.complianceDocuments ?? [])].sort(
       (a, b) =>
         a.document_title.localeCompare(b.document_title) ||
         a.document_public_id.localeCompare(b.document_public_id)
     );
 
-    if (docs.length === 0) {
+    if (documents.length === 0) {
       note(ctx, "No policy-tagged documents matched this date range.", { muted: true });
     }
 
-    for (const doc of docs) {
-      // Keep each document evidence block from starting at the very bottom of a page.
-      ctx.ensureSpace(220);
-      section(ctx, `${doc.document_title} (${doc.document_public_id || "No public ID"})`);
+    for (const document of documents) {
+      ctx.ensureSpace(210);
+      section(
+        ctx,
+        `${document.document_title} (${document.document_public_id || "No public ID"})`
+      );
       keyValueList(ctx, [
-        { key: "Created", value: fmtUtc(doc.created_at) },
-        { key: "Priority", value: normalizePriority(doc.priority).toUpperCase() },
-        { key: "Public ID", value: doc.document_public_id || "--", valueFont: "mono" },
-        { key: "Labels", value: doc.labels.join(", ") || "--" },
+        { key: "Created", value: fmtUtc(document.created_at) },
+        { key: "Priority", value: normalizePriority(document.priority).toUpperCase() },
+        { key: "Public ID", value: document.document_public_id || "--", valueFont: "mono" },
+        { key: "Labels", value: document.labels.join(", ") || "--" },
         {
           key: "Tags",
           value:
-            Object.entries(doc.tags)
-              .map(([k, v]) => `${k}:${v}`)
+            Object.entries(document.tags)
+              .map(([key, value]) => `${key}:${value}`)
               .join(", ") || "--",
         },
-        { key: "Acknowledged in range", value: String(doc.acknowledged_count) },
-        { key: "Pending submissions", value: String(doc.pending_submission_count) },
+        { key: "Acknowledged in range", value: String(document.acknowledged_count) },
+        { key: "Pending submissions", value: String(document.pending_submission_count) },
         {
           key: "Outstanding acknowledgement",
-          value: doc.outstanding ? "YES (no acknowledged submissions in range)" : "NO",
+          value: document.outstanding ? "YES (no acknowledged submissions in range)" : "NO",
         },
       ]);
 
       section(ctx, "Acknowledgements");
-      const acknowledgements = [...doc.acknowledgements].sort(
+      const acknowledgements = [...document.acknowledgements].sort(
         (a, b) =>
-          (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "") ||
-          (a.recipient_email ?? "").localeCompare(b.recipient_email ?? "")
+          String(a.submitted_at ?? "").localeCompare(String(b.submitted_at ?? "")) ||
+          recipientLabel(a.recipient_name, a.recipient_email).localeCompare(
+            recipientLabel(b.recipient_name, b.recipient_email)
+          )
       );
+
       if (acknowledgements.length === 0) {
         note(ctx, "No acknowledgements in selected range.", { muted: true, size: 8.9 });
       } else {
@@ -323,20 +368,32 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             {
               key: "recipient",
               header: "Recipient",
-              value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
-              minWidth: 170,
+              value: (row) => recipientLabel(row.recipient_name, row.recipient_email),
+              minWidth: 175,
               maxLines: 2,
               semantic: "text",
             },
-            { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 132, semantic: "datetime" },
-            { key: "method", header: "How", value: (row) => row.method, minWidth: 90, maxLines: 2, semantic: "text" },
+            {
+              key: "when",
+              header: "When",
+              value: (row) => fmtUtc(row.submitted_at),
+              minWidth: 132,
+              semantic: "datetime",
+            },
+            {
+              key: "method",
+              header: "How",
+              value: (row) => row.method,
+              minWidth: 95,
+              maxLines: 2,
+              semantic: "text",
+            },
             {
               key: "scroll",
               header: "Scroll",
               value: (row) => fmtScroll(row.max_scroll_percent),
               mode: "fixed",
-              width: 66,
-              align: "right",
+              width: 64,
               semantic: "metric",
             },
             {
@@ -345,35 +402,39 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
               value: (row) => fmtDurationShort(row.active_seconds),
               mode: "fixed",
               width: 68,
-              align: "right",
               semantic: "metric",
             },
             {
               key: "page",
-              header: "Page",
+              header: "Time on page",
               value: (row) => fmtDurationShort(row.time_on_page_seconds),
               mode: "fixed",
-              width: 68,
-              align: "right",
+              width: 88,
               semantic: "metric",
             },
-            { key: "ip", header: "IP", value: (row) => row.ip ?? "--", minWidth: 76, semantic: "identifier" },
+            {
+              key: "ip",
+              header: "IP",
+              value: (row) => row.ip ?? "--",
+              minWidth: 76,
+              semantic: "identifier",
+            },
           ],
           rows: acknowledgements,
           repeatHeader: true,
-          fontSize: 8.85,
-          headerFontSize: 9,
-          lineHeight: 10.8,
           maxCellLines: 2,
         });
       }
 
-      section(ctx, "Outstanding acknowledgements / pending submissions");
-      const pending = [...doc.pending_submissions].sort(
+      section(ctx, "Outstanding Acknowledgements / Pending Submissions");
+      const pending = [...document.pending_submissions].sort(
         (a, b) =>
-          (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "") ||
-          (a.recipient_email ?? "").localeCompare(b.recipient_email ?? "")
+          String(a.submitted_at ?? "").localeCompare(String(b.submitted_at ?? "")) ||
+          recipientLabel(a.recipient_name, a.recipient_email).localeCompare(
+            recipientLabel(b.recipient_name, b.recipient_email)
+          )
       );
+
       if (pending.length === 0) {
         note(ctx, "No pending submissions recorded in selected range.", { muted: true, size: 8.9 });
       } else {
@@ -382,20 +443,32 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
             {
               key: "recipient",
               header: "Recipient",
-              value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
-              minWidth: 180,
+              value: (row) => recipientLabel(row.recipient_name, row.recipient_email),
+              minWidth: 186,
               maxLines: 2,
               semantic: "text",
             },
-            { key: "when", header: "When", value: (row) => fmtUtc(row.submitted_at), minWidth: 136, semantic: "datetime" },
-            { key: "method", header: "Status", value: (row) => row.method, minWidth: 190, maxLines: 2, semantic: "text" },
+            {
+              key: "when",
+              header: "When",
+              value: (row) => fmtUtc(row.submitted_at),
+              minWidth: 136,
+              semantic: "datetime",
+            },
+            {
+              key: "status",
+              header: "Status",
+              value: (row) => row.method,
+              minWidth: 200,
+              maxLines: 2,
+              semantic: "text",
+            },
             {
               key: "scroll",
               header: "Scroll",
               value: (row) => fmtScroll(row.max_scroll_percent),
               mode: "fixed",
-              width: 66,
-              align: "right",
+              width: 64,
               semantic: "metric",
             },
             {
@@ -404,61 +477,63 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
               value: (row) => fmtDurationShort(row.active_seconds),
               mode: "fixed",
               width: 68,
-              align: "right",
               semantic: "metric",
             },
             {
               key: "page",
-              header: "Page",
+              header: "Time on page",
               value: (row) => fmtDurationShort(row.time_on_page_seconds),
               mode: "fixed",
-              width: 68,
-              align: "right",
+              width: 88,
               semantic: "metric",
             },
           ],
           rows: pending,
           repeatHeader: true,
-          fontSize: 8.85,
-          headerFontSize: 9,
-          lineHeight: 10.8,
           maxCellLines: 2,
         });
       }
     }
   } else {
-    section(ctx, "Acknowledgement evidence");
-    const rows = [...input.evidenceRows].sort(
+    section(ctx, "Acknowledgement Evidence");
+    const managementRows = [...input.evidenceRows].sort(
       (a, b) =>
-        (a.document_title || "").localeCompare(b.document_title || "") ||
-        (a.submitted_at ?? "").localeCompare(b.submitted_at ?? "")
+        String(a.document_title).localeCompare(String(b.document_title)) ||
+        String(a.submitted_at ?? "").localeCompare(String(b.submitted_at ?? ""))
     );
+
     dataTable(ctx, "evidence", {
       columns: [
         {
           key: "document",
           header: "Document",
           value: (row) => `${row.document_title} (${row.document_public_id || "No public ID"})`,
-          minWidth: 190,
+          minWidth: 205,
           maxLines: 2,
           semantic: "text",
         },
         {
           key: "recipient",
           header: "Recipient",
-          value: (row) => row.recipient_name || row.recipient_email || "Unknown recipient",
-          minWidth: 140,
+          value: (row) => recipientLabel(row.recipient_name, row.recipient_email),
+          minWidth: 150,
           maxLines: 2,
           semantic: "text",
         },
-        { key: "how", header: "How", value: (row) => row.method, minWidth: 86, maxLines: 2, semantic: "text" },
+        {
+          key: "method",
+          header: "How",
+          value: (row) => row.method,
+          minWidth: 86,
+          maxLines: 2,
+          semantic: "text",
+        },
         {
           key: "scroll",
           header: "Scroll",
           value: (row) => fmtScroll(row.max_scroll_percent),
           mode: "fixed",
-          width: 62,
-          align: "right",
+          width: 60,
           semantic: "metric",
         },
         {
@@ -466,24 +541,28 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
           header: "Active",
           value: (row) => fmtDurationShort(row.active_seconds),
           mode: "fixed",
-          width: 66,
-          align: "right",
+          width: 68,
           semantic: "metric",
         },
         {
           key: "page",
-          header: "Page",
+          header: "Time on page",
           value: (row) => fmtDurationShort(row.time_on_page_seconds),
           mode: "fixed",
-          width: 66,
-          align: "right",
+          width: 88,
           semantic: "metric",
         },
-        { key: "when", header: "Ack at", value: (row) => fmtUtc(row.submitted_at), minWidth: 122, semantic: "datetime" },
+        {
+          key: "when",
+          header: "Acknowledged at",
+          value: (row) => fmtUtc(row.submitted_at),
+          minWidth: 126,
+          semantic: "datetime",
+        },
       ],
       rows:
-        rows.length > 0
-          ? rows
+        managementRows.length > 0
+          ? managementRows
           : [
               {
                 document_title: "No acknowledgements available in selected range",
@@ -500,39 +579,54 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
               },
             ],
       repeatHeader: true,
-      fontSize: 8.85,
-      headerFontSize: 9,
-      lineHeight: 10.8,
       maxCellLines: 2,
     });
   }
 
   const stackReceipts = [...(input.stackReceipts ?? [])].sort(
     (a, b) =>
-      (b.completed_at ?? "").localeCompare(a.completed_at ?? "") ||
+      String(b.completed_at ?? "").localeCompare(String(a.completed_at ?? "")) ||
       a.stack_title.localeCompare(b.stack_title)
   );
+
   if (stackReceipts.length > 0) {
-    section(ctx, "Stack acknowledgement receipts");
+    section(ctx, "Stack Acknowledgement Receipts");
     dataTable(ctx, "receipts", {
       columns: [
-        { key: "stack", header: "Stack", value: (row) => row.stack_title, minWidth: 180, maxLines: 2, semantic: "text" },
-        { key: "recipient", header: "Recipient", value: (row) => row.recipient_email, minWidth: 160, maxLines: 2, semantic: "text" },
-        { key: "completed", header: "Completed", value: (row) => fmtUtc(row.completed_at), minWidth: 130, semantic: "datetime" },
+        {
+          key: "stack",
+          header: "Stack",
+          value: (row) => row.stack_title,
+          minWidth: 190,
+          maxLines: 2,
+          semantic: "text",
+        },
+        {
+          key: "recipient",
+          header: "Recipient",
+          value: (row) => row.recipient_email,
+          minWidth: 170,
+          maxLines: 2,
+          semantic: "text",
+        },
+        {
+          key: "completed",
+          header: "Completed",
+          value: (row) => fmtUtc(row.completed_at),
+          minWidth: 130,
+          semantic: "datetime",
+        },
         {
           key: "status",
           header: "Acknowledged",
           value: (row) => `${row.acknowledged_documents}/${row.total_documents}`,
           mode: "fixed",
-          width: 82,
-          align: "right",
+          width: 92,
           semantic: "metric",
         },
       ],
       rows: stackReceipts,
       repeatHeader: true,
-      fontSize: 8.85,
-      headerFontSize: 9,
       maxCellLines: 2,
     });
   }
@@ -544,6 +638,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
       poweredByLogo: receiptLogo,
     }
   );
+
   applyReportPdfMetadata(ctx.pdf, {
     title: input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report",
     subject:
@@ -556,6 +651,7 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
         ? ["analytics", "compliance", "policy", "acknowledgement", "audit"]
         : ["analytics", "management", "operations", "acknowledgement"],
   });
+
   return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }
 

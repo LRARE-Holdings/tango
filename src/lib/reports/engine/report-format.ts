@@ -61,5 +61,4 @@ export type ReportFormat = {
   };
 };
 
-export const REPORT_FORMAT_WORD_BREAKS = [" ", "/", "-", "_", "|", ":"];
-
+export const REPORT_FORMAT_WORD_BREAKS = [" ", "/", "-", "_", "|", ":", ".", "@"];

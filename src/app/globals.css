@@ -518,6 +518,18 @@ html.dark .marketing-glow {
     transform var(--app-sidebar-motion-duration) var(--app-sidebar-motion-ease);
 }
 
+.app-shell .app-sidebar-version {
+  margin-top: 0.42rem;
+  padding-left: 0.12rem;
+  color: var(--muted2);
+  font-size: 0.62rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  font-family: var(--app-mono);
+  opacity: 0.82;
+  user-select: none;
+}
+
 .app-shell .app-account-menu {
   position: absolute;
   left: 0;
@@ -622,6 +634,10 @@ html.dark .marketing-glow {
   max-width: 0;
   transform: translateX(-4px);
   pointer-events: none;
+}
+
+.app-shell .app-sidebar.is-collapsed .app-sidebar-version {
+  display: none;
 }
 
 .app-shell .app-sidebar.is-collapsed .app-sidebar-link-label,
