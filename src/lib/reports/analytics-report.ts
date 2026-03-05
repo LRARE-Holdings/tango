@@ -9,6 +9,7 @@ import {
   note,
   section,
 } from "@/lib/reports/engine/composer";
+import { applyReportPdfMetadata } from "@/lib/reports/pdf-metadata";
 
 export type AnalyticsReportMode = "compliance" | "management";
 
@@ -534,17 +535,21 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
     ctx,
     input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report",
     {
-      poweredByBrand: "Receipt",
       poweredByLogo: receiptLogo,
     }
   );
-  ctx.pdf.setTitle(
-    input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report"
-  );
-  ctx.pdf.setProducer("Receipt");
-  ctx.pdf.setCreator("Receipt");
-  ctx.pdf.setCreationDate(metadataDate);
-  ctx.pdf.setModificationDate(metadataDate);
+  applyReportPdfMetadata(ctx.pdf, {
+    title: input.mode === "compliance" ? "Compliance Analytics Report" : "Management Analytics Report",
+    subject:
+      input.mode === "compliance"
+        ? "Policy compliance and acknowledgement analytics export"
+        : "Operational acknowledgement analytics export",
+    generatedAt: metadataDate,
+    keywords:
+      input.mode === "compliance"
+        ? ["analytics", "compliance", "policy", "acknowledgement", "audit"]
+        : ["analytics", "management", "operations", "acknowledgement"],
+  });
   return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }
 

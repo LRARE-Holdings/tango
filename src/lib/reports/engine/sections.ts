@@ -14,7 +14,6 @@ type HeaderArgs = {
 };
 
 type FooterBrandingArgs = {
-  poweredByBrand?: string;
   poweredByLogo?: PDFImage | null;
 };
 
@@ -55,8 +54,8 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
       width: targetW,
       height: targetRenderH,
     });
-  } else if (args.brandName) {
-    ctx.page.drawText(args.brandName, {
+  } else if (args.brandName && args.brandName.trim().toLowerCase() !== "receipt") {
+    ctx.page.drawText(args.brandName.trim(), {
       x: logoX,
       y: logoTop - 12.5,
       font: ctx.fonts.bold,
@@ -370,7 +369,6 @@ export function drawMetricCards(
 }
 
 export function finalizeFooters(ctx: ReportContext, label: string, branding?: FooterBrandingArgs) {
-  const poweredByBrand = (branding?.poweredByBrand ?? "Receipt").trim() || "Receipt";
   const bandY = 12;
   const bandHeight = ctx.theme.footerBandHeight;
   const textY = bandY + Math.max(3.5, bandHeight - (ctx.theme.smallSize + 4.2));
@@ -401,36 +399,25 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
       color: ctx.theme.colors.subtle,
     });
 
-    const poweredByPrefix = "Powered by";
-    const poweredByGap = 4;
-    const poweredByPrefixWidth = ctx.fonts.regular.widthOfTextAtSize(poweredByPrefix, ctx.theme.smallSize);
-    const poweredByBrandWidth = ctx.fonts.bold.widthOfTextAtSize(poweredByBrand, ctx.theme.smallSize);
-    const logoHeight = 8;
-    const logoScale = branding?.poweredByLogo ? logoHeight / branding.poweredByLogo.height : 0;
-    const logoWidth = branding?.poweredByLogo ? branding.poweredByLogo.width * logoScale : 0;
-    const groupWidth = poweredByPrefixWidth + poweredByGap + poweredByBrandWidth + (branding?.poweredByLogo ? poweredByGap + logoWidth : 0);
-    const groupX = (ctx.theme.pageWidth - groupWidth) / 2;
-
-    page.drawText(poweredByPrefix, {
-      x: groupX,
-      y: textY,
-      size: ctx.theme.smallSize,
-      font: ctx.fonts.regular,
-      color: ctx.theme.colors.subtle,
-    });
-
-    const brandX = groupX + poweredByPrefixWidth + poweredByGap;
-    page.drawText(poweredByBrand, {
-      x: brandX,
-      y: textY,
-      size: ctx.theme.smallSize,
-      font: ctx.fonts.bold,
-      color: ctx.theme.colors.subtle,
-    });
-
     if (branding?.poweredByLogo) {
+      const poweredByPrefix = "Powered by";
+      const poweredByGap = 4;
+      const poweredByPrefixWidth = ctx.fonts.regular.widthOfTextAtSize(poweredByPrefix, ctx.theme.smallSize);
+      const logoHeight = 8;
+      const logoScale = logoHeight / branding.poweredByLogo.height;
+      const logoWidth = branding.poweredByLogo.width * logoScale;
+      const groupWidth = poweredByPrefixWidth + poweredByGap + logoWidth;
+      const groupX = (ctx.theme.pageWidth - groupWidth) / 2;
+
+      page.drawText(poweredByPrefix, {
+        x: groupX,
+        y: textY,
+        size: ctx.theme.smallSize,
+        font: ctx.fonts.regular,
+        color: ctx.theme.colors.subtle,
+      });
       page.drawImage(branding.poweredByLogo, {
-        x: brandX + poweredByBrandWidth + poweredByGap,
+        x: groupX + poweredByPrefixWidth + poweredByGap,
         y: textY - 1.1,
         width: logoWidth,
         height: logoHeight,

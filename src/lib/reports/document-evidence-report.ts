@@ -15,6 +15,7 @@ import {
   watermark,
 } from "@/lib/reports/engine/composer";
 import { measureTextBlockHeight } from "@/lib/reports/engine/text";
+import { applyReportPdfMetadata } from "@/lib/reports/pdf-metadata";
 
 export type DocumentEvidenceCompletion = {
   acknowledged: boolean;
@@ -102,13 +103,13 @@ export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInpu
   const ctx = await createReportContext({
     styleVersion: input.reportStyleVersion,
     onPageAdded: (pageCtx) => {
-      watermark(pageCtx, { enabled: input.watermarkEnabled, receiptLogo, fallbackBrand: "Receipt" });
+      watermark(pageCtx, { enabled: input.watermarkEnabled, receiptLogo });
     },
   });
 
   receiptLogo = await embedImageIfPresent(ctx, input.receiptLogoPngBytes);
   const workspaceLogo = await embedImageIfPresent(ctx, input.brandLogoPngBytes);
-  watermark(ctx, { enabled: input.watermarkEnabled, receiptLogo, fallbackBrand: "Receipt" });
+  watermark(ctx, { enabled: input.watermarkEnabled, receiptLogo });
 
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
@@ -200,15 +201,14 @@ export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInpu
     );
   }
 
-  footer(ctx, "Receipt Evidence Document", {
-    poweredByBrand: "Receipt",
+  footer(ctx, "Document Evidence Report", {
     poweredByLogo: receiptLogo,
   });
-  ctx.pdf.setTitle("Receipt Evidence Record");
-  ctx.pdf.setProducer("Receipt");
-  ctx.pdf.setCreator("Receipt");
-  ctx.pdf.setCreationDate(metadataDate);
-  ctx.pdf.setModificationDate(metadataDate);
+  applyReportPdfMetadata(ctx.pdf, {
+    title: "Document Evidence Record",
+    subject: "Acknowledgement and delivery evidence export",
+    generatedAt: metadataDate,
+    keywords: ["evidence", "acknowledgement", "audit"],
+  });
   return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }
-

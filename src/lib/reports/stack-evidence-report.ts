@@ -7,6 +7,7 @@ import {
   kpiRow,
   section,
 } from "@/lib/reports/engine/composer";
+import { applyReportPdfMetadata } from "@/lib/reports/pdf-metadata";
 
 export type StackEvidenceDocument = {
   document_title: string;
@@ -106,11 +107,11 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
     { columns: 3 }
   );
 
-  section(ctx, "Receipt summary");
+  section(ctx, "Delivery summary");
   keyValueList(
     ctx,
     [
-      { key: "Receipt reference", value: input.receiptId, valueFont: "mono" },
+      { key: "Evidence reference", value: input.receiptId, valueFont: "mono" },
       {
         key: "Recipient",
         value: input.recipientName ? `${input.recipientName} <${input.recipientEmail}>` : input.recipientEmail,
@@ -189,14 +190,13 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
   }
 
   footer(ctx, "Stack Evidence Document", {
-    poweredByBrand: "Receipt",
     poweredByLogo: receiptLogo,
   });
-  ctx.pdf.setTitle("Stack Evidence Record");
-  ctx.pdf.setProducer("Receipt");
-  ctx.pdf.setCreator("Receipt");
-  ctx.pdf.setCreationDate(metadataDate);
-  ctx.pdf.setModificationDate(metadataDate);
+  applyReportPdfMetadata(ctx.pdf, {
+    title: "Stack Evidence Record",
+    subject: "Stack acknowledgement evidence export",
+    generatedAt: metadataDate,
+    keywords: ["stack", "evidence", "acknowledgement", "audit"],
+  });
   return saveReport(ctx, process.env.PDF_DETERMINISTIC === "1");
 }
-
