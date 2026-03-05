@@ -837,6 +837,9 @@ export default function DocDetailPage({
                 <div className="text-sm" style={{ color: "var(--muted)" }}>
                   {Object.entries(doc.tags)
                     .map(([k, v]) => {
+                      if (k.trim().toLowerCase() === "policy" && String(v).trim().toLowerCase() === "policy") {
+                        return "Policy";
+                      }
                       const label = doc.workspaceTagFields?.find((f) => f.key === k)?.label ?? k;
                       return `${label}: ${v}`;
                     })

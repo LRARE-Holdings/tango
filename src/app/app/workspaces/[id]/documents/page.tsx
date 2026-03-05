@@ -1266,6 +1266,9 @@ export default function WorkspaceDocumentsPage() {
                       <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
                         {Object.entries(d.tags)
                           .map(([k, v]) => {
+                            if (k.trim().toLowerCase() === "policy" && String(v).trim().toLowerCase() === "policy") {
+                              return "Policy";
+                            }
                             const label =
                               workspace?.document_tag_fields?.find((f) => f.key === k)?.label ?? k;
                             return `${label}: ${v}`;
