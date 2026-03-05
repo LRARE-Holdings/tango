@@ -188,15 +188,7 @@ export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?:
   ensureWidowOrphanHeadroom(ctx, Math.max(headingLineHeight, subtitleLineHeight));
   ctx.ensureSpace(needed);
 
-  const accentHeight = Math.max(13.5, labelHeight);
-  ctx.page.drawRectangle({
-    x: ctx.cursor.minX,
-    y: ctx.cursor.y - accentHeight + 2,
-    width: 3.2,
-    height: accentHeight,
-    color: ctx.theme.colors.accent,
-  });
-
+  const headingStartY = ctx.cursor.y;
   const labelResult = drawTextBlock(ctx, {
     text: label,
     x: labelX,
@@ -220,6 +212,19 @@ export function drawSectionHeading(ctx: ReportContext, label: string, subtitle?:
     });
     ctx.cursor.y = result.nextY - 2;
   }
+
+  const headingEndY = ctx.cursor.y;
+  const headingGlyphHeight = ctx.fonts.bold.heightAtSize(ctx.theme.headingSize, { descender: false });
+  const accentTop = headingStartY + Math.max(4, headingGlyphHeight * 0.85);
+  const accentBottom = headingEndY + Math.max(1.4, ctx.theme.baseline * 0.35);
+  const accentHeight = Math.max(13.5, accentTop - accentBottom);
+  ctx.page.drawRectangle({
+    x: ctx.cursor.minX,
+    y: accentBottom,
+    width: 3.2,
+    height: accentHeight,
+    color: ctx.theme.colors.accent,
+  });
 
   const dividerY = ctx.cursor.y - 2;
   ctx.page.drawLine({
