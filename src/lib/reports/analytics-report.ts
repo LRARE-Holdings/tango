@@ -149,12 +149,18 @@ export async function buildAnalyticsReportPdf(input: AnalyticsReportInput): Prom
   const generatedDate = new Date(input.generatedAtIso);
   const metadataDate = Number.isFinite(generatedDate.getTime()) ? generatedDate : new Date();
   const generatedLabel = fmtUtc(Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString());
+  const workspaceLabel = input.workspaceName.trim();
+  const includeWorkspaceLabel =
+    workspaceLabel.length > 0 &&
+    workspaceLabel.toLowerCase() !== "receipt" &&
+    workspaceLabel.toLowerCase() !== "workspace";
+  const reportTitle =
+    input.mode === "compliance"
+      ? `${includeWorkspaceLabel ? `${workspaceLabel} ` : ""}Compliance Report`
+      : `${includeWorkspaceLabel ? `${workspaceLabel} ` : ""}Management KPI Report`;
 
   header(ctx, {
-    title:
-      input.mode === "compliance"
-        ? `${input.workspaceName} Compliance Report`
-        : `${input.workspaceName} Management KPI Report`,
+    title: reportTitle,
     subtitle: `${input.rangeLabel}`,
     eyebrow: input.mode === "compliance" ? "COMPLIANCE / REGULATORY" : "MANAGEMENT / OPERATIONS",
     rightMeta: `Generated ${generatedLabel}`,

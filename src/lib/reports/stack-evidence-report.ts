@@ -85,10 +85,15 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
   const generatedLabel = fmtUtc(
     Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString()
   );
+  const workspaceLabel = input.workspaceName.trim();
+  const subtitle =
+    workspaceLabel && workspaceLabel.toLowerCase() !== "receipt"
+      ? `${workspaceLabel} stack acknowledgement audit export.`
+      : "Stack acknowledgement audit export.";
 
   header(ctx, {
     title: `${input.stackTitle} Evidence Record`,
-    subtitle: `${input.workspaceName} stack acknowledgement audit export.`,
+    subtitle,
     eyebrow: "STACK ACKNOWLEDGEMENT EVIDENCE",
     rightMeta: `Generated ${generatedLabel}`,
     logo: workspaceLogo ?? receiptLogo,
@@ -189,7 +194,7 @@ export async function buildStackEvidencePdf(input: StackEvidenceReportInput): Pr
     });
   }
 
-  footer(ctx, "Stack Evidence Document", {
+  footer(ctx, "Stack Evidence Report", {
     poweredByLogo: receiptLogo,
   });
   applyReportPdfMetadata(ctx.pdf, {

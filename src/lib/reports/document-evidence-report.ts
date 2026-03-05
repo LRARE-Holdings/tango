@@ -116,6 +116,11 @@ export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInpu
   const generatedLabel = fmtUtc(
     Number.isFinite(generatedDate.getTime()) ? generatedDate.toISOString() : new Date().toISOString()
   );
+  const workspaceLabel = input.workspaceName.trim();
+  const subtitle =
+    workspaceLabel && workspaceLabel.toLowerCase() !== "receipt"
+      ? `${workspaceLabel} delivery evidence and acknowledgement record.`
+      : "Delivery evidence and acknowledgement record.";
   const acknowledgements = input.completions.filter((row) => row.acknowledged).length;
   const latestAck =
     [...input.completions]
@@ -124,7 +129,7 @@ export async function buildDocumentEvidencePdf(input: DocumentEvidenceReportInpu
 
   header(ctx, {
     title: input.document.title,
-    subtitle: `${input.workspaceName} delivery evidence and acknowledgement record.`,
+    subtitle,
     eyebrow: "EVIDENCE RECORD",
     rightMeta: `Generated ${generatedLabel}`,
     logo: workspaceLogo ?? receiptLogo,

@@ -17,12 +17,36 @@ type FooterBrandingArgs = {
   poweredByLogo?: PDFImage | null;
 };
 
+function truncateToWidth(
+  text: string,
+  maxWidth: number,
+  measure: (value: string) => number
+) {
+  const source = text.trim();
+  if (!source) return "";
+  if (measure(source) <= maxWidth) return source;
+  if (maxWidth <= 4) return "";
+
+  const ellipsis = "…";
+  let trimmed = source;
+  while (trimmed.length > 1 && measure(`${trimmed}${ellipsis}`) > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return trimmed ? `${trimmed}${ellipsis}` : ellipsis;
+}
+
 export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
   const bandHeight = ctx.theme.headerBandHeight;
   const top = ctx.theme.pageHeight;
   const contentWidth = ctx.theme.pageWidth - ctx.theme.marginLeft - ctx.theme.marginRight;
   const titleLineHeight = ctx.theme.titleSize + 4;
   const subtitleLineHeight = ctx.theme.bodySize + 3.2;
+  const rightMeta = args.rightMeta?.trim() ?? "";
+  const rightMetaWidth = rightMeta
+    ? ctx.fonts.regular.widthOfTextAtSize(rightMeta, ctx.theme.smallSize)
+    : 0;
+  const rightMetaGap = rightMeta ? 16 : 0;
+  const rightMetaX = ctx.theme.pageWidth - ctx.theme.marginRight - rightMetaWidth;
 
   ctx.page.drawRectangle({
     x: 0,
@@ -41,12 +65,13 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
 
   const logoX = ctx.theme.marginLeft;
   const logoTop = top - 21;
+  const maxHeaderBrandWidth = Math.max(24, rightMetaX - rightMetaGap - logoX);
   if (args.logo) {
     const targetH = 19;
     const byHeightScale = targetH / args.logo.height;
     const widthByHeight = args.logo.width * byHeightScale;
     const preferredWidth = Math.max(48, Math.min(200, Math.floor(Number(args.logoWidthPx ?? widthByHeight))));
-    const targetW = Math.min(widthByHeight, preferredWidth);
+    const targetW = Math.max(24, Math.min(widthByHeight, preferredWidth, maxHeaderBrandWidth));
     const targetRenderH = targetW * (args.logo.height / args.logo.width);
     ctx.page.drawImage(args.logo, {
       x: logoX,
@@ -55,30 +80,44 @@ export function drawReportHeader(ctx: ReportContext, args: HeaderArgs) {
       height: targetRenderH,
     });
   } else if (args.brandName && args.brandName.trim().toLowerCase() !== "receipt") {
-    ctx.page.drawText(args.brandName.trim(), {
-      x: logoX,
-      y: logoTop - 12.5,
-      font: ctx.fonts.bold,
-      size: 12.2,
-      color: ctx.theme.colors.accent,
-    });
+    const brandText = truncateToWidth(
+      args.brandName.trim(),
+      maxHeaderBrandWidth,
+      (value) => ctx.fonts.bold.widthOfTextAtSize(value, 12.2)
+    );
+    if (brandText) {
+      ctx.page.drawText(brandText, {
+        x: logoX,
+        y: logoTop - 12.5,
+        font: ctx.fonts.bold,
+        size: 12.2,
+        color: ctx.theme.colors.accent,
+      });
+    }
   }
 
-  if (args.rightMeta) {
-    const width = ctx.fonts.regular.widthOfTextAtSize(args.rightMeta, ctx.theme.smallSize);
-    ctx.page.drawText(args.rightMeta, {
-      x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
-      y: top - 41,
-      font: ctx.fonts.regular,
-      size: ctx.theme.smallSize,
-      color: ctx.theme.colors.subtle,
-    });
+  if (rightMeta) {
+    const metaText = truncateToWidth(
+      rightMeta,
+      Math.max(24, ctx.theme.pageWidth - ctx.theme.marginRight - (logoX + 120)),
+      (value) => ctx.fonts.regular.widthOfTextAtSize(value, ctx.theme.smallSize)
+    );
+    if (metaText) {
+      const width = ctx.fonts.regular.widthOfTextAtSize(metaText, ctx.theme.smallSize);
+      ctx.page.drawText(metaText, {
+        x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
+        y: top - 41,
+        font: ctx.fonts.regular,
+        size: ctx.theme.smallSize,
+        color: ctx.theme.colors.subtle,
+      });
+    }
   }
 
   const titleStartY = top - bandHeight - (args.eyebrow ? 28 : 20);
   if (args.eyebrow) {
     ctx.page.drawText(args.eyebrow, {
-      x: ctx.theme.marginLeft,
+      x: logoX,
       y: titleStartY + 16,
       font: ctx.fonts.bold,
       size: ctx.theme.smallSize,
@@ -373,11 +412,26 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
   const bandHeight = ctx.theme.footerBandHeight;
   const textY = bandY + Math.max(3.5, bandHeight - (ctx.theme.smallSize + 4.2));
   const topY = bandY + bandHeight;
+  const footerLabel = label.trim();
   const pages = ctx.pdf.getPages();
   for (let i = 0; i < pages.length; i += 1) {
     const page = pages[i];
-    const text = `Page ${i + 1} of ${pages.length}`;
-    const width = ctx.fonts.regular.widthOfTextAtSize(text, ctx.theme.smallSize);
+    const pageText = `Page ${i + 1} of ${pages.length}`;
+    const pageTextWidth = ctx.fonts.regular.widthOfTextAtSize(pageText, ctx.theme.smallSize);
+    const pageTextX = ctx.theme.pageWidth - ctx.theme.marginRight - pageTextWidth;
+    const logoHeight = 8;
+    const logoScale = branding?.poweredByLogo ? logoHeight / branding.poweredByLogo.height : 0;
+    const logoWidth = branding?.poweredByLogo ? branding.poweredByLogo.width * logoScale : 0;
+    const logoX = branding?.poweredByLogo ? (ctx.theme.pageWidth - logoWidth) / 2 : 0;
+    const centerLeftBound = branding?.poweredByLogo ? logoX - 12 : ctx.theme.pageWidth / 2;
+    const leftMaxX = Math.max(ctx.theme.marginLeft, Math.min(centerLeftBound, pageTextX - 12));
+    const leftMaxWidth = Math.max(24, leftMaxX - ctx.theme.marginLeft);
+    const safeLabel = truncateToWidth(
+      footerLabel,
+      leftMaxWidth,
+      (value) => ctx.fonts.regular.widthOfTextAtSize(value, ctx.theme.smallSize)
+    );
+
     page.drawRectangle({
       x: 0,
       y: bandY,
@@ -391,33 +445,19 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
       thickness: 1,
       color: ctx.theme.colors.border,
     });
-    page.drawText(label, {
-      x: ctx.theme.marginLeft,
-      y: textY,
-      size: ctx.theme.smallSize,
-      font: ctx.fonts.regular,
-      color: ctx.theme.colors.subtle,
-    });
-
-    if (branding?.poweredByLogo) {
-      const poweredByPrefix = "Powered by";
-      const poweredByGap = 4;
-      const poweredByPrefixWidth = ctx.fonts.regular.widthOfTextAtSize(poweredByPrefix, ctx.theme.smallSize);
-      const logoHeight = 8;
-      const logoScale = logoHeight / branding.poweredByLogo.height;
-      const logoWidth = branding.poweredByLogo.width * logoScale;
-      const groupWidth = poweredByPrefixWidth + poweredByGap + logoWidth;
-      const groupX = (ctx.theme.pageWidth - groupWidth) / 2;
-
-      page.drawText(poweredByPrefix, {
-        x: groupX,
+    if (safeLabel) {
+      page.drawText(safeLabel, {
+        x: ctx.theme.marginLeft,
         y: textY,
         size: ctx.theme.smallSize,
         font: ctx.fonts.regular,
         color: ctx.theme.colors.subtle,
       });
+    }
+
+    if (branding?.poweredByLogo) {
       page.drawImage(branding.poweredByLogo, {
-        x: groupX + poweredByPrefixWidth + poweredByGap,
+        x: logoX,
         y: textY - 1.1,
         width: logoWidth,
         height: logoHeight,
@@ -425,8 +465,8 @@ export function finalizeFooters(ctx: ReportContext, label: string, branding?: Fo
       });
     }
 
-    page.drawText(text, {
-      x: ctx.theme.pageWidth - ctx.theme.marginRight - width,
+    page.drawText(pageText, {
+      x: pageTextX,
       y: textY,
       size: ctx.theme.smallSize,
       font: ctx.fonts.regular,
