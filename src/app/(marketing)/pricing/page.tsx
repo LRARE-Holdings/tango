@@ -404,7 +404,7 @@ export default function PricingPage() {
 
             <PlanCard
               name="Pro"
-              description="Keep as-is for higher volume and advanced personal workflows."
+              description="Higher volume and advanced personal workflows."
               priceLine={priceLabel(proPrice)}
               ctaLabel={planCtaLabel({ authState, loading: checkoutLoading === "pro", planLabel: "Pro" })}
               ctaOnClick={() => void goCheckout("pro")}
