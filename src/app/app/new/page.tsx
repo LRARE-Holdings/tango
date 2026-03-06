@@ -7,7 +7,7 @@ import { useToast } from "@/components/toast";
 import { InlineNotice, SectionDisclosure } from "@/components/ui/calm-core";
 import { normalizeTemplateSettings, type ReceiptTemplateSettings } from "@/lib/template-settings";
 
-type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
+type Plan = "free" | "go" | "pro" | "team" | "standard" | "enterprise";
 type SendMode = "single_upload" | "selected_documents" | "full_stack";
 
 type Recipient = {
@@ -64,25 +64,24 @@ function serializeLabels(labels: string[] | undefined) {
   return labels.join(", ");
 }
 
-function planRank(p: Plan) {
-  switch (p) {
-    case "free":
-      return 0;
-    case "personal":
-      return 1;
-    case "pro":
-      return 2;
-    case "team":
-      return 3;
-    case "enterprise":
-      return 4;
-    default:
-      return 0;
-  }
+function canUsePasswords(plan: Plan) {
+  return plan !== "free";
 }
 
-function can(plan: Plan, min: Plan) {
-  return planRank(plan) >= planRank(min);
+function canUseEmails(plan: Plan) {
+  return plan === "pro" || plan === "standard" || plan === "enterprise";
+}
+
+function canUseProFeatures(plan: Plan) {
+  return plan === "pro" || plan === "team" || plan === "standard" || plan === "enterprise";
+}
+
+function canUseStackDelivery(plan: Plan) {
+  return plan === "pro" || plan === "standard" || plan === "enterprise";
+}
+
+function isWorkspaceScopedPlan(plan: Plan) {
+  return plan === "team" || plan === "standard" || plan === "enterprise";
 }
 
 const UPGRADE_NUDGE_KEY = "receipt_upgrade_nudges_v1";
@@ -307,9 +306,10 @@ export default function NewReceipt() {
   const [primaryWorkspaceId, setPrimaryWorkspaceId] = useState<string | null>(null);
   const [workspaceCount, setWorkspaceCount] = useState(0);
 
-  const personalPlus = can(plan, "personal");
-  const proPlus = can(plan, "pro");
-  const canStackSend = can(plan, "pro");
+  const passwordPlus = canUsePasswords(plan);
+  const emailPlus = canUseEmails(plan);
+  const proPlus = canUseProFeatures(plan);
+  const canStackSend = canUseStackDelivery(plan);
   const workspaceProFeaturesEnabled = proPlus && Boolean(primaryWorkspaceId);
 
   const [title, setTitle] = useState("");
@@ -412,12 +412,14 @@ export default function NewReceipt() {
           if (
             licenseActive &&
             (workspacePlan === "free" ||
+              workspacePlan === "go" ||
               workspacePlan === "personal" ||
               workspacePlan === "pro" ||
               workspacePlan === "team" ||
+              workspacePlan === "standard" ||
               workspacePlan === "enterprise")
           ) {
-            setPlan(workspacePlan as Plan);
+            setPlan((workspacePlan === "personal" ? "go" : workspacePlan) as Plan);
             return;
           }
         } else {
@@ -435,8 +437,8 @@ export default function NewReceipt() {
         }
 
         const p = String(json.plan ?? json.tier ?? json.subscription_plan ?? "").toLowerCase();
-        if (p === "free" || p === "personal" || p === "pro" || p === "team" || p === "enterprise") {
-          setPlan(p as Plan);
+        if (p === "free" || p === "go" || p === "personal" || p === "pro" || p === "team" || p === "standard" || p === "enterprise") {
+          setPlan((p === "personal" ? "go" : p) as Plan);
         }
       } catch {
         // ignore
@@ -683,7 +685,7 @@ export default function NewReceipt() {
   }, [file, plan]);
 
   const needsWorkspaceSelection = useMemo(() => {
-    const isWorkspacePlan = plan === "team" || plan === "enterprise";
+    const isWorkspacePlan = isWorkspaceScopedPlan(plan);
     return isWorkspacePlan && workspaceCount > 0 && !primaryWorkspaceId;
   }, [plan, workspaceCount, primaryWorkspaceId]);
 
@@ -820,7 +822,7 @@ export default function NewReceipt() {
     maybeNudgeUpgrade(
       "on_add_recipient",
       "Manual sharing on Free",
-      "Upgrade to Personal to send receipt links directly by email from Receipt."
+      "Upgrade to Pro or Standard to send receipt links directly by email from Receipt."
     );
   }
 
@@ -872,16 +874,16 @@ export default function NewReceipt() {
     }
 
     if (settings.send_emails !== undefined) {
-      setSendEmails(policyModeEnabled ? true : (settings.send_emails === true && personalPlus));
+      setSendEmails(policyModeEnabled ? true : (settings.send_emails === true && emailPlus));
     }
     if (settings.require_recipient_identity !== undefined) {
       setRequireRecipientIdentity(
-        policyModeEnabled ? true : (settings.require_recipient_identity === true && plan !== "free")
+        policyModeEnabled ? true : settings.require_recipient_identity === true
       );
     }
 
     if (settings.password_enabled !== undefined) {
-      setPasswordEnabled(settings.password_enabled === true && personalPlus);
+      setPasswordEnabled(settings.password_enabled === true && passwordPlus);
       setPassword("");
     }
 
@@ -898,7 +900,8 @@ export default function NewReceipt() {
     templateId,
     templates,
     workspaceTagFields,
-    personalPlus,
+    emailPlus,
+    passwordPlus,
     policyModeEnabled,
     plan,
   ]);
@@ -908,7 +911,7 @@ export default function NewReceipt() {
       return "Choose an active workspace from the top selector before creating a receipt.";
     }
     if (sendMode !== "single_upload" && !canStackSend) {
-      return "Stack sending is available on Pro, Team, and Enterprise plans.";
+      return "Stack sending is available on Pro, Standard, and Enterprise plans.";
     }
     if (sendMode === "single_upload" && !file) return "Please choose a PDF or DOCX file.";
     if (sendMode === "selected_documents" && selectedDocumentIds.length === 0) {
@@ -923,9 +926,9 @@ export default function NewReceipt() {
     if (!workspaceProFeaturesEnabled && (selectedContactIds.length > 0 || selectedContactGroupIds.length > 0)) {
       return "Contacts and groups require an active Pro+ workspace.";
     }
-    if (sendEmails && !personalPlus) return "Email sending is available on Personal plans and above.";
+    if (sendEmails && !emailPlus) return "Email sending is available on Pro, Standard, and Enterprise plans.";
     if (!recipientsValid) return "Please add valid recipient emails (or turn off email sending).";
-    if (passwordEnabled && !personalPlus) return "Password protection is available on Personal plans and above.";
+    if (passwordEnabled && !passwordPlus) return "Password protection is available on Go plans and above.";
     if (passwordEnabled && password.trim().length < 6) return "Password must be at least 6 characters.";
     if (maxAcknowledgersEnabled && (!Number.isFinite(maxAcknowledgers) || maxAcknowledgers < 1)) {
       return "Acknowledger limit must be at least 1.";
@@ -960,11 +963,11 @@ export default function NewReceipt() {
         if (file) {
           form.append("file", file);
         }
-        form.append("send_emails", String(sendEmails && personalPlus));
+        form.append("send_emails", String(sendEmails && emailPlus));
         form.append("recipients", JSON.stringify(configuredRecipients));
         form.append("require_recipient_identity", String(requireRecipientIdentity && plan !== "free"));
-        form.append("password_enabled", String(passwordEnabled && personalPlus));
-        form.append("password", passwordEnabled && personalPlus ? password : "");
+        form.append("password_enabled", String(passwordEnabled && passwordPlus));
+        form.append("password", passwordEnabled && passwordPlus ? password : "");
         form.append("max_acknowledgers_enabled", String(maxAcknowledgersEnabled));
         form.append("max_acknowledgers", String(maxAcknowledgersEnabled ? maxAcknowledgers : 0));
         form.append("tags", JSON.stringify(tagValues));
@@ -989,7 +992,7 @@ export default function NewReceipt() {
             stack_id: sendMode === "full_stack" ? selectedStackId : undefined,
             document_ids: sendMode === "selected_documents" ? selectedDocumentIds : undefined,
             title: title || undefined,
-            send_emails: sendEmails && personalPlus,
+            send_emails: sendEmails && emailPlus,
             recipients: configuredRecipients,
             contact_ids: workspaceProFeaturesEnabled && selectedContactIds.length > 0 ? selectedContactIds : undefined,
             contact_group_ids:
@@ -1018,7 +1021,7 @@ export default function NewReceipt() {
       maybeNudgeUpgrade(
         "on_create_success",
         "Ready to automate delivery?",
-        "Personal adds email sending and password protection. Pro adds reusable templates."
+        "Go adds password protection. Pro and Standard add email sending. Pro also adds reusable templates."
       );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
@@ -1065,8 +1068,8 @@ export default function NewReceipt() {
   }
 
   const summary = useMemo(() => {
-    const emailState = sendEmails && personalPlus ? "On" : "Off";
-    const passState = passwordEnabled && personalPlus ? "On" : "Off";
+    const emailState = sendEmails && emailPlus ? "On" : "Off";
+    const passState = passwordEnabled && passwordPlus ? "On" : "Off";
     const ackState = maxAcknowledgersEnabled ? `Max ${maxAcknowledgers}` : "Unlimited";
     const templateState = useTemplate && workspaceProFeaturesEnabled
       ? (selectedTemplate?.name ?? "Not selected")
@@ -1117,7 +1120,8 @@ export default function NewReceipt() {
     selectedDocumentIds.length,
     priority,
     sendEmails,
-    personalPlus,
+    emailPlus,
+    passwordPlus,
     recipientsCount,
     requireRecipientIdentity,
     passwordEnabled,
@@ -1379,7 +1383,7 @@ export default function NewReceipt() {
             <div className="min-w-0">
               <div className="text-sm font-semibold">You are on Free</div>
               <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-                Personal unlocks email sending and password protection. Pro adds templates and saved defaults.
+                Go unlocks password protection. Pro and Standard unlock email sending. Pro adds templates and saved defaults.
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1408,7 +1412,7 @@ export default function NewReceipt() {
           className="border px-4 py-3 text-sm"
           style={{ borderColor: "var(--border)", borderRadius: 12, background: "var(--card)" }}
         >
-          Team/Enterprise accounts must create receipts inside an active workspace.
+          Team/Standard/Enterprise accounts must create receipts inside an active workspace.
           Switch context using the top selector, then continue.
         </div>
       ) : null}
@@ -1482,10 +1486,10 @@ export default function NewReceipt() {
               title="Recipients"
               subtitle="Add recipients, optionally send from Receipt, and save recipients on Pro+."
               right={
-                !personalPlus ? (
+                !emailPlus ? (
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
-                      PERSONAL+
+                      PRO+
                     </span>
                     <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
                       Upgrade
@@ -1512,12 +1516,12 @@ export default function NewReceipt() {
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">Send link by email</div>
                     <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      {personalPlus
+                      {emailPlus
                         ? "Receipt will email the recipients you list below."
-                        : "Upgrade to Personal to send emails from Receipt."}
+                        : "Upgrade to Pro or Standard to send emails from Receipt."}
                     </div>
                   </div>
-                  <Toggle checked={sendEmails} setChecked={setSendEmails} disabled={!personalPlus} />
+                  <Toggle checked={sendEmails} setChecked={setSendEmails} disabled={!emailPlus} />
                 </div>
 
                 <div
@@ -1816,10 +1820,10 @@ export default function NewReceipt() {
                   title="Protection"
                   subtitle="Optionally require a password before the PDF can be opened."
                   right={
-                    !personalPlus ? (
+                    !passwordPlus ? (
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold tracking-wide" style={{ color: "var(--muted)" }}>
-                          PERSONAL+
+                          GO+
                         </span>
                         <Link href="/pricing" className="text-xs font-semibold underline" style={{ color: "var(--muted)" }}>
                           Upgrade
@@ -1838,9 +1842,9 @@ export default function NewReceipt() {
                       <div className="min-w-0">
                         <div className="text-sm font-semibold">Require a password</div>
                         <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                          {personalPlus
+                          {passwordPlus
                             ? "Recipients must enter the password before viewing."
-                            : "Upgrade to Personal to enable passwords."}
+                            : "Upgrade to Go to enable passwords."}
                         </div>
                       </div>
                       <Toggle
@@ -1849,7 +1853,7 @@ export default function NewReceipt() {
                           setPasswordEnabled(v);
                           if (!v) setPassword("");
                         }}
-                        disabled={!personalPlus}
+                        disabled={!passwordPlus}
                       />
                     </div>
 
@@ -1860,7 +1864,7 @@ export default function NewReceipt() {
                           value={password}
                           onChange={setPassword}
                           placeholder="Minimum 6 characters"
-                          disabled={!personalPlus}
+                          disabled={!passwordPlus}
                         />
                         <div className="text-xs" style={{ color: "var(--muted2)" }}>
                           Share this separately. Receipt records access; it does not verify identity.
@@ -1985,9 +1989,9 @@ export default function NewReceipt() {
                       </Link>
                     </div>
                     <div className="mt-3 text-xs" style={{ color: "var(--muted)" }}>
-                      {sendEmails && personalPlus
+                      {sendEmails && emailPlus
                         ? "Email sending is enabled (wire server-side to actually send)."
-                        : "Share manually, or enable email sending on Personal+."}
+                        : "Share manually, or enable email sending on Pro/Standard."}
                     </div>
                   </div>
 

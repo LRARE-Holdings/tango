@@ -105,7 +105,7 @@ export default function WorkspacesPage() {
       <AppHero
         kicker="WORKSPACES"
         title="Workspace"
-        description="Members, invites, and branding for Team/Enterprise."
+        description="Members, invites, and branding for Team/Standard/Enterprise."
         actions={
           <Link href="/app/workspaces/new" className="focus-ring app-btn-primary">
             Create workspace
@@ -131,7 +131,7 @@ export default function WorkspacesPage() {
       {!loading && !error && !hasAny && (
         <AppPanel title="No workspace yet">
           <div className="app-subtle text-sm">
-            Workspaces are available on Team/Enterprise. Create one to invite members and add a logo.
+            Workspaces are available on Team/Standard/Enterprise. Create one to invite members and add a logo.
           </div>
           <div className="mt-4">
             <Link href="/pricing" className="focus-ring app-btn-secondary">

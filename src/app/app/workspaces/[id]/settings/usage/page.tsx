@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type UsagePayload = {
   usage?: {
-    plan: "free" | "personal" | "pro" | "team" | "enterprise";
+    plan: "free" | "go" | "pro" | "team" | "standard" | "enterprise";
     count_by: "user" | "workspace";
     used: number;
     limit: number | null;
@@ -31,13 +31,14 @@ type UsagePayload = {
   };
 };
 
-type EffectivePlan = "free" | "personal" | "pro" | "team" | "enterprise";
+type EffectivePlan = "free" | "go" | "pro" | "team" | "standard" | "enterprise";
 
 function planLabel(plan: EffectivePlan) {
   if (plan === "free") return "Free";
-  if (plan === "personal") return "Personal";
+  if (plan === "go") return "Go";
   if (plan === "pro") return "Pro";
   if (plan === "team") return "Team";
+  if (plan === "standard") return "Standard";
   return "Enterprise";
 }
 

@@ -14,15 +14,20 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 function priceToPlan(priceId: string | null) {
   switch (priceId) {
+    case process.env.STRIPE_PRICE_GO_MONTHLY:
+    case process.env.STRIPE_PRICE_GO_ANNUAL:
     case process.env.STRIPE_PRICE_PERSONAL_MONTHLY:
     case process.env.STRIPE_PRICE_PERSONAL_ANNUAL:
-      return "personal";
+      return "go";
     case process.env.STRIPE_PRICE_PRO_MONTHLY:
     case process.env.STRIPE_PRICE_PRO_ANNUAL:
       return "pro";
     case process.env.STRIPE_PRICE_TEAM_MONTHLY:
     case process.env.STRIPE_PRICE_TEAM_ANNUAL:
       return "team";
+    case process.env.STRIPE_PRICE_STANDARD_MONTHLY:
+    case process.env.STRIPE_PRICE_STANDARD_ANNUAL:
+      return "standard";
     default:
       return "free";
   }
@@ -65,9 +70,10 @@ function formatMoney(unitAmount: number | null, currency: string | null, quantit
 
 function prettyPlan(v: string | null | undefined) {
   const p = String(v ?? "").trim().toLowerCase();
-  if (p === "personal") return "Personal";
+  if (p === "go" || p === "personal") return "Go";
   if (p === "pro") return "Pro";
   if (p === "team") return "Team";
+  if (p === "standard") return "Standard";
   return "Plan";
 }
 

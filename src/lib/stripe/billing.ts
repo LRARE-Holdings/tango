@@ -1,5 +1,5 @@
 export type Billing = "monthly" | "annual";
-export type CheckoutPlan = "personal" | "pro" | "team";
+export type CheckoutPlan = "go" | "pro" | "team" | "standard";
 export type CheckoutMode = "custom" | "hosted";
 export type BillingPortalFlow = "default" | "payment_method_update" | "subscription_cancel" | "subscription_update";
 type CheckoutPaymentMethodType = "card" | "revolut_pay";
@@ -27,10 +27,11 @@ export function priceEnvKey(plan: CheckoutPlan, billing: Billing) {
   return `STRIPE_PRICE_${plan.toUpperCase()}_${billing.toUpperCase()}`;
 }
 
-export function assertCheckoutPlan(x: unknown): asserts x is CheckoutPlan {
-  if (x !== "personal" && x !== "pro" && x !== "team") {
-    throw new Error("Invalid plan");
-  }
+export function normalizeCheckoutPlan(x: unknown): CheckoutPlan {
+  const value = String(x ?? "").trim().toLowerCase();
+  if (value === "personal") return "go";
+  if (value === "go" || value === "pro" || value === "team" || value === "standard") return value;
+  throw new Error("Invalid plan");
 }
 
 export function assertBilling(x: unknown): asserts x is Billing {
@@ -40,7 +41,7 @@ export function assertBilling(x: unknown): asserts x is Billing {
 }
 
 export function normalizeSeats(plan: CheckoutPlan, seatsRaw: unknown) {
-  if (plan !== "team") return 1;
+  if (plan !== "team" && plan !== "standard") return 1;
   const raw = Number(seatsRaw);
   if (!Number.isFinite(raw)) return 2;
   return Math.max(2, Math.min(500, Math.floor(raw)));

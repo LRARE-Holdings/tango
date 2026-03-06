@@ -47,11 +47,16 @@ async function requireWorkspaceAdmin(workspaceIdentifier: string) {
   }
 
   const entitlements = await getWorkspaceEntitlementsForUser(admin, resolved.id, userData.user.id);
-  if (!entitlements || !entitlements.license_active || !entitlements.workspace_plus) {
+  const plan = String(entitlements?.plan ?? "").toLowerCase();
+  if (
+    !entitlements ||
+    !entitlements.license_active ||
+    (plan !== "standard" && plan !== "enterprise")
+  ) {
     return {
       ok: false as const,
       status: 403,
-      error: "Workspace member profile photo policy is available on Team/Enterprise plans.",
+      error: "Workspace member profile photo policy is available on Standard/Enterprise plans.",
     };
   }
 

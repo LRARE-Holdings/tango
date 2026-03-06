@@ -1,4 +1,12 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import {
+  isPaidPlan,
+  isWorkspacePlan,
+  normalizeEffectivePlan,
+  type EffectivePlan,
+} from "@/lib/plan-capabilities";
+
+export type { EffectivePlan };
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 
@@ -22,8 +30,6 @@ export type WorkspaceLicensingSummary = {
   used_seats: number;
   available_seats: number;
 };
-
-export type EffectivePlan = "free" | "personal" | "pro" | "team" | "enterprise";
 
 export type WorkspaceEntitlementsForUser = {
   workspace_id: string;
@@ -53,9 +59,7 @@ function asSeatLimit(input: unknown) {
 }
 
 function normalizePlan(v: unknown): EffectivePlan {
-  const p = String(v ?? "free").trim().toLowerCase();
-  if (p === "personal" || p === "pro" || p === "team" || p === "enterprise") return p;
-  return "free";
+  return normalizeEffectivePlan(v);
 }
 
 export async function getWorkspaceLicensing(
@@ -202,13 +206,9 @@ export async function getWorkspaceEntitlementsForUser(
   const member = members.find((m) => m.user_id === userId);
   if (!member) return null;
   const effectivePlan: EffectivePlan = member.license_active ? summary.plan : "free";
-  const isPaid = effectivePlan !== "free";
-  const personalPlus =
-    effectivePlan === "personal" ||
-    effectivePlan === "pro" ||
-    effectivePlan === "team" ||
-    effectivePlan === "enterprise";
-  const workspacePlus = effectivePlan === "team" || effectivePlan === "enterprise";
+  const isPaid = isPaidPlan(effectivePlan);
+  const personalPlus = isPaid;
+  const workspacePlus = isWorkspacePlan(effectivePlan);
 
   return {
     workspace_id: workspaceId,

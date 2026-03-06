@@ -31,7 +31,7 @@ export async function POST(
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canUseStackDelivery(membership, ent.plan)) {
       return NextResponse.json(
-        { error: "Stack sending is available on Pro, Team, and Enterprise plans." },
+        { error: "Stack sending is available on Pro, Standard, and Enterprise plans." },
         { status: 403 }
       );
     }
@@ -51,7 +51,7 @@ export async function POST(
 
     if ((contactIds.length > 0 || contactGroupIds.length > 0) && !canAccessFeatureByPlan(ent.plan, "contacts")) {
       return NextResponse.json(
-        { error: "Contact selections are available on Pro, Team, and Enterprise plans." },
+        { error: "Contact selections are available on Pro, Team, Standard, and Enterprise plans." },
         { status: 403 }
       );
     }

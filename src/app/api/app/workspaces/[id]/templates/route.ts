@@ -44,7 +44,7 @@ export async function GET(
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canAccessFeatureByPlan(ent.plan, "templates")) {
-      return NextResponse.json({ error: "Templates are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+      return NextResponse.json({ error: "Templates are available on Pro, Team, Standard, and Enterprise plans." }, { status: 403 });
     }
 
     const reqUrl = new URL(req.url);
@@ -108,7 +108,7 @@ export async function POST(
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canAccessFeatureByPlan(ent.plan, "templates")) {
-      return NextResponse.json({ error: "Templates are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+      return NextResponse.json({ error: "Templates are available on Pro, Team, Standard, and Enterprise plans." }, { status: 403 });
     }
     if (membership.role !== "owner" && membership.role !== "admin") {
       return NextResponse.json({ error: "Only workspace owners or admins can manage templates." }, { status: 403 });

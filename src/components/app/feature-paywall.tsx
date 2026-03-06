@@ -9,7 +9,7 @@ type FeaturePaywallProps = {
 
 export function FeaturePaywall({
   featureName,
-  detail = "This feature is available on Pro, Team, and Enterprise workspaces.",
+  detail = "This feature is available on Pro, Team, Standard, and Enterprise workspaces.",
   ctaHref = "/pricing",
   ctaLabel = "Upgrade to Pro",
 }: FeaturePaywallProps) {

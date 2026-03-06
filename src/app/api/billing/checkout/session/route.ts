@@ -4,7 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   assertBilling,
-  assertCheckoutPlan,
+  normalizeCheckoutPlan,
   checkoutMode,
   checkoutPaymentMethodTypes,
   checkoutSuccessReturnUrl,
@@ -52,12 +52,12 @@ export async function POST(req: Request) {
     const seatsRaw = body.seats;
     const source = normalizeSource(body.source);
 
-    assertCheckoutPlan(plan);
+    const normalizedPlan = normalizeCheckoutPlan(plan);
     assertBilling(billing);
 
     const publishableKey = requireEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
-    const seats = normalizeSeats(plan, seatsRaw);
-    const priceId = requireEnv(priceEnvKey(plan, billing));
+    const seats = normalizeSeats(normalizedPlan, seatsRaw);
+    const priceId = requireEnv(priceEnvKey(normalizedPlan, billing));
     const price = await stripe.prices.retrieve(priceId);
     const paymentMethodTypes = checkoutPaymentMethodTypes(price.currency);
 
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
 
     const metadata: Record<string, string> = {
       supabase_user_id: userId,
-      plan,
+      plan: normalizedPlan,
       billing,
     };
     if (source) metadata.source = source;

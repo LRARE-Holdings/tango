@@ -26,7 +26,7 @@ type NeedKey =
   | "team_sharing"
   | "templates_defaults";
 
-type RecommendedPlan = "free" | "personal" | "pro" | "team" | "enterprise";
+type RecommendedPlan = "free" | "go" | "pro" | "team" | "enterprise";
 type Billing = "monthly" | "annual";
 const CHECKOUT_MODE = String(process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_MODE ?? "custom")
   .trim()
@@ -86,10 +86,10 @@ const PLAN_BRAND: Record<
     accent: "#5f6673",
     accentSoft: "rgba(95, 102, 115, 0.16)",
   },
-  personal: {
-    title: "Personal",
-    strap: "Individual power",
-    summary: "Built for solo workflows that still need stronger delivery and sharing controls.",
+  go: {
+    title: "Go",
+    strap: "Individual controls",
+    summary: "Built for solo workflows that need password protection without team complexity.",
     accent: "#1f8f5f",
     accentSoft: "rgba(31, 143, 95, 0.14)",
   },
@@ -156,7 +156,8 @@ function computeRecommendation(a: Answers): {
     needs.has("limit_acknowledgements") ||
     needs.has("audit_records");
 
-  const wantsPersonalFeatures = needs.has("passwords") || needs.has("send_email");
+  const wantsGoFeatures = needs.has("passwords");
+  const wantsEmailFeatures = needs.has("send_email");
 
   const frequent = a.frequency === "weekly" || a.frequency === "daily";
 
@@ -172,7 +173,7 @@ function computeRecommendation(a: Answers): {
     };
   }
 
-  if (a.intent === "professional" && (frequent || wantsProFeatures)) {
+  if (a.intent === "professional" && (frequent || wantsProFeatures || wantsEmailFeatures)) {
     return {
       plan: "pro",
       why: [
@@ -183,12 +184,34 @@ function computeRecommendation(a: Answers): {
     };
   }
 
-  if (wantsPersonalFeatures || a.intent === "personal") {
+  if (wantsEmailFeatures) {
     return {
-      plan: "personal",
+      plan: "pro",
       why: [
-        "Ideal for individual use with extra sharing controls",
-        "Adds passwords and email sending",
+        "Email sending is included",
+        "Best for regular individual sending workflows",
+        "Includes stronger defaults and reusable controls",
+      ],
+    };
+  }
+
+  if (wantsGoFeatures || a.intent === "personal") {
+    return {
+      plan: "go",
+      why: [
+        "Ideal for individual use with stronger sharing controls",
+        "Adds password protection",
+        "Keeps setup simple before moving to advanced plans",
+      ],
+    };
+  }
+
+  if (wantsProFeatures) {
+    return {
+      plan: "pro",
+      why: [
+        "Includes templates and higher-volume workflows",
+        "Supports audit-ready professional usage",
         "A clean upgrade without team complexity",
       ],
     };

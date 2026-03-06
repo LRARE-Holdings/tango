@@ -1,23 +1,19 @@
+import { isSeatBasedPlan, normalizeEffectivePlan, type EffectivePlan } from "@/lib/plan-capabilities";
+
 export const DOCUMENT_LIMITS = {
   freeTotalPerUser: 10,
-  personalPerMonth: 100,
+  goPerMonth: 50,
   proPerMonth: 500,
-  teamBasePerMonth: 1000,
-  teamExtraPerSeatPerMonth: 200,
+  teamPerMonth: 100,
+  standardPerSeatPerMonth: 250,
 } as const;
-
-export type EffectivePlan = "free" | "personal" | "pro" | "team" | "enterprise";
 
 export type DocumentQuota = {
   limit: number | null;
   window: "total" | "monthly" | "custom";
 };
 
-export function normalizeEffectivePlan(v: unknown): EffectivePlan {
-  const p = String(v ?? "free").trim().toLowerCase();
-  if (p === "personal" || p === "pro" || p === "team" || p === "enterprise") return p;
-  return "free";
-}
+export { type EffectivePlan, normalizeEffectivePlan };
 
 export function getDocumentQuota(planInput: unknown, seatsInput?: unknown): DocumentQuota {
   const plan = normalizeEffectivePlan(planInput);
@@ -26,15 +22,18 @@ export function getDocumentQuota(planInput: unknown, seatsInput?: unknown): Docu
   if (plan === "free") {
     return { limit: DOCUMENT_LIMITS.freeTotalPerUser, window: "total" };
   }
-  if (plan === "personal") {
-    return { limit: DOCUMENT_LIMITS.personalPerMonth, window: "monthly" };
+  if (plan === "go") {
+    return { limit: DOCUMENT_LIMITS.goPerMonth, window: "monthly" };
   }
   if (plan === "pro") {
     return { limit: DOCUMENT_LIMITS.proPerMonth, window: "monthly" };
   }
   if (plan === "team") {
+    return { limit: DOCUMENT_LIMITS.teamPerMonth, window: "monthly" };
+  }
+  if (plan === "standard") {
     return {
-      limit: DOCUMENT_LIMITS.teamBasePerMonth + seats * DOCUMENT_LIMITS.teamExtraPerSeatPerMonth,
+      limit: DOCUMENT_LIMITS.standardPerSeatPerMonth * (isSeatBasedPlan(plan) ? seats : 1),
       window: "monthly",
     };
   }

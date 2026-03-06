@@ -32,15 +32,20 @@ function sessionUserId(session: Stripe.Checkout.Session) {
 
 function priceToPlan(priceId: string | null) {
   switch (priceId) {
+    case process.env.STRIPE_PRICE_GO_MONTHLY:
+    case process.env.STRIPE_PRICE_GO_ANNUAL:
     case process.env.STRIPE_PRICE_PERSONAL_MONTHLY:
     case process.env.STRIPE_PRICE_PERSONAL_ANNUAL:
-      return "personal";
+      return "go";
     case process.env.STRIPE_PRICE_PRO_MONTHLY:
     case process.env.STRIPE_PRICE_PRO_ANNUAL:
       return "pro";
     case process.env.STRIPE_PRICE_TEAM_MONTHLY:
     case process.env.STRIPE_PRICE_TEAM_ANNUAL:
       return "team";
+    case process.env.STRIPE_PRICE_STANDARD_MONTHLY:
+    case process.env.STRIPE_PRICE_STANDARD_ANNUAL:
+      return "standard";
     default:
       return "free";
   }

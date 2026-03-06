@@ -260,27 +260,27 @@ export async function PATCH(
       payload.document_tag_fields = parseDocumentTagFields(body.document_tag_fields);
     }
     if (body && "policy_mode_enabled" in body) {
-      if (licensing.plan !== "team" && licensing.plan !== "enterprise") {
+      if (licensing.plan !== "standard" && licensing.plan !== "enterprise") {
         return NextResponse.json(
-          { error: "Policy mode is available on Team and Enterprise workspaces only." },
+          { error: "Policy mode is available on Standard and Enterprise workspaces only." },
           { status: 403 }
         );
       }
       payload.policy_mode_enabled = body.policy_mode_enabled === true;
     }
     if (body && "mfa_required" in body) {
-      if (licensing.plan !== "team" && licensing.plan !== "enterprise") {
+      if (licensing.plan !== "standard" && licensing.plan !== "enterprise") {
         return NextResponse.json(
-          { error: "Workspace MFA enforcement is available on Team and Enterprise workspaces only." },
+          { error: "Workspace MFA enforcement is available on Standard and Enterprise workspaces only." },
           { status: 403 }
         );
       }
       payload.mfa_required = body.mfa_required === true;
     }
     if (body && "member_profile_photo_mode" in body) {
-      if (licensing.plan !== "team" && licensing.plan !== "enterprise") {
+      if (licensing.plan !== "standard" && licensing.plan !== "enterprise") {
         return NextResponse.json(
-          { error: "Workspace member profile photo policy is available on Team and Enterprise workspaces only." },
+          { error: "Workspace member profile photo policy is available on Standard and Enterprise workspaces only." },
           { status: 403 }
         );
       }

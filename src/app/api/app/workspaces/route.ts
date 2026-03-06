@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 import { isUnauthorizedAuthError } from "@/lib/api/auth";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { normalizeEffectivePlan, type EffectivePlan } from "@/lib/plan-capabilities";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
 
 function errMessage(e: unknown) {
   return e instanceof Error ? e.message : "Failed";
@@ -62,7 +61,7 @@ async function requireUser() {
   return { supabase, user: data.user };
 }
 
-async function getMyPlan(userId: string): Promise<Plan> {
+async function getMyPlan(userId: string): Promise<EffectivePlan> {
   const admin = supabaseAdmin();
   const { data, error } = await admin
     .from("profiles")
@@ -71,7 +70,7 @@ async function getMyPlan(userId: string): Promise<Plan> {
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  return ((data?.plan ?? "free") as Plan);
+  return normalizeEffectivePlan(data?.plan ?? "free");
 }
 
 export async function GET() {
@@ -160,9 +159,9 @@ export async function POST(req: Request) {
     }
 
     const plan = await getMyPlan(user.id);
-    if (plan !== "team" && plan !== "enterprise") {
+    if (plan !== "team" && plan !== "standard" && plan !== "enterprise") {
       return NextResponse.json(
-        { error: "Workspace creation is available on Team (and Enterprise) plans." },
+        { error: "Workspace creation is available on Team, Standard, and Enterprise plans." },
         { status: 403 }
       );
     }

@@ -63,8 +63,8 @@ export async function GET(
     const { supabase, admin, userId, workspaceId, membership } = access;
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    if (!canAccessFeatureByPlan(ent.plan, "contacts")) {
-      return NextResponse.json({ error: "Contact groups are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+    if (!canAccessFeatureByPlan(ent.plan, "contact_groups")) {
+      return NextResponse.json({ error: "Department groups are available on Standard and Enterprise plans." }, { status: 403 });
     }
 
     const reqUrl = new URL(req.url);
@@ -177,8 +177,8 @@ export async function POST(
     const { supabase, admin, userId, workspaceId, membership } = access;
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    if (!canAccessFeatureByPlan(ent.plan, "contacts")) {
-      return NextResponse.json({ error: "Contact groups are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+    if (!canAccessFeatureByPlan(ent.plan, "contact_groups")) {
+      return NextResponse.json({ error: "Department groups are available on Standard and Enterprise plans." }, { status: 403 });
     }
     if (membership.role !== "owner" && membership.role !== "admin") {
       return NextResponse.json({ error: "Only workspace owners or admins can manage contact groups." }, { status: 403 });

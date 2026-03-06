@@ -27,7 +27,7 @@ function isEligibleTeamCustomer(me: MeSummary | null) {
   if (!me) return false;
   const plan = String(me.plan ?? "").toLowerCase();
   const subscriptionStatus = String(me.subscription_status ?? "").toLowerCase();
-  return plan === "team" && (subscriptionStatus === "active" || subscriptionStatus === "trialing");
+  return (plan === "team" || plan === "standard") && (subscriptionStatus === "active" || subscriptionStatus === "trialing");
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -100,7 +100,7 @@ export default function BillingSuccessPage() {
     };
   }, [router, sessionId]);
 
-  const teamOnboarding = isEligibleTeamCustomer(me);
+  const businessOnboarding = isEligibleTeamCustomer(me);
 
   async function createWorkspace() {
     setInviteMsg(null);
@@ -216,18 +216,18 @@ export default function BillingSuccessPage() {
           {status === "loading"
             ? "Finalising subscription"
             : status === "ok"
-              ? teamOnboarding
-                ? "Set up your team workspace"
+              ? businessOnboarding
+                ? "Set up your workspace"
                 : "Subscription confirmed"
               : "Could not confirm subscription"}
         </h1>
         <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
           {status === "loading"
             ? "We are confirming your plan and syncing account access."
-            : status === "ok" && !teamOnboarding
+            : status === "ok" && !businessOnboarding
               ? "Payment is confirmed. You can continue to your dashboard."
               : status === "ok"
-                ? "Create your workspace, then invite your team members. You can skip invites and do that later."
+                ? "Create your workspace, then invite members. You can skip invites and do that later."
                 : "Please refresh this page or check billing in account settings."}
         </p>
         {sessionId ? (
@@ -246,7 +246,7 @@ export default function BillingSuccessPage() {
         </section>
       ) : null}
 
-      {teamOnboarding && status === "ok" ? (
+      {businessOnboarding && status === "ok" ? (
         <section
           className="mx-auto max-w-3xl border p-6 md:p-7 space-y-5"
           style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}

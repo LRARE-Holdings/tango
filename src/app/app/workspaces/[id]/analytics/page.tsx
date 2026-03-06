@@ -103,7 +103,7 @@ export default function WorkspaceAnalyticsPage() {
       <AppHero
         kicker="ANALYTICS"
         title="Analytics"
-        description="Team/Enterprise compliance and management insights."
+        description="Standard/Enterprise compliance and management insights."
       />
 
       {loading ? <div className="app-subtle text-sm">Loading…</div> : null}

@@ -1,20 +1,24 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { resolveWorkspaceIdentifier } from "@/lib/workspace-identifier";
 import { getWorkspaceEntitlementsForUser, type EffectivePlan } from "@/lib/workspace-licensing";
+import {
+  canAccessContacts,
+  canAccessDepartmentGroups,
+  canAccessTemplates,
+  normalizeEffectivePlan,
+} from "@/lib/plan-capabilities";
 
-export type WorkspaceFeatureKey = "templates" | "contacts";
+export type WorkspaceFeatureKey = "templates" | "contacts" | "contact_groups";
 
 function normalizePlan(plan: unknown): EffectivePlan {
-  const value = String(plan ?? "free").trim().toLowerCase();
-  if (value === "personal" || value === "pro" || value === "team" || value === "enterprise") return value;
-  return "free";
+  return normalizeEffectivePlan(plan);
 }
 
 export function canAccessFeatureByPlan(plan: unknown, featureKey: WorkspaceFeatureKey): boolean {
   const normalized = normalizePlan(plan);
-  if (featureKey === "templates" || featureKey === "contacts") {
-    return normalized === "pro" || normalized === "team" || normalized === "enterprise";
-  }
+  if (featureKey === "templates") return canAccessTemplates(normalized);
+  if (featureKey === "contacts") return canAccessContacts(normalized);
+  if (featureKey === "contact_groups") return canAccessDepartmentGroups(normalized);
   return false;
 }
 

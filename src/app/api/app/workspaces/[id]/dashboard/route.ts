@@ -114,7 +114,7 @@ export async function GET(
 
     const effectivePlan = normalizeEffectivePlan(workspaceEntitlements.plan);
     let seatLimitForQuota = workspaceEntitlements.seat_limit;
-    if (effectivePlan === "team" && !seatLimitForQuota) {
+    if ((effectivePlan === "team" || effectivePlan === "standard") && !seatLimitForQuota) {
       const { data: ent } = await supabase
         .from("profile_entitlements")
         .select("seats")
@@ -279,7 +279,7 @@ export async function GET(
     const usageLimit: number | null = quota.limit;
     let usageUsed = 0;
     const usageWindow: UsageWindow = quota.window;
-    const usageCountBy = effectivePlan === "team" ? "workspace" : "user";
+    const usageCountBy = effectivePlan === "team" || effectivePlan === "standard" ? "workspace" : "user";
 
     if (quota.limit !== null) {
       let usageQuery = supabase.from("documents").select("id", { count: "exact", head: true });
@@ -287,7 +287,7 @@ export async function GET(
         const { startIso, endIso } = currentUtcMonthRange();
         usageQuery = usageQuery.gte("created_at", startIso).lt("created_at", endIso);
       }
-      if (effectivePlan === "team") {
+      if (effectivePlan === "team" || effectivePlan === "standard") {
         usageQuery = usageQuery.eq("workspace_id", workspaceId);
       } else {
         usageQuery = usageQuery.eq("owner_id", userId);

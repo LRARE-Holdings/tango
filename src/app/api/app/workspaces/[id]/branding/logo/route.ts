@@ -48,7 +48,7 @@ export async function POST(
 
     const entitlements = await getWorkspaceEntitlementsForUser(admin, workspaceId, userData.user.id);
     if (!entitlements || !entitlements.license_active || !entitlements.workspace_plus) {
-      return NextResponse.json({ error: "Branding is available on Team plans." }, { status: 403 });
+      return NextResponse.json({ error: "Branding is available on Team, Standard, and Enterprise plans." }, { status: 403 });
     }
 
     const form = await req.formData();
@@ -128,7 +128,7 @@ export async function PATCH(
 
     const entitlements = await getWorkspaceEntitlementsForUser(admin, workspaceId, userData.user.id);
     if (!entitlements || !entitlements.license_active || !entitlements.workspace_plus) {
-      return NextResponse.json({ error: "Branding is available on Team plans." }, { status: 403 });
+      return NextResponse.json({ error: "Branding is available on Team, Standard, and Enterprise plans." }, { status: 403 });
     }
 
     const body = (await req.json().catch(() => null)) as { brand_logo_width_px?: unknown } | null;

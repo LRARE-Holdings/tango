@@ -22,7 +22,7 @@ export async function GET(
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canUseStackDelivery(membership, ent.plan)) {
-      return NextResponse.json({ error: "Stacks are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+      return NextResponse.json({ error: "Stacks are available on Pro, Standard, and Enterprise plans." }, { status: 403 });
     }
 
     const [receiptRes, workspaceRes] = await Promise.all([

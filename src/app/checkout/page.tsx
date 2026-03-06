@@ -9,7 +9,7 @@ import { CheckoutProvider, PaymentElement, useCheckout } from "@stripe/react-str
 import { isSafeInternalPath } from "@/lib/safe-redirect";
 import { TermsOfServiceContent } from "@/components/legal/terms-of-service-content";
 
-type CheckoutPlan = "personal" | "pro" | "team";
+type CheckoutPlan = "go" | "pro" | "team" | "standard";
 type Billing = "monthly" | "annual";
 type CheckoutSource = "onboarding" | "pricing" | "custom_checkout";
 
@@ -28,9 +28,10 @@ type QueryPayload = {
 };
 
 function planLabel(plan: CheckoutPlan) {
-  if (plan === "personal") return "Personal";
+  if (plan === "go") return "Go";
   if (plan === "pro") return "Pro";
-  return "Team";
+  if (plan === "team") return "Team";
+  return "Standard";
 }
 
 function billingLabel(billing: Billing) {
@@ -52,12 +53,13 @@ function defaultReturnTo() {
 }
 
 function parseQuery(searchParams: URLSearchParams): { value: QueryPayload | null; error: string | null } {
-  const planRaw = String(searchParams.get("plan") ?? "").trim().toLowerCase();
+  const rawPlan = String(searchParams.get("plan") ?? "").trim().toLowerCase();
+  const planRaw = rawPlan === "personal" ? "go" : rawPlan;
   const billingRaw = String(searchParams.get("billing") ?? "").trim().toLowerCase();
   const sourceRaw = String(searchParams.get("source") ?? "").trim().toLowerCase();
   const returnToRaw = searchParams.get("return_to");
 
-  if (planRaw !== "personal" && planRaw !== "pro" && planRaw !== "team") {
+  if (planRaw !== "go" && planRaw !== "pro" && planRaw !== "team" && planRaw !== "standard") {
     return { value: null, error: "Invalid plan in checkout request." };
   }
 
@@ -76,7 +78,7 @@ function parseQuery(searchParams: URLSearchParams): { value: QueryPayload | null
     returnTo,
   };
 
-  if (planRaw === "team") {
+  if (planRaw === "team" || planRaw === "standard") {
     const seatsRaw = Number(searchParams.get("seats"));
     const seats = Number.isFinite(seatsRaw) ? Math.max(2, Math.min(500, Math.floor(seatsRaw))) : 2;
     query.seats = seats;
@@ -193,7 +195,7 @@ function CheckoutForm({
         </div>
         <div className="mt-2 text-sm font-medium">
           {planLabel(plan)} · {billingLabel(billing)}
-          {plan === "team" ? ` · ${seats} seats` : ""}
+          {plan === "team" || plan === "standard" ? ` · ${seats} seats` : ""}
         </div>
         <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
           {sourceLabel(source)}
@@ -439,7 +441,7 @@ export default function BillingCheckoutPage() {
                   </div>
                   <div className="mt-2 text-base font-semibold">
                     {planLabel(query.plan)} · {billingLabel(query.billing)}
-                    {query.plan === "team" ? ` · ${query.seats ?? 2} seats` : ""}
+                    {query.plan === "team" || query.plan === "standard" ? ` · ${query.seats ?? 2} seats` : ""}
                   </div>
                   <div className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
                     {sourceLabel(query.source)}
@@ -489,7 +491,7 @@ export default function BillingCheckoutPage() {
                     sessionId={session.checkoutSessionId}
                     plan={query.plan}
                     billing={query.billing}
-                    seats={query.plan === "team" ? query.seats ?? 2 : 1}
+                    seats={query.plan === "team" || query.plan === "standard" ? query.seats ?? 2 : 1}
                     source={query.source}
                     onExit={exitCheckout}
                     onOpenTerms={() => setTermsOpen(true)}

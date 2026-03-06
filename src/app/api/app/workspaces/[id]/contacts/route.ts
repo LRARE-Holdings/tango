@@ -44,7 +44,7 @@ export async function GET(
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canAccessFeatureByPlan(ent.plan, "contacts")) {
-      return NextResponse.json({ error: "Contacts are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+      return NextResponse.json({ error: "Contacts are available on Pro, Team, Standard, and Enterprise plans." }, { status: 403 });
     }
 
     const { memberEmails } = await ensureWorkspaceMemberContacts({
@@ -138,7 +138,7 @@ export async function POST(
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canAccessFeatureByPlan(ent.plan, "contacts")) {
-      return NextResponse.json({ error: "Contacts are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+      return NextResponse.json({ error: "Contacts are available on Pro, Team, Standard, and Enterprise plans." }, { status: 403 });
     }
 
     await ensureWorkspaceMemberContacts({

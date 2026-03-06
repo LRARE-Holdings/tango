@@ -32,7 +32,7 @@ export default function WorkspacePolicySettingsPage() {
 
   const policyEligible = useMemo(() => {
     const plan = String(licensing?.plan ?? "").toLowerCase();
-    return plan === "team" || plan === "enterprise";
+    return plan === "standard" || plan === "enterprise";
   }, [licensing?.plan]);
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function WorkspacePolicySettingsPage() {
       >
         <div className="text-lg font-semibold">Policy mode</div>
         <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Team/Enterprise workflow presets and security controls for this workspace.
+          Standard/Enterprise workflow presets and security controls for this workspace.
         </div>
 
         {loading ? (
@@ -126,7 +126,7 @@ export default function WorkspacePolicySettingsPage() {
                 className="text-sm border px-4 py-3"
                 style={{ borderColor: "var(--border)", borderRadius: 10, color: "var(--muted)" }}
               >
-                Policy mode is available on Team and Enterprise workspaces only.
+                Policy mode is available on Standard and Enterprise workspaces only.
               </div>
             ) : (
               <>

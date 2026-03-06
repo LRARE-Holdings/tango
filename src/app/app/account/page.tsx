@@ -10,7 +10,7 @@ type MeResponse = {
   id?: string | null;
   email?: string | null;
 
-  plan?: string | null; // "free" | "personal" | "pro" | "team"
+  plan?: string | null; // "free" | "go" | "pro" | "team" | "standard"
   display_plan?: string | null; // e.g. "licensed" for workspace-licensed members
   display_name?: string | null;
   workspace_license_active?: boolean | null;
@@ -110,9 +110,10 @@ function planLabel(plan: string | null | undefined) {
   if (!plan) return "Free";
   const p = String(plan).toLowerCase();
   if (p === "licensed") return "Licensed";
-  if (p === "personal") return "Personal";
+  if (p === "go" || p === "personal") return "Go";
   if (p === "pro") return "Pro";
   if (p === "team") return "Team";
+  if (p === "standard") return "Standard";
   if (p === "enterprise") return "Enterprise";
   return p.charAt(0).toUpperCase() + p.slice(1);
 }

@@ -12,7 +12,7 @@ import {
 } from "@/lib/workspace-permissions";
 import { canAccessFeatureByPlan } from "@/lib/workspace-features";
 
-type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
+type Plan = "free" | "go" | "pro" | "team" | "standard" | "enterprise";
 type WorkspaceRole = "owner" | "admin" | "member";
 
 type WorkspaceContext = {
@@ -46,7 +46,8 @@ const SIDEBAR_VERSION = SIDEBAR_BUILD_REF ? `${SIDEBAR_BASE_VERSION}+${SIDEBAR_B
 
 function normalizePlan(input: string | null | undefined): Plan {
   const plan = String(input ?? "free").trim().toLowerCase();
-  if (plan === "personal" || plan === "pro" || plan === "team" || plan === "enterprise") return plan;
+  if (plan === "personal") return "go";
+  if (plan === "go" || plan === "pro" || plan === "team" || plan === "standard" || plan === "enterprise") return plan;
   return "free";
 }
 
@@ -281,7 +282,6 @@ export function AppSidebar({
 
   const showAnalytics = Boolean(
     idForLinks &&
-      (activePlan === "team" || activePlan === "enterprise") &&
       canViewAnalytics(
         currentMember
           ? {
@@ -360,7 +360,7 @@ export function AppSidebar({
   const brandWorkspaceIdentifier =
     activeWorkspaceCtx?.workspace?.slug ?? contextWorkspaceIdentifier ?? idForLinks ?? null;
   const useWorkspaceBranding = Boolean(
-    brandWorkspaceIdentifier && (activePlan === "team" || activePlan === "enterprise")
+    brandWorkspaceIdentifier && (activePlan === "team" || activePlan === "standard" || activePlan === "enterprise")
   );
   const workspaceBrandLogoPath = String(activeWorkspaceCtx?.workspace?.brand_logo_path ?? "").trim();
   const workspaceBrandLogoSrc =

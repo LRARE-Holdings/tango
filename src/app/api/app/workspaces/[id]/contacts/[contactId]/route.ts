@@ -32,7 +32,7 @@ export async function PATCH(
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canAccessFeatureByPlan(ent.plan, "contacts")) {
-      return NextResponse.json({ error: "Contacts are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+      return NextResponse.json({ error: "Contacts are available on Pro, Team, Standard, and Enterprise plans." }, { status: 403 });
     }
 
     const body = (await req.json().catch(() => null)) as UpdateContactBody | null;
@@ -123,7 +123,7 @@ export async function DELETE(
     const ent = await getWorkspaceEntitlementsForUser(admin, workspaceId, userId);
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canAccessFeatureByPlan(ent.plan, "contacts")) {
-      return NextResponse.json({ error: "Contacts are available on Pro, Team, and Enterprise plans." }, { status: 403 });
+      return NextResponse.json({ error: "Contacts are available on Pro, Team, Standard, and Enterprise plans." }, { status: 403 });
     }
 
     const currentRes = await supabase

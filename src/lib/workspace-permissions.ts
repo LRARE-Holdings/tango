@@ -1,4 +1,5 @@
 import type { EffectivePlan } from "@/lib/workspace-licensing";
+import { canUseStackDeliveryByPlan, canViewComplianceAnalyticsByPlan } from "@/lib/plan-capabilities";
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 
@@ -29,7 +30,7 @@ export function canViewAnalytics(
   plan: EffectivePlan | null | undefined
 ) {
   if (!member || !member.license_active) return false;
-  if (plan !== "team" && plan !== "enterprise") return false;
+  if (!canViewComplianceAnalyticsByPlan(plan ?? "free")) return false;
   if (canAccessAdminSettings(member.role)) return true;
   return member.can_view_analytics === true;
 }
@@ -39,5 +40,5 @@ export function canUseStackDelivery(
   plan: EffectivePlan | null | undefined
 ) {
   if (!member || !member.license_active) return false;
-  return plan === "pro" || plan === "team" || plan === "enterprise";
+  return canUseStackDeliveryByPlan(plan ?? "free");
 }

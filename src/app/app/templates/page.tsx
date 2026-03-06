@@ -342,7 +342,7 @@ export default function TemplatesPage() {
       ) : null}
 
       {!loading && paywall ? (
-        <FeaturePaywall featureName="Templates" detail="Templates are unlocked for Pro, Team, and Enterprise workspaces." />
+        <FeaturePaywall featureName="Templates" detail="Templates are unlocked for Pro, Team, Standard, and Enterprise workspaces." />
       ) : null}
 
       {showWorkspaceRequired ? (

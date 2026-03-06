@@ -51,7 +51,7 @@ export default function WorkspaceBrandingPage() {
 
   const policyEligible = useMemo(() => {
     const plan = String(licensing?.plan ?? "").toLowerCase();
-    return plan === "team" || plan === "enterprise";
+    return plan === "standard" || plan === "enterprise";
   }, [licensing?.plan]);
 
   useEffect(() => {
@@ -382,7 +382,7 @@ export default function WorkspaceBrandingPage() {
 
             {!policyEligible ? (
               <div className="mt-4 text-sm border px-4 py-3" style={{ borderColor: "var(--border)", borderRadius: 10, color: "var(--muted)" }}>
-                This policy is available on Team and Enterprise workspaces only.
+                This policy is available on Standard and Enterprise workspaces only.
               </div>
             ) : (
               <>

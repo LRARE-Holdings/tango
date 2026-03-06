@@ -10,6 +10,7 @@ import { getWorkspaceEntitlementsForUser } from "@/lib/workspace-licensing";
 import { currentUtcMonthRange, getDocumentQuota, normalizeEffectivePlan } from "@/lib/document-limits";
 import { canAccessFeatureByPlan } from "@/lib/workspace-features";
 import { parseIdList, resolveWorkspaceRecipients } from "@/lib/workspace-contacts";
+import { canSendEmails, canUsePasswords, isSeatBasedPlan, isWorkspacePlan } from "@/lib/plan-capabilities";
 
 const MAX_MB = 20;
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -287,8 +288,6 @@ export async function POST(req: Request) {
     const personalPlan = normalizeEffectivePlan(profile?.plan);
     let effectivePlan = personalPlan;
     let isPaidPlan = personalPlan !== "free";
-    let personalPlus =
-      personalPlan === "personal" || personalPlan === "pro" || personalPlan === "team" || personalPlan === "enterprise";
     const activeWorkspaceId = (profile?.primary_workspace_id as string | null) ?? null;
     let seatLimitForQuota = 1;
     let quotaByWorkspace = false;
@@ -319,7 +318,6 @@ export async function POST(req: Request) {
       }
 
       isPaidPlan = workspaceEntitlements.is_paid;
-      personalPlus = workspaceEntitlements.personal_plus;
       effectivePlan = workspaceEntitlements.plan;
       seatLimitForQuota = workspaceEntitlements.seat_limit;
       workspace_id = activeWorkspaceId;
@@ -333,7 +331,7 @@ export async function POST(req: Request) {
       if (!policyRes.error) {
         policyModeEnabled = (policyRes.data as { policy_mode_enabled?: unknown } | null)?.policy_mode_enabled === true;
       }
-    } else if (personalPlan === "team" || personalPlan === "enterprise") {
+    } else if (isWorkspacePlan(personalPlan)) {
       const { count: membershipCount, error: countErr } = await supabase
         .from("workspace_members")
         .select("workspace_id", { count: "exact", head: true })
@@ -343,14 +341,14 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             error:
-              "Select an active workspace before creating receipts. Team/Enterprise receipts must belong to a workspace.",
+              "Select an active workspace before creating receipts. Team/Standard/Enterprise receipts must belong to a workspace.",
           },
           { status: 409 }
         );
       }
     }
 
-    if (effectivePlan === "team" && !workspace_id) {
+    if (isSeatBasedPlan(effectivePlan) && !workspace_id) {
       const { data: ent } = await supabase
         .from("profile_entitlements")
         .select("seats")
@@ -390,7 +388,7 @@ export async function POST(req: Request) {
         if ((count ?? 0) >= quota.limit) {
           return NextResponse.json(
             {
-              error: `You've reached the Free plan limit of ${quota.limit} receipts total. Upgrade to Personal or Pro to create more.`,
+              error: `You've reached the Free plan limit of ${quota.limit} receipts total. Upgrade to Go or Pro to create more.`,
               code: "DOCUMENT_LIMIT_REACHED",
               plan: effectivePlan,
               limit: quota.limit,
@@ -447,7 +445,7 @@ export async function POST(req: Request) {
       }
       if (!canAccessFeatureByPlan(effectivePlan, "contacts")) {
         return NextResponse.json(
-          { error: "Contact selections are available on Pro, Team, and Enterprise plans." },
+          { error: "Contact selections are available on Pro, Team, Standard, and Enterprise plans." },
           { status: 403 }
         );
       }
@@ -463,9 +461,16 @@ export async function POST(req: Request) {
       recipients = resolvedRecipients.recipients;
     }
 
-    if (sendEmails && !personalPlus) {
+    if (passwordEnabledRaw && !canUsePasswords(effectivePlan)) {
       return NextResponse.json(
-        { error: "Email sending is available on Personal plans and above." },
+        { error: "Password protection is available on Go plans and above." },
+        { status: 403 }
+      );
+    }
+
+    if (sendEmails && !canSendEmails(effectivePlan)) {
+      return NextResponse.json(
+        { error: "Email sending is available on Pro, Standard, and Enterprise plans." },
         { status: 403 }
       );
     }

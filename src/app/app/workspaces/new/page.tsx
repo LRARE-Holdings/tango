@@ -40,7 +40,7 @@ export default function NewWorkspacePage() {
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Create workspace</h1>
           <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-            Team/Enterprise only. One workspace = shared members + shared branding.
+            Team/Standard/Enterprise only. One workspace = shared members + shared branding.
           </p>
         </div>
 

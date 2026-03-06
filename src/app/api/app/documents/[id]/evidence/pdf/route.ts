@@ -99,7 +99,7 @@ export async function GET(
   }
 
   const watermarkEnabled = effectivePlan === "free";
-  const teamBrandingEnabled = effectivePlan === "team" || effectivePlan === "enterprise";
+  const teamBrandingEnabled = effectivePlan === "team" || effectivePlan === "standard" || effectivePlan === "enterprise";
 
   const { data: completionsRaw, error: compErr } = await admin
     .from("completions")

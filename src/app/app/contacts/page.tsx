@@ -379,7 +379,7 @@ export default function ContactsPage() {
       ) : null}
 
       {!loading && paywall ? (
-        <FeaturePaywall featureName="Contacts" detail="Contacts and groups are unlocked for Pro, Team, and Enterprise workspaces." />
+        <FeaturePaywall featureName="Contacts" detail="Contacts and groups are unlocked for Pro, Team, Standard, and Enterprise workspaces." />
       ) : null}
 
       {showWorkspaceRequired ? (

@@ -7,7 +7,7 @@ import { SettingsCog } from "@/components/app/settings-cog";
 import { canAccessAdminSettings, canAccessKeySettings, canUseStackDelivery, canViewAnalytics } from "@/lib/workspace-permissions";
 import { canAccessFeatureByPlan } from "@/lib/workspace-features";
 
-type Plan = "free" | "personal" | "pro" | "team" | "enterprise";
+type Plan = "free" | "go" | "pro" | "team" | "standard" | "enterprise";
 type WorkspaceRole = "owner" | "admin" | "member";
 
 type WorkspaceContext = {
@@ -19,7 +19,8 @@ type WorkspaceContext = {
 
 function normalizePlan(input: string | null | undefined): Plan {
   const plan = String(input ?? "free").trim().toLowerCase();
-  if (plan === "personal" || plan === "pro" || plan === "team" || plan === "enterprise") return plan;
+  if (plan === "personal") return "go";
+  if (plan === "go" || plan === "pro" || plan === "team" || plan === "standard" || plan === "enterprise") return plan;
   return "free";
 }
 
@@ -115,7 +116,6 @@ export function TopbarNav({
 
   const showAnalytics = Boolean(
     idForLinks &&
-      (activePlan === "team" || activePlan === "enterprise") &&
       canViewAnalytics(
         currentMember
           ? {

@@ -4,7 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   assertBilling,
-  assertCheckoutPlan,
+  normalizeCheckoutPlan,
   checkoutCancelUrl,
   checkoutMode,
   checkoutPaymentMethodTypes,
@@ -49,12 +49,12 @@ export async function POST(req: Request) {
     const billing = body.billing;
     const seatsRaw = body.seats;
 
-    assertCheckoutPlan(plan);
+    const normalizedPlan = normalizeCheckoutPlan(plan);
     assertBilling(billing);
 
-    const seats = normalizeSeats(plan, seatsRaw);
+    const seats = normalizeSeats(normalizedPlan, seatsRaw);
 
-    const priceId = requireEnv(priceEnvKey(plan, billing));
+    const priceId = requireEnv(priceEnvKey(normalizedPlan, billing));
     const price = await stripe.prices.retrieve(priceId);
     const paymentMethodTypes = checkoutPaymentMethodTypes(price.currency);
 
@@ -129,14 +129,14 @@ export async function POST(req: Request) {
         ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
         metadata: {
           supabase_user_id: userId,
-          plan,
+          plan: normalizedPlan,
           billing,
         },
       },
 
       metadata: {
         supabase_user_id: userId,
-        plan,
+        plan: normalizedPlan,
         billing,
       },
     });

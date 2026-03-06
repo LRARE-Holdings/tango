@@ -16,7 +16,7 @@ export async function GET(
     if (!ent) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!canUseStackDelivery(membership, ent.plan)) {
       return NextResponse.json(
-        { error: "Stack sending is available on Pro, Team, and Enterprise plans." },
+        { error: "Stack sending is available on Pro, Standard, and Enterprise plans." },
         { status: 403 }
       );
     }

@@ -294,7 +294,7 @@ export async function GET(req: Request) {
       countQuery = countQuery.gte("created_at", startIso).lt("created_at", endIso);
     }
 
-    if (quotaPlan === "team") {
+    if (quotaPlan === "team" || quotaPlan === "standard") {
       const workspaceId = String(profRow?.primary_workspace_id ?? "").trim();
       if (workspaceId) {
         countQuery = countQuery.eq("workspace_id", workspaceId);
