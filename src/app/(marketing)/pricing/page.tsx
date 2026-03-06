@@ -37,13 +37,18 @@ function BillingToggle({
   const monthlyActive = billing === "monthly";
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--mk-muted)]">
-        Billing cadence
+      <div className="flex items-center gap-2">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--mk-muted)]">
+          Billing cadence
+        </div>
+        <span className="marketing-accent-chip rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.09em]">
+          annual saves
+        </span>
       </div>
-      <div className="relative inline-grid grid-cols-2 rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-1 shadow-sm">
+      <div className="relative inline-grid grid-cols-2 rounded-xl border border-[var(--mk-accent-border)] bg-[var(--mk-accent-soft)] p-1 shadow-sm">
         <span
           aria-hidden
-          className="pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-xl bg-emerald-600 shadow-[0_6px_16px_rgba(5,150,105,0.35)] transition-transform duration-300 ease-out"
+          className="pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-lg border border-[var(--mk-accent-border)] bg-[var(--mk-surface)] shadow-[var(--mk-shadow-sm)] transition-transform duration-300 ease-out"
           style={{ transform: monthlyActive ? "translateX(0%)" : "translateX(100%)" }}
         />
         <button
@@ -51,7 +56,7 @@ function BillingToggle({
           onClick={() => setBilling("monthly")}
           className={[
             "relative z-10 rounded-xl px-4 py-2 text-sm font-semibold transition-colors duration-300",
-            monthlyActive ? "text-white" : "text-emerald-900 hover:text-emerald-700",
+            monthlyActive ? "text-[var(--mk-fg)]" : "text-[var(--mk-muted)] hover:text-[var(--mk-fg)]",
           ].join(" ")}
         >
           Monthly
@@ -61,7 +66,7 @@ function BillingToggle({
           onClick={() => setBilling("annual")}
           className={[
             "relative z-10 rounded-xl px-4 py-2 text-sm font-semibold transition-colors duration-300",
-            !monthlyActive ? "text-white" : "text-emerald-900 hover:text-emerald-700",
+            !monthlyActive ? "text-[var(--mk-fg)]" : "text-[var(--mk-muted)] hover:text-[var(--mk-fg)]",
           ].join(" ")}
         >
           Annual
@@ -84,18 +89,18 @@ function PlanFamilyToggle({
       <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--mk-muted)]">
         Plan type
       </div>
-      <div className="relative inline-grid grid-cols-2 rounded-2xl border border-slate-300 bg-slate-100 p-1 shadow-sm">
+      <div className="relative inline-grid grid-cols-2 rounded-full border border-[var(--mk-border)] bg-[var(--mk-surface)] p-1 shadow-sm">
         <span
           aria-hidden
-          className="pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-xl bg-slate-900 shadow-[0_8px_18px_rgba(15,23,42,0.28)] transition-transform duration-300 ease-out"
+          className="pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full border border-[var(--mk-border)] bg-[var(--mk-surface-soft)] shadow-[var(--mk-shadow-sm)] transition-transform duration-300 ease-out"
           style={{ transform: businessActive ? "translateX(0%)" : "translateX(100%)" }}
         />
         <button
           type="button"
           onClick={() => setFamily("business")}
           className={[
-            "relative z-10 rounded-xl px-4 py-2 text-sm font-semibold transition-colors duration-300",
-            businessActive ? "text-white" : "text-slate-700 hover:text-slate-900",
+            "relative z-10 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-300",
+            businessActive ? "text-[var(--mk-fg)]" : "text-[var(--mk-muted)] hover:text-[var(--mk-fg)]",
           ].join(" ")}
         >
           Business
@@ -104,8 +109,8 @@ function PlanFamilyToggle({
           type="button"
           onClick={() => setFamily("personal")}
           className={[
-            "relative z-10 rounded-xl px-4 py-2 text-sm font-semibold transition-colors duration-300",
-            !businessActive ? "text-white" : "text-slate-700 hover:text-slate-900",
+            "relative z-10 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-300",
+            !businessActive ? "text-[var(--mk-fg)]" : "text-[var(--mk-muted)] hover:text-[var(--mk-fg)]",
           ].join(" ")}
         >
           Personal
