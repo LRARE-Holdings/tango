@@ -6,6 +6,7 @@ import { DOCUMENT_LIMITS } from "@/lib/document-limits";
 
 type Billing = "monthly" | "annual";
 type PaidPlan = "go" | "pro" | "team" | "standard";
+type PlanFamily = "business" | "personal";
 
 const CHECKOUT_MODE = String(process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_MODE ?? "custom")
   .trim()
@@ -58,6 +59,43 @@ function BillingToggle({
         ].join(" ")}
       >
         Annual
+      </button>
+    </div>
+  );
+}
+
+function PlanFamilyToggle({
+  family,
+  setFamily,
+}: {
+  family: PlanFamily;
+  setFamily: (value: PlanFamily) => void;
+}) {
+  return (
+    <div className="inline-flex items-center rounded-full border border-[var(--mk-border)] bg-[var(--mk-surface)] p-1 shadow-sm">
+      <button
+        type="button"
+        onClick={() => setFamily("business")}
+        className={[
+          "rounded-full px-4 py-2 text-sm font-semibold transition",
+          family === "business"
+            ? "marketing-cta-primary"
+            : "text-[var(--mk-muted)] hover:bg-[var(--mk-surface-soft)]",
+        ].join(" ")}
+      >
+        Business
+      </button>
+      <button
+        type="button"
+        onClick={() => setFamily("personal")}
+        className={[
+          "rounded-full px-4 py-2 text-sm font-semibold transition",
+          family === "personal"
+            ? "marketing-cta-primary"
+            : "text-[var(--mk-muted)] hover:bg-[var(--mk-surface-soft)]",
+        ].join(" ")}
+      >
+        Personal
       </button>
     </div>
   );
@@ -191,6 +229,7 @@ function planCtaLabel({
 }
 
 export default function PricingPage() {
+  const [family, setFamily] = useState<PlanFamily>("business");
   const [billing, setBilling] = useState<Billing>("annual");
   const [teamSeats, setTeamSeats] = useState(5);
   const [standardSeats, setStandardSeats] = useState(5);
@@ -284,7 +323,7 @@ export default function PricingPage() {
         <div className="max-w-2xl">
           <div className="text-xs font-semibold tracking-widest text-[var(--mk-muted)]">PRICING</div>
           <h1 className="marketing-hero mt-2 text-4xl sm:text-5xl">
-            Personal and business plans.<span className="text-[var(--mk-accent)]"> Clear limits.</span>
+            Simple pricing.<span className="text-[var(--mk-accent)]"> Built for work.</span>
           </h1>
           <p className="mt-4 text-base leading-relaxed text-[var(--mk-muted)]">
             Receipt records delivery, access, review activity, and acknowledgement. Choose the plan that
@@ -292,9 +331,13 @@ export default function PricingPage() {
           </p>
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <BillingToggle billing={billing} setBilling={setBilling} />
+        <div className="mt-8 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <PlanFamilyToggle family={family} setFamily={setFamily} />
+            <BillingToggle billing={billing} setBilling={setBilling} />
+          </div>
           <div className="text-xs text-[var(--mk-muted)]">
+            {family === "business" ? "Business plans shown." : "Personal plans shown."}{" "}
             {billing === "annual"
               ? "Billed annually. Prices shown as effective monthly."
               : "Billed monthly."}{" "}
@@ -316,189 +359,210 @@ export default function PricingPage() {
         ) : null}
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 pb-12">
-        <div className="mb-4 text-xs font-semibold tracking-widest text-[var(--mk-muted)]">PERSONAL PLANS</div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <PlanCard
-            name="Free"
-            description="Free forever for low-volume, self-managed sharing."
-            priceLine={priceLabel(0)}
-            ctaLabel="Start free"
-            ctaHref="/get-started"
-            bullets={[
-              `${DOCUMENT_LIMITS.freeTotalPerUser} documents total cap`,
-              "Delivery + access record",
-              "Review activity + acknowledgement",
-              "No password protection",
-              "No email sending",
-            ]}
-            finePrint="After 10 documents, upgrade to continue creating new receipts."
-          />
+      {family === "personal" ? (
+        <section className="mx-auto max-w-6xl px-6 pb-12">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="text-xs font-semibold tracking-widest text-[var(--mk-muted)]">PERSONAL PLANS</div>
+            <button
+              type="button"
+              onClick={() => setFamily("business")}
+              className="text-xs font-semibold underline text-[var(--mk-muted)] hover:opacity-80"
+            >
+              View business plans
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <PlanCard
+              name="Free"
+              description="Free forever for low-volume, self-managed sharing."
+              priceLine={priceLabel(0)}
+              ctaLabel="Start free"
+              ctaHref="/get-started"
+              bullets={[
+                `${DOCUMENT_LIMITS.freeTotalPerUser} documents total cap`,
+                "Delivery + access record",
+                "Review activity + acknowledgement",
+                "No password protection",
+                "No email sending",
+              ]}
+              finePrint="After 10 documents, upgrade to continue creating new receipts."
+            />
 
-          <PlanCard
-            name="Go"
-            description="For individuals who need stronger share controls without inbox sending."
-            priceLine={priceLabel(goPrice)}
-            ctaLabel={planCtaLabel({ authState, loading: checkoutLoading === "go", planLabel: "Go" })}
-            ctaOnClick={() => void goCheckout("go")}
-            bullets={[
-              `${DOCUMENT_LIMITS.goPerMonth} documents per month`,
-              "Password protection",
-              "No email sending",
-            ]}
-            finePrint={
-              billing === "annual"
-                ? "£5/mo effective, billed annually."
-                : "£8/mo billed monthly."
-            }
-          />
+            <PlanCard
+              name="Go"
+              description="For individuals who need stronger share controls without inbox sending."
+              priceLine={priceLabel(goPrice)}
+              ctaLabel={planCtaLabel({ authState, loading: checkoutLoading === "go", planLabel: "Go" })}
+              ctaOnClick={() => void goCheckout("go")}
+              bullets={[
+                `${DOCUMENT_LIMITS.goPerMonth} documents per month`,
+                "Password protection",
+                "No email sending",
+              ]}
+              finePrint={billing === "annual" ? "£5/mo effective, billed annually." : "£8/mo billed monthly."}
+            />
 
-          <PlanCard
-            name="Pro"
-            description="Keep as-is for higher volume and advanced personal workflows."
-            priceLine={priceLabel(proPrice)}
-            ctaLabel={planCtaLabel({ authState, loading: checkoutLoading === "pro", planLabel: "Pro" })}
-            ctaOnClick={() => void goCheckout("pro")}
-            highlight
-            bullets={[
-              `${DOCUMENT_LIMITS.proPerMonth} documents per month`,
-              "Everything in Go",
-              "Email sending",
-              "Templates and defaults",
-              "Saved recipients",
-            ]}
-            finePrint="Pro features and limits remain unchanged."
-          />
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-6 pb-12">
-        <div className="mb-4 text-xs font-semibold tracking-widest text-[var(--mk-muted)]">BUSINESS PLANS</div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="flex h-full flex-col rounded-3xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-6 shadow-sm">
-            <div className="text-sm font-semibold text-[var(--mk-fg)]">Team</div>
-            <div className="mt-1 text-sm leading-relaxed text-[var(--mk-muted)]">
-              Entry business tier with seat pricing and shared templates/contacts.
-            </div>
-            <div className="mt-5 text-3xl font-semibold tracking-tight text-[var(--mk-fg)]">
-              {formatGBP(teamPriceTotal)}
-              <span className="text-base font-semibold text-[var(--mk-muted)]">/mo</span>
-            </div>
-            <div className="mt-2 text-xs text-[var(--mk-muted)]">
-              {formatGBP(teamPricePerSeat)} per seat / month ({billing === "annual" ? "billed annually" : "billed monthly"})
-            </div>
-
-            <div className="mt-6">
-              <div className="flex items-center justify-between text-sm">
-                <div className="font-semibold text-[var(--mk-fg)]">Seats</div>
-                <div className="text-[var(--mk-muted)]">{teamSeats}</div>
+            <PlanCard
+              name="Pro"
+              description="Keep as-is for higher volume and advanced personal workflows."
+              priceLine={priceLabel(proPrice)}
+              ctaLabel={planCtaLabel({ authState, loading: checkoutLoading === "pro", planLabel: "Pro" })}
+              ctaOnClick={() => void goCheckout("pro")}
+              highlight
+              bullets={[
+                `${DOCUMENT_LIMITS.proPerMonth} documents per month`,
+                "Everything in Go",
+                "Email sending",
+                "Templates and defaults",
+                "Saved recipients",
+              ]}
+              finePrint="Pro features and limits remain unchanged."
+            />
+          </div>
+        </section>
+      ) : (
+        <section className="mx-auto max-w-6xl px-6 pb-12">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="text-xs font-semibold tracking-widest text-[var(--mk-muted)]">BUSINESS PLANS</div>
+            <button
+              type="button"
+              onClick={() => setFamily("personal")}
+              className="text-xs font-semibold underline text-[var(--mk-muted)] hover:opacity-80"
+            >
+              View personal plans
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="flex h-full flex-col rounded-3xl border border-[var(--mk-border)] bg-[var(--mk-surface)] p-6 shadow-sm">
+              <div className="text-sm font-semibold text-[var(--mk-fg)]">Team</div>
+              <div className="mt-1 text-sm leading-relaxed text-[var(--mk-muted)]">
+                Entry business tier with seat pricing and shared templates/contacts.
               </div>
-              <input
-                type="range"
-                min={2}
-                max={50}
-                value={teamSeats}
-                onChange={(event) => setTeamSeats(Number(event.target.value))}
-                className="mt-3 w-full"
-              />
-            </div>
+              <div className="mt-5 text-3xl font-semibold tracking-tight text-[var(--mk-fg)]">
+                {formatGBP(teamPriceTotal)}
+                <span className="text-base font-semibold text-[var(--mk-muted)]">/mo</span>
+              </div>
+              <div className="mt-2 text-xs text-[var(--mk-muted)]">
+                {formatGBP(teamPricePerSeat)} per seat / month ({billing === "annual" ? "billed annually" : "billed monthly"})
+              </div>
 
-            <div className="mt-6 space-y-2 text-sm text-[var(--mk-muted)]">
-              {["100 documents per month", "Password protection", "No email sending", "Templates", "Contacts", "No department groups"].map(
-                (bullet) => (
+              <div className="mt-6 rounded-xl border border-[var(--mk-border)] p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="font-semibold text-[var(--mk-fg)]">Seats</div>
+                  <div className="text-[var(--mk-muted)]">{teamSeats}</div>
+                </div>
+                <input
+                  type="range"
+                  min={2}
+                  max={50}
+                  value={teamSeats}
+                  onChange={(event) => setTeamSeats(Number(event.target.value))}
+                  className="mt-3 w-full"
+                />
+              </div>
+
+              <div className="mt-6 space-y-2 text-sm text-[var(--mk-muted)]">
+                {[
+                  "100 documents per month",
+                  "Password protection",
+                  "No email sending",
+                  "Templates",
+                  "Contacts",
+                  "No department groups",
+                ].map((bullet) => (
                   <div key={bullet} className="flex gap-2">
                     <span className="mt-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--mk-muted-2)]" />
                     <span>{bullet}</span>
                   </div>
-                )
-              )}
-            </div>
-
-            <div className="mt-auto pt-6">
-              <button
-                type="button"
-                onClick={() => void goCheckout("team", teamSeats)}
-                className="inline-flex w-full items-center justify-center rounded-full marketing-cta-primary px-5 py-3 text-sm font-semibold shadow-sm transition"
-              >
-                {planCtaLabel({ authState, loading: checkoutLoading === "team", planLabel: "Team" })}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex h-full flex-col rounded-3xl border border-[var(--mk-border-strong)] bg-[var(--mk-surface)] p-6 shadow-[var(--mk-shadow-md)]">
-            <div className="marketing-accent-chip absolute hidden rounded-full px-3 py-1 text-xs font-semibold shadow-sm lg:inline-flex">
-              Popular business
-            </div>
-            <div className="text-sm font-semibold text-[var(--mk-fg)]">Standard</div>
-            <div className="mt-1 text-sm leading-relaxed text-[var(--mk-muted)]">
-              For teams that need compliance reporting, department groups, and bulk sends.
-            </div>
-            <div className="mt-5 text-3xl font-semibold tracking-tight text-[var(--mk-fg)]">
-              {formatGBP(standardPriceTotal)}
-              <span className="text-base font-semibold text-[var(--mk-muted)]">/mo</span>
-            </div>
-            <div className="mt-2 text-xs text-[var(--mk-muted)]">
-              {formatGBP(standardPricePerSeat)} per seat / month ({billing === "annual" ? "billed annually" : "billed monthly"})
-            </div>
-
-            <div className="mt-6">
-              <div className="flex items-center justify-between text-sm">
-                <div className="font-semibold text-[var(--mk-fg)]">Seats</div>
-                <div className="text-[var(--mk-muted)]">{standardSeats}</div>
+                ))}
               </div>
-              <input
-                type="range"
-                min={2}
-                max={100}
-                value={standardSeats}
-                onChange={(event) => setStandardSeats(Number(event.target.value))}
-                className="mt-3 w-full"
-              />
-              <div className="mt-1 text-xs text-[var(--mk-muted)]">Documents included: {standardDocs} per month</div>
+
+              <div className="mt-auto pt-6">
+                <button
+                  type="button"
+                  onClick={() => void goCheckout("team", teamSeats)}
+                  className="inline-flex w-full items-center justify-center rounded-full marketing-cta-primary px-5 py-3 text-sm font-semibold shadow-sm transition"
+                >
+                  {planCtaLabel({ authState, loading: checkoutLoading === "team", planLabel: "Team" })}
+                </button>
+              </div>
             </div>
 
-            <div className="mt-6 space-y-2 text-sm text-[var(--mk-muted)]">
-              {[
-                "250 documents per seat per month",
-                "Compliance reporting",
-                "Department groups",
-                "Bulk sends",
-                "Priority support",
-                "Advanced exports",
-              ].map((bullet) => (
-                <div key={bullet} className="flex gap-2">
-                  <span className="mt-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--mk-muted-2)]" />
-                  <span>{bullet}</span>
+            <div className="relative flex h-full flex-col rounded-3xl border border-[var(--mk-border-strong)] bg-[var(--mk-surface)] p-6 shadow-[var(--mk-shadow-md)]">
+              <div className="marketing-accent-chip absolute -top-3 left-6 rounded-full px-3 py-1 text-xs font-semibold shadow-sm">
+                Popular business
+              </div>
+              <div className="text-sm font-semibold text-[var(--mk-fg)]">Standard</div>
+              <div className="mt-1 text-sm leading-relaxed text-[var(--mk-muted)]">
+                For teams that need compliance reporting, department groups, and bulk sends.
+              </div>
+              <div className="mt-5 text-3xl font-semibold tracking-tight text-[var(--mk-fg)]">
+                {formatGBP(standardPriceTotal)}
+                <span className="text-base font-semibold text-[var(--mk-muted)]">/mo</span>
+              </div>
+              <div className="mt-2 text-xs text-[var(--mk-muted)]">
+                {formatGBP(standardPricePerSeat)} per seat / month ({billing === "annual" ? "billed annually" : "billed monthly"})
+              </div>
+
+              <div className="mt-6 rounded-xl border border-[var(--mk-border)] p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="font-semibold text-[var(--mk-fg)]">Seats</div>
+                  <div className="text-[var(--mk-muted)]">{standardSeats}</div>
                 </div>
-              ))}
+                <input
+                  type="range"
+                  min={2}
+                  max={100}
+                  value={standardSeats}
+                  onChange={(event) => setStandardSeats(Number(event.target.value))}
+                  className="mt-3 w-full"
+                />
+                <div className="mt-1 text-xs text-[var(--mk-muted)]">Documents included: {standardDocs} per month</div>
+              </div>
+
+              <div className="mt-6 space-y-2 text-sm text-[var(--mk-muted)]">
+                {[
+                  "250 documents per seat per month",
+                  "Compliance reporting",
+                  "Department groups",
+                  "Bulk sends",
+                  "Priority support",
+                  "Advanced exports",
+                ].map((bullet) => (
+                  <div key={bullet} className="flex gap-2">
+                    <span className="mt-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--mk-muted-2)]" />
+                    <span>{bullet}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-auto pt-6">
+                <button
+                  type="button"
+                  onClick={() => void goCheckout("standard", standardSeats)}
+                  className="inline-flex w-full items-center justify-center rounded-full marketing-cta-primary px-5 py-3 text-sm font-semibold shadow-sm transition"
+                >
+                  {planCtaLabel({ authState, loading: checkoutLoading === "standard", planLabel: "Standard" })}
+                </button>
+              </div>
             </div>
 
-            <div className="mt-auto pt-6">
-              <button
-                type="button"
-                onClick={() => void goCheckout("standard", standardSeats)}
-                className="inline-flex w-full items-center justify-center rounded-full marketing-cta-primary px-5 py-3 text-sm font-semibold shadow-sm transition"
-              >
-                {planCtaLabel({ authState, loading: checkoutLoading === "standard", planLabel: "Standard" })}
-              </button>
-            </div>
+            <PlanCard
+              name="Enterprise"
+              description="Enterprise remains custom-scoped and custom-priced."
+              priceLine={<span>Custom</span>}
+              ctaLabel="Contact sales"
+              ctaHref="/enterprise"
+              bullets={[
+                "Custom volume and security review",
+                "Procurement and legal support",
+                "Contractual controls",
+              ]}
+              finePrint="Enterprise: as-is."
+            />
           </div>
-
-          <PlanCard
-            name="Enterprise"
-            description="Enterprise remains custom-scoped and custom-priced."
-            priceLine={<span>Custom</span>}
-            ctaLabel="Contact sales"
-            ctaHref="/enterprise"
-            bullets={[
-              "Custom volume and security review",
-              "Procurement and legal support",
-              "Contractual controls",
-            ]}
-            finePrint="Enterprise: as-is."
-          />
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="mx-auto max-w-6xl px-6 pb-14">
         <div className="max-w-2xl">
@@ -508,84 +572,99 @@ export default function PricingPage() {
 
         <div className="mt-6 overflow-hidden rounded-3xl border border-[var(--mk-border)] bg-[var(--mk-surface)] shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse">
-              <thead>
-                <tr className="bg-[var(--mk-surface-soft)] text-left text-xs font-semibold text-[var(--mk-muted)]">
-                  <th className="px-4 py-4">Feature</th>
-                  <th className="px-4 py-4">Free</th>
-                  <th className="px-4 py-4">Go</th>
-                  <th className="px-4 py-4">Pro</th>
-                  <th className="px-4 py-4">Team</th>
-                  <th className="px-4 py-4">Standard</th>
-                  <th className="px-4 py-4">Enterprise</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                <tr className="border-t border-[var(--mk-border)]">
-                  <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Documents included</th>
-                  <td className="px-4 py-4 text-[var(--mk-muted)]">10 total</td>
-                  <td className="px-4 py-4 text-[var(--mk-muted)]">50/mo</td>
-                  <td className="px-4 py-4 text-[var(--mk-muted)]">500/mo</td>
-                  <td className="px-4 py-4 text-[var(--mk-muted)]">100/mo</td>
-                  <td className="px-4 py-4 text-[var(--mk-muted)]">250/seat/mo</td>
-                  <td className="px-4 py-4 text-[var(--mk-muted)]">Custom</td>
-                </tr>
-                <tr className="border-t border-[var(--mk-border)]">
-                  <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Password protection</th>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                </tr>
-                <tr className="border-t border-[var(--mk-border)]">
-                  <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Email sending</th>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                </tr>
-                <tr className="border-t border-[var(--mk-border)]">
-                  <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Templates + contacts</th>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                </tr>
-                <tr className="border-t border-[var(--mk-border)]">
-                  <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Department groups</th>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                </tr>
-                <tr className="border-t border-[var(--mk-border)]">
-                  <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Compliance reporting</th>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                </tr>
-                <tr className="border-t border-[var(--mk-border)]">
-                  <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Bulk sends</th>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Dash /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                  <td className="px-4 py-4"><Tick /></td>
-                </tr>
-              </tbody>
-            </table>
+            {family === "business" ? (
+              <table className="w-full min-w-[760px] border-collapse">
+                <thead>
+                  <tr className="bg-[var(--mk-surface-soft)] text-left text-xs font-semibold text-[var(--mk-muted)]">
+                    <th className="px-4 py-4">Feature</th>
+                    <th className="px-4 py-4">Team</th>
+                    <th className="px-4 py-4">Standard</th>
+                    <th className="px-4 py-4">Enterprise</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Documents included</th>
+                    <td className="px-4 py-4 text-[var(--mk-muted)]">100/mo</td>
+                    <td className="px-4 py-4 text-[var(--mk-muted)]">250/seat/mo</td>
+                    <td className="px-4 py-4 text-[var(--mk-muted)]">Custom</td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Password protection</th>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Email sending</th>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Templates + contacts</th>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Department groups</th>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Compliance reporting</th>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Bulk sends</th>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full min-w-[700px] border-collapse">
+                <thead>
+                  <tr className="bg-[var(--mk-surface-soft)] text-left text-xs font-semibold text-[var(--mk-muted)]">
+                    <th className="px-4 py-4">Feature</th>
+                    <th className="px-4 py-4">Free</th>
+                    <th className="px-4 py-4">Go</th>
+                    <th className="px-4 py-4">Pro</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Documents included</th>
+                    <td className="px-4 py-4 text-[var(--mk-muted)]">10 total</td>
+                    <td className="px-4 py-4 text-[var(--mk-muted)]">50/mo</td>
+                    <td className="px-4 py-4 text-[var(--mk-muted)]">500/mo</td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Password protection</th>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Email sending</th>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                  <tr className="border-t border-[var(--mk-border)]">
+                    <th className="px-4 py-4 font-medium text-[var(--mk-fg)]">Templates + contacts</th>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Dash /></td>
+                    <td className="px-4 py-4"><Tick /></td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </section>
