@@ -1390,7 +1390,6 @@ export default function AccountPage() {
       {/* Billing details (diagnostics) */}
       <Section
         title="Billing details"
-        subtitle="Useful diagnostics while you’re finishing Stripe + webhook wiring."
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div
@@ -1403,9 +1402,6 @@ export default function AccountPage() {
             <div className="mt-2 text-sm font-semibold break-all">
               {meLoading ? "Loading…" : me?.stripe_customer_id ?? "—"}
             </div>
-            <div className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
-              Set during checkout/webhook. If missing, check your checkout route metadata and webhook logs.
-            </div>
           </div>
 
           <div
@@ -1417,9 +1413,6 @@ export default function AccountPage() {
             </div>
             <div className="mt-2 text-sm font-semibold break-all">
               {meLoading ? "Loading…" : me?.stripe_subscription_id ?? "—"}
-            </div>
-            <div className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
-              Updated on subscription lifecycle events.
             </div>
           </div>
         </div>
