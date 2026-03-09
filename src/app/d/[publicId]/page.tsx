@@ -394,10 +394,6 @@ export default function PublicDocPage({
         {/* Header */}
         <header className="app-content-card flex flex-col items-start justify-between gap-4 rounded-[24px] p-5 sm:flex-row sm:items-center sm:p-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 app-chip text-xs font-semibold">
-              <Image src="/receipt-logo.svg" alt="Receipt" width={90} height={35} className="h-3.5 w-auto" />
-              <span>Secure document review</span>
-            </div>
             <h1 className="text-2xl app-hero-title sm:text-3xl">{title}</h1>
             <p className="max-w-2xl text-sm app-subtle">
               Review this document and submit acknowledgement when complete.

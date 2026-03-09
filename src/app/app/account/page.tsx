@@ -1274,10 +1274,6 @@ export default function AccountPage() {
                     ? `${mfaVerifiedCount} verified factor${mfaVerifiedCount === 1 ? "" : "s"} configured.`
                     : "No verified factor yet. Add an authenticator app to protect your account."}
                 </div>
-                <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-                  Primary flow: <Link href="/app/setup/mfa" className="underline underline-offset-4">Security setup</Link>.
-                  {" "}This settings section remains available as backup.
-                </div>
                 <div
                   className="mt-2 text-xs leading-relaxed"
                   style={{ color: mfaRequired && !mfaEnabled ? "#ff3b30" : "var(--muted2)" }}
@@ -1483,10 +1479,6 @@ export default function AccountPage() {
             </div>
           </div>
 
-          <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--muted2)" }}>
-            This UI expects <code>/api/app/account</code> (DELETE). If you haven’t built it yet, disable this section
-            or wire the route before enabling deletion.
-          </div>
         </div>
       </Section>
 
