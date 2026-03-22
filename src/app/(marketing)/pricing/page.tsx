@@ -435,7 +435,7 @@ export default function PricingPage() {
                 "Templates and defaults",
                 "Saved recipients",
               ]}
-              finePrint="Pro features and limits remain unchanged."
+              finePrint={billing === "annual" ? "£24/mo effective, billed annually." : "£29/mo billed monthly."}
             />
           </div>
         </section>
@@ -568,7 +568,7 @@ export default function PricingPage() {
 
             <PlanCard
               name="Enterprise"
-              description="Enterprise remains custom-scoped and custom-priced."
+              description="Custom-scoped for organisations with procurement, compliance, or governance requirements."
               priceLine={<span>Custom</span>}
               ctaLabel="Contact sales"
               ctaHref="/enterprise"
@@ -577,7 +577,7 @@ export default function PricingPage() {
                 "Procurement and legal support",
                 "Contractual controls",
               ]}
-              finePrint="Enterprise: as-is."
+              finePrint="Bespoke pricing based on requirements."
             />
           </div>
         </section>

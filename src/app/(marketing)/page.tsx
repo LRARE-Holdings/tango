@@ -134,7 +134,7 @@ export default async function Home({
             Now live
           </div>
           <h1 className="marketing-hero max-w-4xl text-5xl sm:text-6xl lg:text-7xl">
-            Certainty,{" "}
+            Beyond{" "}
             <HeroDeliveredWord />
           </h1>
           <p className="max-w-2xl text-base leading-relaxed text-[var(--mk-muted)] sm:text-lg">

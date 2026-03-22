@@ -338,7 +338,7 @@ export default function BillingSuccessPage() {
         </section>
       ) : (
         <section
-          className="border p-6 md:p-7"
+          className="mx-auto max-w-3xl border p-6 md:p-7"
           style={{ borderColor: "var(--border)", background: "var(--card)", borderRadius: 14 }}
         >
           <div className="flex gap-2 flex-wrap">

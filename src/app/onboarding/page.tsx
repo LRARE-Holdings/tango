@@ -26,7 +26,7 @@ type NeedKey =
   | "team_sharing"
   | "templates_defaults";
 
-type RecommendedPlan = "free" | "go" | "pro" | "team" | "enterprise";
+type RecommendedPlan = "free" | "go" | "pro" | "team" | "standard" | "enterprise";
 type Billing = "monthly" | "annual";
 const CHECKOUT_MODE = String(process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_MODE ?? "custom")
   .trim()
@@ -106,6 +106,13 @@ const PLAN_BRAND: Record<
     summary: "The right fit for multi-seat access, shared workflows, and central control.",
     accent: "#ca6d1d",
     accentSoft: "rgba(202, 109, 29, 0.16)",
+  },
+  standard: {
+    title: "Standard",
+    strap: "Compliance ready",
+    summary: "Full-featured business tier with compliance reporting, department groups, and bulk sends.",
+    accent: "#7c3aed",
+    accentSoft: "rgba(124, 58, 237, 0.14)",
   },
   enterprise: {
     title: "Enterprise",
@@ -374,8 +381,8 @@ export default function OnboardingPage() {
       billing,
     };
 
-    // Only Team uses seats.
-    if (plan === "team") body.seats = seats;
+    // Team and Standard both use seats.
+    if (plan === "team" || plan === "standard") body.seats = seats;
 
     if (CHECKOUT_MODE === "custom") {
       try {
@@ -398,7 +405,7 @@ export default function OnboardingPage() {
         source: "onboarding",
         return_to: "/onboarding?step=result",
       });
-      if (plan === "team") params.set("seats", String(seats));
+      if (plan === "team" || plan === "standard") params.set("seats", String(seats));
       router.replace(`/checkout?${params.toString()}`);
       return;
     }
@@ -854,7 +861,7 @@ export default function OnboardingPage() {
                       </button>
                     </div>
 
-                    {recommendation.plan === "team" && (
+                    {(recommendation.plan === "team" || recommendation.plan === "standard") && (
                       <div className="mt-5 border-t pt-5" style={{ borderColor: "var(--border)" }}>
                         <div className="flex items-center justify-between gap-3">
                           <div>

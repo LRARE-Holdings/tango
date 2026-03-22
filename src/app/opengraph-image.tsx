@@ -26,7 +26,7 @@ export default function OpenGraphImage() {
         <div style={{ fontSize: 26, opacity: 0.86 }}>Receipt</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ fontSize: 66, fontWeight: 700, lineHeight: 1.06 }}>
-            Certainty, delivered.
+            Beyond delivery.
           </div>
           <div style={{ fontSize: 30, opacity: 0.84 }}>
             Proof of delivery, review activity and acknowledgement.
